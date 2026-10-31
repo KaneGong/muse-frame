@@ -1,0 +1,172 @@
+{
+  "groups": {
+    "scene": "Scene",
+    "ratio": "Aspect ratio",
+    "shot": "Framing",
+    "angle": "Camera angle",
+    "placement": "Subject placement",
+    "lens": "Perspective",
+    "expression": "Expression",
+    "gaze": "Gaze",
+    "makeup": "Makeup",
+    "hair": "Hair",
+    "skin": "Skin texture",
+    "accessory": "Accessories",
+    "prop": "Props",
+    "time": "Time of day",
+    "weather": "Weather",
+    "light": "Lighting",
+    "color": "Color palette",
+    "contrast": "Exposure & contrast",
+    "depth": "Background & depth",
+    "finish": "Image finish",
+    "scale": "Subject size"
+  },
+  "options": {
+    "scene": {
+      "咖啡馆窗边": "Café window",
+      "城市街角": "City street corner",
+      "纯色影棚": "Solid-color studio",
+      "居家室内": "Home interior",
+      "花园绿地": "Garden",
+      "海边": "Seaside"
+    },
+    "ratio": {
+      "3:4 竖幅": "3:4 portrait",
+      "16:9 横幅": "16:9 landscape",
+      "4:5 竖幅": "4:5 portrait",
+      "1:1 方形": "1:1 square"
+    },
+    "shot": {
+      "全身": "Full body",
+      "七分身": "Three-quarter length",
+      "半身": "Half body",
+      "胸像": "Bust portrait",
+      "面部特写": "Face close-up",
+      "环境远景": "Environmental long shot"
+    },
+    "angle": {
+      "平视": "Eye level",
+      "轻微俯拍": "Slight high angle",
+      "轻微仰拍": "Slight low angle",
+      "高位俯拍": "High angle"
+    },
+    "placement": {
+      "居中": "Centered",
+      "左侧留白": "Space on left",
+      "右侧留白": "Space on right",
+      "环境占比大": "More environment"
+    },
+    "lens": {
+      "环境感": "Environmental perspective",
+      "自然视角": "Natural perspective",
+      "中长焦感": "Telephoto perspective"
+    },
+    "expression": {
+      "自然浅笑": "Natural smile",
+      "平静": "Calm",
+      "开朗": "Cheerful",
+      "若有所思": "Thoughtful",
+      "轻松慵懒": "Relaxed"
+    },
+    "gaze": {
+      "看镜头": "Look at camera",
+      "看画面左侧": "Look left",
+      "看画面右侧": "Look right",
+      "低头看手中物": "Look down at held object",
+      "轻闭眼": "Eyes gently closed"
+    },
+    "makeup": {
+      "沿用人物图": "Use person reference",
+      "清淡自然": "Light and natural",
+      "素颜感": "Bare-faced look",
+      "精致妆容": "Refined makeup"
+    },
+    "hair": {
+      "沿用人物图": "Use person reference",
+      "自然披发": "Natural loose hair",
+      "低马尾": "Low ponytail",
+      "风吹发丝": "Wind-swept hair"
+    },
+    "skin": {
+      "真实纹理": "Natural texture",
+      "克制修饰": "Subtle retouching",
+      "轻微光泽": "Soft glow"
+    },
+    "accessory": {
+      "沿用服装图": "Use outfit reference",
+      "不加配饰": "No accessories",
+      "简洁首饰": "Minimal jewelry",
+      "墨镜": "Sunglasses"
+    },
+    "prop": {
+      "不额外添加": "No extra props",
+      "花束": "Bouquet",
+      "杯子": "Cup",
+      "手袋": "Handbag",
+      "书本": "Book"
+    },
+    "time": {
+      "白天": "Daytime",
+      "清晨": "Early morning",
+      "傍晚": "Evening",
+      "夜晚": "Night"
+    },
+    "weather": {
+      "晴天": "Sunny",
+      "阴天": "Overcast",
+      "雨后": "After rain",
+      "细雨": "Light rain"
+    },
+    "light": {
+      "窗边柔光": "Soft window light",
+      "侧面硬光": "Hard side light",
+      "柔和逆光": "Soft backlight",
+      "正面闪光": "Front flash",
+      "棚拍柔光": "Soft studio light"
+    },
+    "color": {
+      "中性自然": "Natural neutral",
+      "冷灰低饱和": "Muted cool gray",
+      "温暖克制": "Subtle warmth",
+      "黑白": "Black and white"
+    },
+    "contrast": {
+      "自然均衡": "Natural balance",
+      "高调柔和": "Soft high key",
+      "低调深沉": "Deep low key",
+      "强明暗": "Strong contrast"
+    },
+    "depth": {
+      "主体突出": "Subject isolated",
+      "环境清楚": "Clear environment",
+      "前景层次": "Layered foreground"
+    },
+    "finish": {
+      "干净数码": "Clean digital",
+      "轻微胶片": "Subtle film",
+      "轻柔扩散": "Soft diffusion"
+    },
+    "scale": {
+      "环境占比大": "More environment",
+      "人物与环境均衡": "Balanced subject and environment",
+      "人物占比大": "Larger subject"
+    }
+  },
+  "styles": {
+    "自然清透": "Natural and airy",
+    "冷调情绪": "Cool and moody",
+    "明暗光影": "Light and shadow",
+    "暖调柔光": "Warm soft light",
+    "高调柔雾": "Soft high-key haze",
+    "闪光直出": "Direct flash",
+    "冷蓝空间": "Cool blue space"
+  },
+  "categories": {
+    "sitting": "Sitting",
+    "standing": "Standing",
+    "lying": "Lying down",
+    "kneeling": "Kneeling",
+    "other": "Other"
+  }
+}

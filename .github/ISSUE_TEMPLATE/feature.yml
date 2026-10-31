@@ -1,0 +1,14 @@
+name: Idea / 功能建议
+description: Describe the workflow you want to improve / 描述希望改进的流程
+title: "[Idea]: "
+body:
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Your workflow and problem / 使用流程与问题
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome / 希望达到的结果

@@ -1,0 +1,36 @@
+name: Bug report / 问题反馈
+description: Report a reproducible problem / 提交可复现问题
+title: "[Bug]: "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: "Do not upload credentials, private images or your database. 请勿上传凭据、私人照片或数据库。"
+  - type: input
+    id: version
+    attributes:
+      label: Version / 版本
+      placeholder: 0.4.0-beta.1
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: macOS, chip and App/WebUI / 系统、芯片及运行方式
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps and expected/actual behavior / 复现步骤、预期与实际结果
+    validations:
+      required: true
+  - type: textarea
+    id: platform
+    attributes:
+      label: Platform and model if relevant / 相关平台与模型
+      description: "Do not include account identifiers or tokens. 不要附账号标识或令牌。"
+  - type: textarea
+    id: media
+    attributes:
+      label: Optional redacted screenshots / 可选脱敏截图

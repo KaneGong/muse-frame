@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Usage and workflows / 使用交流
+    url: https://github.com/KaneGong/muse-frame/discussions
+    about: Questions and ideas when Discussions is enabled / 启用后的使用交流

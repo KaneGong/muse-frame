@@ -1,0 +1,558 @@
+{
+  "openai/gpt-image-2-5-flare": {
+    "description": "Merged text-to-image & image-to-image for OpenAIGPTImage25TextToImageRequest",
+    "properties": {
+      "image": {
+        "description": "The image(s) to edit. Each image should be a png, webp, or jpg file less than 50MB. You can provide up to 16 images.",
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 16,
+        "minItems": 1,
+        "title": "Image",
+        "type": "array"
+      },
+      "input_fidelity": {
+        "description": "Control how much effort the model will exert to match the style and features, especially facial features, of input images. Supports high and low. Defaults to low.",
+        "enum": [
+          "high",
+          "low"
+        ],
+        "title": "OpenAIInputFidelity",
+        "type": "string"
+      },
+      "mask": {
+        "description": "An additional image whose fully transparent areas (e.g. where alpha is zero) indicate where image should be edited. If there are multiple images provided, the mask will be applied on the first image. Must be a valid PNG file, less than 4MB, and have the same dimensions as image.",
+        "title": "Mask",
+        "type": "string"
+      },
+      "moderation": {
+        "default": "auto",
+        "description": "Content moderation level for gpt-image-2-5.",
+        "enum": [
+          "low",
+          "auto"
+        ],
+        "title": "OpenAIModerationLevel",
+        "type": "string"
+      },
+      "n": {
+        "default": 1,
+        "description": "The number of images to generate. Must be between 1 and 10.",
+        "maximum": 10,
+        "minimum": 1,
+        "title": "N",
+        "type": "integer"
+      },
+      "output_compression": {
+        "default": 100,
+        "description": "Compression level (0-100%) for generated images. Only for webp/jpeg formats.",
+        "maximum": 100,
+        "minimum": 0,
+        "title": "Output Compression",
+        "type": "integer"
+      },
+      "output_format": {
+        "default": "png",
+        "description": "The format of generated images.",
+        "enum": [
+          "png",
+          "jpeg",
+          "webp"
+        ],
+        "title": "OpenAIOutputFormat",
+        "type": "string"
+      },
+      "partial_images": {
+        "default": 0,
+        "description": "Number of partial images for streaming responses. 0 means single complete image.",
+        "maximum": 3,
+        "minimum": 0,
+        "title": "Partial Images",
+        "type": "integer"
+      },
+      "prompt": {
+        "description": "A text description of the desired image(s). Maximum 32000 characters for gpt-image-2-5.",
+        "maxLength": 32000,
+        "title": "Prompt",
+        "type": "string"
+      },
+      "quality": {
+        "default": "auto",
+        "description": "Image quality setting. auto, low, medium, high, xhigh, max supported for gpt-image-2-5. Defaults to auto.",
+        "enum": [
+          "auto",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "type": "string"
+      },
+      "size": {
+        "default": "auto",
+        "description": "Image size for gpt-image-2-5. Supports 1024x1024, 1536x1024, 1024x1536 (1K), 2048x2048 / 2048x1152 (2K), 3840x2160 / 2160x3840 (4K), or auto.",
+        "enum": [
+          "1024*1024",
+          "1536*1024",
+          "1024*1536",
+          "2048*1536",
+          "1536*2048",
+          "1008*1792",
+          "2048*2048",
+          "2048*1152",
+          "2016*3584",
+          "3840*2160",
+          "2160*3840",
+          "auto"
+        ],
+        "type": "string",
+        "x-resolution-mapping": {
+          "1008*1792": "9:16",
+          "1024*1024": "1:1",
+          "1024*1536": "2:3",
+          "1536*1024": "3:2",
+          "1536*2048": "3:4",
+          "2016*3584": "9:16(2k)",
+          "2048*1152": "16:9(2k)",
+          "2048*1536": "4:3",
+          "2048*2048": "1:1(2k)",
+          "2160*3840": "9:16(4k)",
+          "3840*2160": "16:9(4k)",
+          "auto": "auto"
+        }
+      },
+      "stream": {
+        "default": false,
+        "description": "Generate/edit image in streaming mode.",
+        "title": "Stream",
+        "type": "boolean"
+      },
+      "transparent_background": {
+        "default": false,
+        "description": "Whether to generate images with a transparent background.",
+        "type": "boolean"
+      },
+      "user": {
+        "description": "A unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse.",
+        "title": "User",
+        "type": "string"
+      }
+    },
+    "title": "OpenAI GPT Image 2.5 Flare — 日常出图，快且质量高 (text-to-image & image-to-image)",
+    "type": "object",
+    "x-capabilities": {
+      "conflicts": [],
+      "description": "OpenAI GPT Image 2.5 Flare — 日常出图，快且质量高",
+      "model_type": "image",
+      "modes": [
+        {
+          "exclude_fields": [
+            "image"
+          ],
+          "mode": "text-to-image",
+          "required_fields": [
+            "prompt"
+          ]
+        },
+        {
+          "mode": "image-to-image",
+          "required_fields": [
+            "prompt",
+            "image"
+          ]
+        }
+      ],
+      "ui_fields": [
+        "prompt",
+        "quality",
+        "transparent_background",
+        "size",
+        "n",
+        "image"
+      ]
+    },
+    "x-ui-visible-fields": [
+      "prompt",
+      "quality",
+      "transparent_background",
+      "size",
+      "n",
+      "image"
+    ]
+  },
+  "openai/gpt-image-2-5-sunburst": {
+    "description": "Merged text-to-image & image-to-image for OpenAIGPTImage25TextToImageRequest",
+    "properties": {
+      "image": {
+        "description": "The image(s) to edit. Each image should be a png, webp, or jpg file less than 50MB. You can provide up to 16 images.",
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 16,
+        "minItems": 1,
+        "title": "Image",
+        "type": "array"
+      },
+      "input_fidelity": {
+        "description": "Control how much effort the model will exert to match the style and features, especially facial features, of input images. Supports high and low. Defaults to low.",
+        "enum": [
+          "high",
+          "low"
+        ],
+        "title": "OpenAIInputFidelity",
+        "type": "string"
+      },
+      "mask": {
+        "description": "An additional image whose fully transparent areas (e.g. where alpha is zero) indicate where image should be edited. If there are multiple images provided, the mask will be applied on the first image. Must be a valid PNG file, less than 4MB, and have the same dimensions as image.",
+        "title": "Mask",
+        "type": "string"
+      },
+      "moderation": {
+        "default": "auto",
+        "description": "Content moderation level for gpt-image-2-5.",
+        "enum": [
+          "low",
+          "auto"
+        ],
+        "title": "OpenAIModerationLevel",
+        "type": "string"
+      },
+      "n": {
+        "default": 1,
+        "description": "The number of images to generate. Must be between 1 and 10.",
+        "maximum": 10,
+        "minimum": 1,
+        "title": "N",
+        "type": "integer"
+      },
+      "output_compression": {
+        "default": 100,
+        "description": "Compression level (0-100%) for generated images. Only for webp/jpeg formats.",
+        "maximum": 100,
+        "minimum": 0,
+        "title": "Output Compression",
+        "type": "integer"
+      },
+      "output_format": {
+        "default": "png",
+        "description": "The format of generated images.",
+        "enum": [
+          "png",
+          "jpeg",
+          "webp"
+        ],
+        "title": "OpenAIOutputFormat",
+        "type": "string"
+      },
+      "partial_images": {
+        "default": 0,
+        "description": "Number of partial images for streaming responses. 0 means single complete image.",
+        "maximum": 3,
+        "minimum": 0,
+        "title": "Partial Images",
+        "type": "integer"
+      },
+      "prompt": {
+        "description": "A text description of the desired image(s). Maximum 32000 characters for gpt-image-2-5.",
+        "maxLength": 32000,
+        "title": "Prompt",
+        "type": "string"
+      },
+      "quality": {
+        "default": "auto",
+        "description": "Image quality setting. auto, low, medium, high, xhigh, max supported for gpt-image-2-5. Defaults to auto.",
+        "enum": [
+          "auto",
+          "low",
+          "medium",
+          "high",
+          "xhigh",
+          "max"
+        ],
+        "type": "string"
+      },
+      "size": {
+        "default": "auto",
+        "description": "Image size for gpt-image-2-5. Supports 1024x1024, 1536x1024, 1024x1536 (1K), 2048x2048 / 2048x1152 (2K), 3840x2160 / 2160x3840 (4K), or auto.",
+        "enum": [
+          "1024*1024",
+          "1536*1024",
+          "1024*1536",
+          "2048*1536",
+          "1536*2048",
+          "1008*1792",
+          "2048*2048",
+          "2048*1152",
+          "2016*3584",
+          "3840*2160",
+          "2160*3840",
+          "auto"
+        ],
+        "type": "string",
+        "x-resolution-mapping": {
+          "1008*1792": "9:16",
+          "1024*1024": "1:1",
+          "1024*1536": "2:3",
+          "1536*1024": "3:2",
+          "1536*2048": "3:4",
+          "2016*3584": "9:16(2k)",
+          "2048*1152": "16:9(2k)",
+          "2048*1536": "4:3",
+          "2048*2048": "1:1(2k)",
+          "2160*3840": "9:16(4k)",
+          "3840*2160": "16:9(4k)",
+          "auto": "auto"
+        }
+      },
+      "stream": {
+        "default": false,
+        "description": "Generate/edit image in streaming mode.",
+        "title": "Stream",
+        "type": "boolean"
+      },
+      "transparent_background": {
+        "default": false,
+        "description": "Whether to generate images with a transparent background.",
+        "type": "boolean"
+      },
+      "user": {
+        "description": "A unique identifier representing your end-user, which can help OpenAI to monitor and detect abuse.",
+        "title": "User",
+        "type": "string"
+      }
+    },
+    "title": "OpenAI GPT Image 2.5 Sunburst — 编辑精度优先 (text-to-image & image-to-image)",
+    "type": "object",
+    "x-capabilities": {
+      "conflicts": [],
+      "description": "OpenAI GPT Image 2.5 Sunburst — 编辑精度优先",
+      "model_type": "image",
+      "modes": [
+        {
+          "exclude_fields": [
+            "image"
+          ],
+          "mode": "text-to-image",
+          "required_fields": [
+            "prompt"
+          ]
+        },
+        {
+          "mode": "image-to-image",
+          "required_fields": [
+            "prompt",
+            "image"
+          ]
+        }
+      ],
+      "ui_fields": [
+        "prompt",
+        "quality",
+        "transparent_background",
+        "size",
+        "n",
+        "image"
+      ]
+    },
+    "x-ui-visible-fields": [
+      "prompt",
+      "quality",
+      "transparent_background",
+      "size",
+      "n",
+      "image"
+    ]
+  },
+  "vertex/nano-banana-2-1": {
+    "description": "Merged text-to-image & image-to-image for NanoBanana21GenerateRequest",
+    "oneOf": [
+      {
+        "not": {
+          "required": [
+            "video_uri"
+          ]
+        },
+        "required": [
+          "video"
+        ],
+        "title": "With video"
+      },
+      {
+        "not": {
+          "required": [
+            "video"
+          ]
+        },
+        "required": [
+          "video_uri"
+        ],
+        "title": "With video_uri"
+      }
+    ],
+    "properties": {
+      "aspect_ratio": {
+        "default": "1:1",
+        "description": "输出宽高比，默认 1:1。",
+        "enum": [
+          "8:1",
+          "4:1",
+          "21:9",
+          "16:9",
+          "3:2",
+          "4:3",
+          "5:4",
+          "1:1",
+          "4:5",
+          "3:4",
+          "2:3",
+          "9:16",
+          "1:4",
+          "1:8"
+        ],
+        "title": "Aspect Ratio",
+        "type": "string",
+        "x-resolution-mapping": {
+          "16:9": "1456*816",
+          "1:1": "1024*1024",
+          "1:4": "256*1024",
+          "1:8": "128*1024",
+          "21:9": "1568*672",
+          "2:3": "896*1344",
+          "3:2": "1344*896",
+          "3:4": "928*1232",
+          "4:1": "1024*256",
+          "4:3": "1232*928",
+          "4:5": "1024*1280",
+          "5:4": "1280*1024",
+          "8:1": "1024*128",
+          "9:16": "816*1456"
+        }
+      },
+      "enable_grounding": {
+        "default": false,
+        "description": "启用 Google Search web + image grounding。",
+        "title": "Enable Grounding",
+        "type": "boolean"
+      },
+      "image": {
+        "description": "参考图 URL / gs:// / data URL / base64，最多 14 张；可与 video 或 video_uri 同传。",
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 14,
+        "title": "Image",
+        "type": "array"
+      },
+      "prompt": {
+        "description": "画面描述或编辑指令。",
+        "minLength": 1,
+        "title": "Prompt",
+        "type": "string"
+      },
+      "resolution": {
+        "default": "1K",
+        "description": "输出分辨率档位：1K / 2K / 4K，默认 1K。",
+        "enum": [
+          "1K",
+          "2K",
+          "4K"
+        ],
+        "title": "Resolution",
+        "type": "string",
+        "x-resolution-mapping": {
+          "1K": "1K",
+          "2K": "2K",
+          "4K": "4K"
+        }
+      },
+      "thinking_level": {
+        "default": "medium",
+        "description": "思考深度：minimal / medium / high，默认 medium。",
+        "enum": [
+          "minimal",
+          "medium",
+          "high"
+        ],
+        "title": "Thinking Level",
+        "type": "string"
+      },
+      "video": {
+        "description": "Inline video URLs, data URLs, or base64 strings; up to 10 clips. Mutually exclusive with video_uri.",
+        "items": {
+          "type": "string"
+        },
+        "maxItems": 10,
+        "title": "Video",
+        "type": "array"
+      },
+      "video_uri": {
+        "description": "A single gs:// or YouTube URL. Mutually exclusive with video; may be sent together with image.",
+        "title": "Video URI",
+        "type": "string"
+      }
+    },
+    "title": "Google's next-gen image model with thinking, grounding, multi-video and video-to-image support (text-to-image & image-to-image)",
+    "type": "object",
+    "x-capabilities": {
+      "conflicts": [
+        {
+          "fields": [
+            "video",
+            "video_uri"
+          ],
+          "reason": "video and video_uri are mutually exclusive; use video_uri for gs:// or YouTube links",
+          "type": "mutual_exclusion"
+        }
+      ],
+      "description": "Google's next-gen image model with thinking, grounding, multi-video and video-to-image support",
+      "model_type": "image",
+      "modes": [
+        {
+          "mode": "text-to-image",
+          "required_fields": [
+            "prompt"
+          ]
+        },
+        {
+          "mode": "image-to-image",
+          "required_fields": [
+            "prompt",
+            "image"
+          ]
+        }
+      ],
+      "ui_fields": [
+        "prompt",
+        "aspect_ratio",
+        "resolution",
+        "image",
+        "video",
+        "video_uri",
+        "thinking_level",
+        "enable_grounding"
+      ]
+    },
+    "x-media-constraints": {
+      "image": {
+        "max_count": 14,
+        "max_file_size_mb": 10
+      },
+      "video": {
+        "max_count": 10,
+        "max_file_size_mb": 200
+      }
+    },
+    "x-ui-visible-fields": [
+      "prompt",
+      "aspect_ratio",
+      "resolution",
+      "image",
+      "video",
+      "video_uri",
+      "thinking_level",
+      "enable_grounding"
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+# Preserve upstream notice text verbatim, including original whitespace.
+licenses/** -whitespace
+LICENSE -whitespace

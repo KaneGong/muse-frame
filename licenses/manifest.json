@@ -1,0 +1,663 @@
+[
+  {
+    "name": "altgraph",
+    "version": "0.17.5",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/altgraph/LICENSE"
+    ],
+    "project_urls": [
+      "Documentation, https://altgraph.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/altgraph/issues",
+      "Repository, https://github.com/ronaldoussoren/altgraph"
+    ]
+  },
+  {
+    "name": "annotated-types",
+    "version": "0.8.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/annotated-types/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/annotated-types/annotated-types",
+      "Source, https://github.com/annotated-types/annotated-types",
+      "Changelog, https://github.com/annotated-types/annotated-types/releases"
+    ]
+  },
+  {
+    "name": "anyio",
+    "version": "4.15.1",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/anyio/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Documentation, https://anyio.readthedocs.io/en/latest/",
+      "Changelog, https://anyio.readthedocs.io/en/stable/versionhistory.html",
+      "Source code, https://github.com/agronholm/anyio",
+      "Issue tracker, https://github.com/agronholm/anyio/issues"
+    ]
+  },
+  {
+    "name": "attrs",
+    "version": "26.1.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/attrs/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Documentation, https://www.attrs.org/",
+      "Changelog, https://www.attrs.org/en/stable/changelog.html",
+      "GitHub, https://github.com/python-attrs/attrs",
+      "Funding, https://github.com/sponsors/hynek",
+      "Tidelift, https://tidelift.com/subscription/pkg/pypi-attrs?utm_source=pypi-attrs&utm_medium=pypi"
+    ]
+  },
+  {
+    "name": "bottle",
+    "version": "0.13.4",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/bottle/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Source, https://github.com/bottlepy/bottle"
+    ]
+  },
+  {
+    "name": "certifi",
+    "version": "2026.10.23",
+    "license_metadata": "MPL-2.0",
+    "notice_files": [
+      "licenses/certifi/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Source, https://github.com/certifi/python-certifi"
+    ]
+  },
+  {
+    "name": "cffi",
+    "version": "2.1.1",
+    "license_metadata": "MIT-0",
+    "notice_files": [
+      "licenses/cffi/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Documentation, https://cffi.readthedocs.io/",
+      "Changelog, https://cffi.readthedocs.io/en/latest/whatsnew.html",
+      "Download, https://github.com/python-cffi/cffi/releases",
+      "Contact, https://groups.google.com/forum/#!forum/python-cffi",
+      "Source Code, https://github.com/python-cffi/cffi",
+      "Issue Tracker, https://github.com/python-cffi/cffi/issues"
+    ]
+  },
+  {
+    "name": "click",
+    "version": "8.5.0",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/click/licenses/LICENSE.txt"
+    ],
+    "project_urls": [
+      "Changes, https://click.palletsprojects.com/page/changes/",
+      "Chat, https://discord.gg/pallets",
+      "Documentation, https://click.palletsprojects.com/",
+      "Donate, https://palletsprojects.com/donate",
+      "Source, https://github.com/pallets/click/"
+    ]
+  },
+  {
+    "name": "cryptography",
+    "version": "50.0.2",
+    "license_metadata": "Apache-2.0 OR BSD-3-Clause",
+    "notice_files": [
+      "licenses/cryptography/licenses/LICENSE",
+      "licenses/cryptography/licenses/LICENSE.APACHE",
+      "licenses/cryptography/licenses/LICENSE.BSD"
+    ],
+    "project_urls": [
+      "changelog, https://cryptography.io/en/latest/changelog/",
+      "documentation, https://cryptography.io/",
+      "homepage, https://github.com/pyca/cryptography",
+      "issues, https://github.com/pyca/cryptography/issues",
+      "source, https://github.com/pyca/cryptography/"
+    ]
+  },
+  {
+    "name": "h11",
+    "version": "0.16.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/h11/licenses/LICENSE.txt"
+    ],
+    "project_urls": []
+  },
+  {
+    "name": "httpcore",
+    "version": "1.0.9",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/httpcore/licenses/LICENSE.md"
+    ],
+    "project_urls": [
+      "Documentation, https://www.encode.io/httpcore",
+      "Homepage, https://www.encode.io/httpcore/",
+      "Source, https://github.com/encode/httpcore"
+    ]
+  },
+  {
+    "name": "httpx",
+    "version": "0.28.1",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/httpx/licenses/LICENSE.md"
+    ],
+    "project_urls": [
+      "Changelog, https://github.com/encode/httpx/blob/master/CHANGELOG.md",
+      "Documentation, https://www.python-httpx.org",
+      "Homepage, https://github.com/encode/httpx",
+      "Source, https://github.com/encode/httpx"
+    ]
+  },
+  {
+    "name": "httpx-sse",
+    "version": "0.4.3",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/httpx-sse/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/florimondmanca/httpx-sse"
+    ]
+  },
+  {
+    "name": "idna",
+    "version": "3.20",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/idna/licenses/LICENSE.md"
+    ],
+    "project_urls": [
+      "Changelog, https://github.com/kjd/idna/blob/master/HISTORY.md",
+      "Issue tracker, https://github.com/kjd/idna/issues",
+      "Source, https://github.com/kjd/idna"
+    ]
+  },
+  {
+    "name": "jsonschema",
+    "version": "4.26.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/jsonschema/licenses/COPYING"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/python-jsonschema/jsonschema",
+      "Documentation, https://python-jsonschema.readthedocs.io/",
+      "Issues, https://github.com/python-jsonschema/jsonschema/issues/",
+      "Funding, https://github.com/sponsors/Julian",
+      "Tidelift, https://tidelift.com/subscription/pkg/pypi-jsonschema?utm_source=pypi-jsonschema&utm_medium=referral&utm_campaign=pypi-link",
+      "Changelog, https://github.com/python-jsonschema/jsonschema/blob/main/CHANGELOG.rst",
+      "Source, https://github.com/python-jsonschema/jsonschema"
+    ]
+  },
+  {
+    "name": "jsonschema-specifications",
+    "version": "2025.9.1",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/jsonschema-specifications/licenses/COPYING"
+    ],
+    "project_urls": [
+      "Documentation, https://jsonschema-specifications.readthedocs.io/",
+      "Homepage, https://github.com/python-jsonschema/jsonschema-specifications",
+      "Issues, https://github.com/python-jsonschema/jsonschema-specifications/issues/",
+      "Funding, https://github.com/sponsors/Julian",
+      "Tidelift, https://tidelift.com/subscription/pkg/pypi-jsonschema-specifications?utm_source=pypi-jsonschema-specifications&utm_medium=referral&utm_campaign=pypi-link",
+      "Source, https://github.com/python-jsonschema/jsonschema-specifications"
+    ]
+  },
+  {
+    "name": "macholib",
+    "version": "1.16.4",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/macholib/LICENSE"
+    ],
+    "project_urls": [
+      "Documentation, https://macholib.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/macholib/issues",
+      "Repository, https://github.com/ronaldoussoren/macholib"
+    ]
+  },
+  {
+    "name": "mcp",
+    "version": "1.30.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/mcp/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://modelcontextprotocol.io",
+      "Documentation, https://py.sdk.modelcontextprotocol.io/v1/",
+      "Repository, https://github.com/modelcontextprotocol/python-sdk",
+      "Issues, https://github.com/modelcontextprotocol/python-sdk/issues"
+    ]
+  },
+  {
+    "name": "packaging",
+    "version": "26.3",
+    "license_metadata": "Apache-2.0 OR BSD-2-Clause",
+    "notice_files": [
+      "licenses/packaging/licenses/LICENSE",
+      "licenses/packaging/licenses/LICENSE.APACHE",
+      "licenses/packaging/licenses/LICENSE.BSD"
+    ],
+    "project_urls": [
+      "Documentation, https://packaging.pypa.io/",
+      "Source, https://github.com/pypa/packaging"
+    ]
+  },
+  {
+    "name": "pillow",
+    "version": "12.2.0",
+    "license_metadata": "MIT-CMU",
+    "notice_files": [
+      "licenses/pillow/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Release notes, https://pillow.readthedocs.io/en/stable/releasenotes/index.html",
+      "Changelog, https://github.com/python-pillow/Pillow/releases",
+      "Documentation, https://pillow.readthedocs.io",
+      "Funding, https://tidelift.com/subscription/pkg/pypi-pillow?utm_source=pypi-pillow&utm_medium=pypi",
+      "Homepage, https://python-pillow.github.io",
+      "Mastodon, https://fosstodon.org/@pillow",
+      "Source, https://github.com/python-pillow/Pillow"
+    ]
+  },
+  {
+    "name": "pip",
+    "version": "26.1.1",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pip/licenses/LICENSE.txt",
+      "licenses/pip/licenses/src/pip/_vendor/cachecontrol/LICENSE.txt",
+      "licenses/pip/licenses/src/pip/_vendor/certifi/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/distlib/LICENSE.txt",
+      "licenses/pip/licenses/src/pip/_vendor/distro/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/idna/LICENSE.md",
+      "licenses/pip/licenses/src/pip/_vendor/msgpack/COPYING",
+      "licenses/pip/licenses/src/pip/_vendor/packaging/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/packaging/LICENSE.APACHE",
+      "licenses/pip/licenses/src/pip/_vendor/packaging/LICENSE.BSD",
+      "licenses/pip/licenses/src/pip/_vendor/pkg_resources/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/platformdirs/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/pygments/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/pyproject_hooks/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/requests/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/resolvelib/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/rich/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/tomli/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/tomli_w/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/truststore/LICENSE",
+      "licenses/pip/licenses/src/pip/_vendor/urllib3/LICENSE.txt"
+    ],
+    "project_urls": [
+      "Changelog, https://pip.pypa.io/en/stable/news/",
+      "Documentation, https://pip.pypa.io",
+      "Homepage, https://pip.pypa.io/",
+      "Source, https://github.com/pypa/pip"
+    ]
+  },
+  {
+    "name": "proxy_tools",
+    "version": "0.1.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/proxy_tools/LICENSE"
+    ],
+    "project_urls": [],
+    "notice_source": "https://raw.githubusercontent.com/jtushman/proxy_tools/master/LICENSE.txt",
+    "license_metadata_note": "Wheel metadata reports MIT; upstream LICENSE.txt supplies BSD-2-Clause text. Both provenance facts retained; supplied upstream notice is reproduced."
+  },
+  {
+    "name": "pycparser",
+    "version": "3.12",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/pycparser/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/eliben/pycparser"
+    ]
+  },
+  {
+    "name": "pydantic",
+    "version": "2.14.2",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pydantic/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/pydantic/pydantic",
+      "Documentation, https://pydantic.dev/docs/validation/latest/get-started/",
+      "Funding, https://github.com/sponsors/samuelcolvin",
+      "Source, https://github.com/pydantic/pydantic",
+      "Changelog, https://pydantic.dev/docs/validation/latest/get-started/changelog/"
+    ]
+  },
+  {
+    "name": "pydantic-settings",
+    "version": "2.16.2",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pydantic-settings/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/pydantic/pydantic-settings",
+      "Funding, https://github.com/sponsors/samuelcolvin",
+      "Source, https://github.com/pydantic/pydantic-settings",
+      "Changelog, https://github.com/pydantic/pydantic-settings/releases",
+      "Documentation, https://docs.pydantic.dev/dev-v2/concepts/pydantic_settings/"
+    ]
+  },
+  {
+    "name": "pydantic_core",
+    "version": "2.50.2",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pydantic_core/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Funding, https://github.com/sponsors/samuelcolvin",
+      "Homepage, https://github.com/pydantic",
+      "Source, https://github.com/pydantic/pydantic/tree/main/pydantic-core"
+    ]
+  },
+  {
+    "name": "pyinstaller",
+    "version": "6.22.0",
+    "license_metadata": "GPLv2-or-later with a special exception which allows to use PyInstaller to build and distribute non-free programs (including commercial ones)",
+    "notice_files": [
+      "licenses/pyinstaller/licenses/COPYING.txt"
+    ],
+    "project_urls": [
+      "Homepage, https://pyinstaller.org",
+      "Documentation, https://pyinstaller.org",
+      "Source Code, https://github.com/pyinstaller/pyinstaller",
+      "Release Notes, https://pyinstaller.org/en/stable/CHANGES.html"
+    ]
+  },
+  {
+    "name": "pyinstaller-hooks-contrib",
+    "version": "2026.9",
+    "license_metadata": "License :: OSI Approved :: Apache Software License; License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
+    "notice_files": [
+      "licenses/pyinstaller-hooks-contrib/licenses/LICENSE"
+    ],
+    "project_urls": []
+  },
+  {
+    "name": "PyJWT",
+    "version": "2.15.1",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/PyJWT/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/jpadilla/pyjwt"
+    ]
+  },
+  {
+    "name": "pyobjc-core",
+    "version": "13.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pyobjc-core/License.txt"
+    ],
+    "project_urls": [
+      "Documentation, https://pyobjc.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/pyobjc/issues",
+      "Repository, https://github.com/ronaldoussoren/pyobjc"
+    ],
+    "notice_source": "https://raw.githubusercontent.com/ronaldoussoren/pyobjc/v13.0/pyobjc-core/License.txt"
+  },
+  {
+    "name": "pyobjc-framework-Cocoa",
+    "version": "13.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pyobjc-framework-Cocoa/licenses/LICENSE.txt"
+    ],
+    "project_urls": [
+      "Documentation, https://pyobjc.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/pyobjc/issues",
+      "Repository, https://github.com/ronaldoussoren/pyobjc"
+    ]
+  },
+  {
+    "name": "pyobjc-framework-Quartz",
+    "version": "13.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pyobjc-framework-Quartz/licenses/LICENSE.txt"
+    ],
+    "project_urls": [
+      "Documentation, https://pyobjc.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/pyobjc/issues",
+      "Repository, https://github.com/ronaldoussoren/pyobjc"
+    ]
+  },
+  {
+    "name": "pyobjc-framework-Security",
+    "version": "13.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pyobjc-framework-Security/License.txt"
+    ],
+    "project_urls": [
+      "Documentation, https://pyobjc.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/pyobjc/issues",
+      "Repository, https://github.com/ronaldoussoren/pyobjc"
+    ],
+    "notice_basis": "Shared PyObjC upstream project; MIT metadata, common PyObjC license."
+  },
+  {
+    "name": "pyobjc-framework-UniformTypeIdentifiers",
+    "version": "13.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pyobjc-framework-UniformTypeIdentifiers/License.txt"
+    ],
+    "project_urls": [
+      "Documentation, https://pyobjc.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/pyobjc/issues",
+      "Repository, https://github.com/ronaldoussoren/pyobjc"
+    ],
+    "notice_basis": "Shared PyObjC upstream project; MIT metadata, common PyObjC license."
+  },
+  {
+    "name": "pyobjc-framework-WebKit",
+    "version": "13.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/pyobjc-framework-WebKit/licenses/LICENSE.txt"
+    ],
+    "project_urls": [
+      "Documentation, https://pyobjc.readthedocs.io/en/latest/",
+      "Issue tracker, https://github.com/ronaldoussoren/pyobjc/issues",
+      "Repository, https://github.com/ronaldoussoren/pyobjc"
+    ]
+  },
+  {
+    "name": "python-dotenv",
+    "version": "1.2.4",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/python-dotenv/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Source, https://github.com/theskumar/python-dotenv"
+    ]
+  },
+  {
+    "name": "python-multipart",
+    "version": "0.0.33",
+    "license_metadata": "Apache-2.0",
+    "notice_files": [
+      "licenses/python-multipart/licenses/LICENSE.txt"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/Kludex/python-multipart",
+      "Documentation, https://kludex.github.io/python-multipart/",
+      "Changelog, https://github.com/Kludex/python-multipart/blob/master/CHANGELOG.md",
+      "Source, https://github.com/Kludex/python-multipart"
+    ]
+  },
+  {
+    "name": "pywebview",
+    "version": "6.2.1",
+    "license_metadata": "BSD 3-Clause License\n\nCopyright (c) 2014-2017, Roman Sirokov\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redistributions of source code must retain the above copyright notice, this\n  list of conditions and the following disclaimer.\n\n* Redistributions in binary form must reproduce the above copyright notice,\n  this list of conditions and the following disclaimer in the documentation\n  and/or other materials provided with the distribution.\n\n* Neither the name of the copyright holder nor the names of its\n  contributors may be used to endorse or promote products derived from\n  this software without specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\"\nAND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE\nIMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\nDISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE\nFOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL\nDAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR\nSERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER\nCAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,\nOR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\nOF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n",
+    "notice_files": [
+      "licenses/pywebview/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://pywebview.flowrl.com/",
+      "Repository, https://github.com/r0x0r/pywebview"
+    ]
+  },
+  {
+    "name": "referencing",
+    "version": "0.37.0",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/referencing/licenses/COPYING"
+    ],
+    "project_urls": [
+      "Documentation, https://referencing.readthedocs.io/",
+      "Homepage, https://github.com/python-jsonschema/referencing",
+      "Issues, https://github.com/python-jsonschema/referencing/issues/",
+      "Funding, https://github.com/sponsors/Julian",
+      "Tidelift, https://tidelift.com/subscription/pkg/pypi-referencing?utm_source=pypi-referencing&utm_medium=referral&utm_campaign=pypi-link",
+      "Changelog, https://referencing.readthedocs.io/en/stable/changes/",
+      "Source, https://github.com/python-jsonschema/referencing"
+    ]
+  },
+  {
+    "name": "rpds-py",
+    "version": "2026.9.1",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/rpds-py/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Documentation, https://rpds.readthedocs.io/",
+      "Funding, https://github.com/sponsors/Julian",
+      "Homepage, https://github.com/crate-py/rpds",
+      "Issues, https://github.com/crate-py/rpds/issues/",
+      "Source, https://github.com/crate-py/rpds",
+      "Tidelift, https://tidelift.com/subscription/pkg/pypi-rpds-py?utm_source=pypi-rpds-py&utm_medium=referral&utm_campaign=pypi-link",
+      "Upstream, https://github.com/orium/rpds"
+    ]
+  },
+  {
+    "name": "setuptools",
+    "version": "84.2.1",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/LICENSE",
+      "licenses/setuptools/LICENSE",
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/LICENSE",
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/licenses/LICENSE.APACHE",
+      "licenses/setuptools/licenses/LICENSE.BSD",
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/licenses/LICENSE",
+      "licenses/setuptools/licenses/LICENSE.txt",
+      "licenses/setuptools/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Source, https://github.com/pypa/setuptools",
+      "Documentation, https://setuptools.pypa.io/",
+      "Changelog, https://setuptools.pypa.io/en/stable/history.html"
+    ]
+  },
+  {
+    "name": "sse-starlette",
+    "version": "3.6.0",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/sse-starlette/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/sysid/sse-starlette",
+      "Repository, https://github.com/sysid/sse-starlette",
+      "Issues, https://github.com/sysid/sse-starlette/issues",
+      "Source, https://github.com/sysid/sse-starlette"
+    ]
+  },
+  {
+    "name": "starlette",
+    "version": "1.10.0",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/starlette/licenses/LICENSE.md"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/Kludex/starlette",
+      "Documentation, https://starlette.dev/",
+      "Changelog, https://starlette.dev/release-notes/",
+      "Funding, https://github.com/sponsors/Kludex",
+      "Source, https://github.com/Kludex/starlette"
+    ]
+  },
+  {
+    "name": "typing-inspection",
+    "version": "0.4.4",
+    "license_metadata": "MIT",
+    "notice_files": [
+      "licenses/typing-inspection/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Homepage, https://github.com/pydantic/typing-inspection",
+      "Documentation, https://pydantic.github.io/typing-inspection/dev/",
+      "Source, https://github.com/pydantic/typing-inspection",
+      "Changelog, https://github.com/pydantic/typing-inspection/blob/main/HISTORY.md"
+    ]
+  },
+  {
+    "name": "typing_extensions",
+    "version": "4.16.0",
+    "license_metadata": "PSF-2.0",
+    "notice_files": [
+      "licenses/typing_extensions/licenses/LICENSE"
+    ],
+    "project_urls": [
+      "Bug Tracker, https://github.com/python/typing_extensions/issues",
+      "Changes, https://github.com/python/typing_extensions/blob/main/CHANGELOG.md",
+      "Documentation, https://typing-extensions.readthedocs.io/",
+      "Home, https://github.com/python/typing_extensions",
+      "Q & A, https://github.com/python/typing/discussions",
+      "Repository, https://github.com/python/typing_extensions"
+    ]
+  },
+  {
+    "name": "uvicorn",
+    "version": "0.54.0",
+    "license_metadata": "BSD-3-Clause",
+    "notice_files": [
+      "licenses/uvicorn/licenses/LICENSE.md"
+    ],
+    "project_urls": [
+      "Changelog, https://uvicorn.dev/release-notes",
+      "Funding, https://github.com/sponsors/Kludex",
+      "Homepage, https://uvicorn.dev/",
+      "Source, https://github.com/Kludex/uvicorn"
+    ]
+  }
+]

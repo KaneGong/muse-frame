@@ -1,0 +1,11 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{JSDOM}=require('jsdom');
+const dir=path.join(__dirname,'../static');
+function fixture({edition='standalone',fail=false}={}){
+ const dom=new JSDOM('<html><body><dialog id="settings-dialog"><div class="dialog-head"></div></dialog><dialog id="standalone-setup"><div class="dialog-head"></div></dialog></body></html>',{url:'http://localhost:8899',runScripts:'outside-only'}),w=dom.window;
+ w.document.documentElement.dataset.edition=edition;let calls=0,changes=[];w.Q={$:id=>w.document.getElementById(id),init:async()=>{calls++;},run:fn=>fn};
+ w.MuseLanguage=require('../static/i18n.js');w.eval(fs.readFileSync(path.join(dir,'i18n-runtime.js'),'utf8'));w.MuseStudioLanguage={create:q=>async(value,options)=>{changes.push([value,options]);if(options?.persist!==false)q.i18n.set(value);}};
+ w.fetch=async url=>({ok:!fail,json:async()=>require(path.join(dir,path.basename(url)))});w.eval(fs.readFileSync(path.join(dir,'i18n-bootstrap.js'),'utf8'));return {dom,w,q:w.Q,calls:()=>calls,changes};
+}
+test('standalone bootstrap keeps language in connection settings and preserves the preference',async()=>{const x=fixture();await x.q.init();assert.equal(x.calls(),1);assert.ok(x.q.i18n);assert.equal(x.w.localStorage.getItem('muse-frame-language'),null);assert.equal(x.w.document.getElementById('connection-language').value,x.q.i18n.get());const select=x.w.document.getElementById('connection-language');select.value='zh-CN';await select.onchange();assert.equal(x.q.i18n.get(),'zh-CN');assert.equal(x.w.document.getElementById('settings-language'),null);assert.equal(x.w.localStorage.getItem('muse-frame-language'),'zh-CN');x.dom.window.close();});
+test('missing catalogs do not prevent startup or create a misleading selector',async()=>{const x=fixture({fail:true});await x.q.init();assert.equal(x.calls(),1);assert.equal(x.q.i18n,undefined);assert.equal(x.w.document.getElementById('connection-language'),null);x.dom.window.close();});
+test('other editions do not activate standalone localization',async()=>{const x=fixture({edition:'open'});await x.q.init();assert.equal(x.calls(),1);assert.equal(x.q.i18n,undefined);assert.equal(x.w.document.getElementById('settings-language'),null);x.dom.window.close();});

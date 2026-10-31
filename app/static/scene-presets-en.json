@@ -1,0 +1,14 @@
+{
+  "cafe": {"name":"Café window","category":"Indoor","summary":"Natural window light, a pale wood table and a relaxed window seat."},
+  "bistro": {"name":"Modern minimalist restaurant","category":"Indoor","summary":"An open layout, simple furniture and soft light for seated portraits."},
+  "window-living": {"name":"Living room with floor-to-ceiling windows","category":"Indoor","summary":"A bright, open living space with wide windows and a distant view."},
+  "bookshop": {"name":"Bookshop café","category":"Indoor","summary":"Open shelves, reading tables and café seating in a quiet, bright space."},
+  "gallery-corridor": {"name":"Art gallery corridor","category":"Indoor","summary":"Exhibition walls and a deep corridor with restrained lighting for full-length portraits."},
+  "minimal-stairs": {"name":"Minimalist staircase","category":"Indoor","summary":"Clean lines, a landing and soft light create clear spatial layers."},
+  "white-studio": {"name":"Daylit white studio","category":"Studio","summary":"A white backdrop and simple platform keep attention on the person and outfit."},
+  "grey-studio": {"name":"Textured grey studio","category":"Studio","summary":"A textured grey backdrop and low stool for sculptural lighting."},
+  "street": {"name":"City street corner","category":"Outdoor","summary":"Stone façades, shop windows and street depth for standing or walking poses."},
+  "park": {"name":"Tree-lined park","category":"Outdoor","summary":"Tree shadows, a path and a wooden bench create a light, natural mood."},
+  "coast": {"name":"Seaside promenade","category":"Outdoor","summary":"The sea, horizon and pale promenade make an open setting."},
+  "rooftop": {"name":"City rooftop terrace","category":"Outdoor","summary":"A distant skyline, low wall and terrace seating create a relaxed urban mood."}
+}

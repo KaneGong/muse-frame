@@ -1,0 +1,40 @@
+/* Focused audit fixes; the accepted desktop visual direction is retained. */
+:root{--muted:#59665f}
+small{font-size:12px}.card-actions button,.image-download-actions button,.task-row button,.project-row button,.pose-favorite,.inspector .row button{font-size:12px;min-height:34px}
+label.button:focus-within{outline:3px solid #a56a1c;outline-offset:3px}
+#inspector-backdrop{position:fixed;inset:0;background:#1c2b2770;z-index:11}
+.inspector{overscroll-behavior:contain}.inspector-head{position:sticky;top:-23px;background:white;z-index:2;padding:8px 0}
+.ref-order{grid-template-columns:repeat(5,minmax(0,1fr))}.ref-mini small{font-size:10px;overflow-wrap:anywhere}.ref-empty{font-size:11px}
+.inspector .row{flex-wrap:wrap}#saved{font-size:12px}#preflight,#draft-note{font-size:12px}
+#toast{max-width:min(600px,92vw);bottom:18px}.section-head .row{min-width:0;flex-wrap:wrap}
+.tool-row{flex-wrap:wrap}.asset-card .button{min-height:34px}.scene-preset-card button{font-size:12px}
+.batch-title{flex-wrap:wrap}.task-row .grow{overflow-wrap:anywhere}dialog{max-height:90dvh}
+.viewer-head .row{min-width:0}.pan{scrollbar-gutter:stable}.viewer-images{min-height:100px}
+@media(max-width:720px){
+ .batchbar{position:static}.section-head{align-items:flex-start}.section-head .row{flex-shrink:1}
+ .scene-preset-grid{grid-template-columns:repeat(auto-fill,minmax(min(235px,100%),1fr))}
+ .viewer-head>div:first-child,.viewer-head .row{max-width:100%}.viewer-head .row{max-height:160px;overflow:auto;justify-content:flex-start}
+ .viewer[open]{gap:8px}.viewer-head button{min-height:36px}.viewer{padding:12px}
+ .preset-row{flex-wrap:wrap}.preset-row .grow{flex-basis:100%}
+}
+@media(max-width:600px){
+ body,body.panel-open{display:flex;flex-direction:column;height:100dvh}
+ .rail{flex:none;display:grid;grid-template-columns:1fr auto auto;padding:10px 12px;gap:7px;border-right:0;border-bottom:1px solid var(--line);overflow:visible}
+ .brand{grid-column:1;grid-row:1;font-size:24px;margin:0;align-self:center}.brand span{display:none}
+ #project-manager{grid-column:2;grid-row:1}#new-project{grid-column:3;grid-row:1}#settings-open{grid-column:1/3;grid-row:2}#projects{grid-column:3;grid-row:2;max-width:43vw}
+ .rail>button,.rail>select{font-size:12px;min-height:36px;padding:7px}
+ .rail nav{grid-column:1/-1;display:flex;flex-direction:row;overflow:auto;gap:4px;margin:2px 0 0;padding-bottom:3px;scrollbar-width:thin}
+ .rail nav button{flex:none;font-size:12px;min-height:40px;padding:8px 10px;white-space:nowrap}
+ .rail-task-status{grid-column:1/-1;margin:0;padding:6px 9px;font-size:12px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center}.rail-task-status>small{font-size:11px}.rail-task-status #rail-task-projects{width:100%;max-height:65px}.rail-task-status #rail-task-projects:empty{display:none}
+ .rail-bottom{grid-column:1/-1;display:flex;align-items:center;gap:6px;padding:0;margin:0}.rail-bottom strong{font-size:11px;flex:1}.rail-bottom small{display:none}.rail-bottom button{font-size:11px;padding:5px 8px}
+ main{flex:1;min-height:0;width:100%}header{padding:12px 14px;gap:8px}header>div:first-child{width:100%}.eyebrow{font-size:10px}
+ #stage{padding:22px 14px}h1{font-size:24px}header #project-name{font-size:18px}.header-actions{width:100%}.header-actions button,.header-actions .button{min-height:38px}
+ .overview{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-card small{overflow-wrap:anywhere}.home-bottom{gap:12px}.home-bottom>div{flex-basis:100%}
+ .asset-grid{grid-template-columns:repeat(auto-fill,minmax(min(165px,100%),1fr));gap:12px}.image-button{height:230px}.card-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .filterbar select{max-width:100%;flex:1;min-width:125px}.filterbar input[type=search]{flex-basis:100%}
+ .pose-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.pose-section .section-head .row{width:100%}.pose-section .section-head input{flex:1;width:120px}
+ .option-grid button{min-height:40px}.card-actions button,.image-download-actions button{min-height:38px}.batchbar button{min-height:38px}
+ .panel-open .inspector{width:100%;max-width:420px;height:100dvh}
+ dialog{padding:18px;max-width:96vw}.dialog-head{gap:12px}.dialog-head button{min-width:36px;min-height:36px}.source-row{flex-wrap:wrap}.diff{grid-template-columns:1fr}
+ .viewer{width:98vw;max-width:98vw;height:96dvh;max-height:96dvh}.viewer-head .row{max-height:170px}.viewer-footer{flex-shrink:0}
+}

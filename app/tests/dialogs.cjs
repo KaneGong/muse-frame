@@ -1,0 +1,23 @@
+const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const {JSDOM}=require('jsdom'),dir=path.join(__dirname,'../static');
+function setup(){
+ const html=fs.readFileSync(path.join(dir,'index.html'),'utf8').replace(/<script[\s\S]*?<\/script>/g,'');
+ const dom=new JSDOM(html,{url:'http://127.0.0.1:8798',runScripts:'outside-only'}),w=dom.window;
+ w.addEventListener=()=>{};
+ w.HTMLDialogElement.prototype.showModal=function(){const e=new w.Event('beforetoggle',{bubbles:false});e.newState='open';this.dispatchEvent(e);this.setAttribute('open','');};
+ w.HTMLDialogElement.prototype.close=function(){this.removeAttribute('open');this.dispatchEvent(new w.Event('close'));};
+ for(const f of ['app','quality'])w.eval(fs.readFileSync(path.join(dir,f+'.js'),'utf8'));
+ const q=w.Q;q.wireDialogs();return {dom,w,q};
+}
+const tick=()=>new Promise(r=>setImmediate(r));
+function pointer(w,target,type,x,y){target.dispatchEvent(new w.MouseEvent(type,{bubbles:true,clientX:x,clientY:y,button:0}));}
+async function cleanup(dom,q){await tick();q.dialogObserver.disconnect();dom.window.close();}
+function bounds(d){d.getBoundingClientRect=()=>({left:100,top:100,right:400,bottom:400});}
+test('toast belongs to the frontmost opened modal, not DOM order, and returns to page on close',async()=>{const {dom,q}=setup();const one=q.$('settings-dialog'),two=q.$('pose-dialog');one.showModal();two.showModal();await tick();q.toast('提示仍可读');assert.equal(q.$('toast').parentElement,two);two.close();await tick();assert.equal(q.$('toast').parentElement,one);one.close();await tick();assert.equal(q.$('toast').parentElement,dom.window.document.body);await cleanup(dom,q);});
+test('outside press and release closes only the top modal and never invokes confirm',async()=>{const {dom,w,q}=setup();let confirmed=0;const parent=q.$('settings-dialog'),child=q.$('pose-dialog');parent.showModal();child.showModal();bounds(parent);bounds(child);q.$('save-pose').onclick=()=>confirmed++;await tick();pointer(w,child,'pointerdown',20,20);pointer(w,child,'pointerup',20,20);assert.equal(child.open,false);assert.equal(parent.open,true);assert.equal(confirmed,0);await cleanup(dom,q);});
+test('clicking content or dragging from content onto backdrop does not dismiss',async()=>{const {dom,w,q}=setup();const d=q.$('pose-dialog');d.showModal();bounds(d);await tick();pointer(w,d,'pointerdown',120,120);pointer(w,d,'pointerup',20,20);assert.equal(d.open,true);pointer(w,q.$('pose-name'),'pointerdown',120,120);pointer(w,q.$('pose-name'),'pointerup',120,120);assert.equal(d.open,true);await cleanup(dom,q);});
+test('cancel prevention protects saving/deletion dialogs from backdrop dismissal',async()=>{const {dom,w,q}=setup();const d=q.$('purge-progress');d.oncancel=e=>e.preventDefault();d.showModal();bounds(d);await tick();pointer(w,d,'pointerdown',20,20);pointer(w,d,'pointerup',20,20);assert.equal(d.open,true);await cleanup(dom,q);});
+test('outside dismissal resolves confirmation as cancelled',async()=>{const {dom,w,q}=setup();const result=q.action({title:'测试确认',confirm:'确认'}),d=q.$('action-dialog');bounds(d);await tick();pointer(w,d,'pointerdown',20,20);pointer(w,d,'pointerup',20,20);assert.equal(await result,null);assert.equal(d.open,false);await cleanup(dom,q);});
+test('dynamic dialogs are tracked and reopening an earlier dialog puts it on top',async()=>{const {dom,w,q}=setup();const d=w.document.createElement('dialog');d.innerHTML='<h2>动态面板</h2>';w.document.body.append(d);d.showModal();await tick();q.toast('动态提示');assert.equal(q.$('toast').parentElement,d);d.close();const other=q.$('pose-dialog');other.showModal();d.showModal();await tick();q.toast('顶层提示');assert.equal(q.$('toast').parentElement,d);await cleanup(dom,q);});
+test('popover is manually promoted above a newly opened dialog and hidden on expiry',async()=>{const {dom,q}=setup();const toast=q.$('toast');let shown=0,hidden=0;toast.showPopover=()=>shown++;toast.hidePopover=()=>hidden++;q.toast('第一条');const a=q.$('pose-dialog');a.showModal();await tick();assert.equal(toast.getAttribute('popover'),'manual');assert.ok(shown>=2);q.hideToast();assert.equal(toast.hidden,true);assert.ok(hidden>=1);await cleanup(dom,q);});
+test('rerendering a dynamic modal never deletes the shared toast or loses its next message',async()=>{const {dom,w,q}=setup();const d=w.document.createElement('dialog');w.document.body.append(d);d.showModal();await tick();q.toast('第一条');d.remove();q.toast('刷新后的提示');await tick();assert.equal(q.$('toast').textContent,'刷新后的提示');assert.equal(q.$('toast').parentElement,w.document.body);await cleanup(dom,q);});
