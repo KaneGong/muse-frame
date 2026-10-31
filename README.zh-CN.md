@@ -2,9 +2,9 @@
 
 在本机管理 AI 人像摄影流程：准备参考、设计镜头，并连接你自己的绘图平台生成作品。
 
-**[English](README.md) · [下载 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.1) · [快速开始](docs/zh-CN/quick-start.md) · [反馈问题](https://github.com/KaneGong/muse-frame/issues/new/choose)**
+**[English](README.md) · [下载 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) · [快速开始](docs/zh-CN/quick-start.md) · [反馈问题](https://github.com/KaneGong/muse-frame/issues/new/choose)**
 
-社区预览版 **0.4.0-beta.1**，采用 **AGPL-3.0-only**。本轮先收集真实使用反馈，持续改进稳定性与体验。
+社区预览版 **0.4.0-beta.2**，采用 **AGPL-3.0-only**。本轮先收集真实使用反馈，持续改进稳定性与体验。
 
 当前下载包适用于 **macOS 26及以上的Apple Silicon / arm64 Mac**，使用临时签名，尚未经过 Apple 公证。Windows 和 Intel Mac 安装包留待后续实测发布。
 
@@ -22,7 +22,7 @@
 
 ## 三步开始
 
-1. 从 [Releases](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.1) 下载 Mac DMG，阅读安装说明，将 App 复制到“应用程序”。
+1. 从 [Releases](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 下载 Mac DMG，阅读安装说明，将 App 复制到“应用程序”。
 2. 打开“连接与设置”，自行授权绘图平台账号。全新安装不会复制其他软件登录，也不会自动提交收费生成。
 3. 新建项目、选择参考并设置镜头，准备好后点击生成；平台会按账号规则消耗额度。
 

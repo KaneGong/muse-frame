@@ -10,7 +10,7 @@ EDITION_NAME={'private':'私有版','standalone':'独立版','open':'开放版'}
 APP_ID='ai-portrait-studio'
 APP_NAME='映象所' if EDITION=='standalone' else 'AI人像摄影 Studio'
 ENGLISH_NAME='MUSE FRAME' if EDITION=='standalone' else 'AI Portrait Studio'
-VERSION='0.4.0-beta.1' if EDITION=='standalone' else '0.3.3-alpha.1'
+VERSION='0.4.0-beta.2' if EDITION=='standalone' else '0.3.3-alpha.1'
 DEFAULT_PORT={'private':8766,'standalone':8765,'open':8787}[EDITION]
 # Standalone owns its platform connection: no Codex CLI, no Agent session.
 DEFAULT_CONNECTION={'private':'codex-lovart','standalone':'lovart-direct','open':'codex-lovart'}[EDITION]

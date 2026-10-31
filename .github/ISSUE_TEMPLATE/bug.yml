@@ -10,7 +10,7 @@ body:
     id: version
     attributes:
       label: Version / 版本
-      placeholder: 0.4.0-beta.1
+      placeholder: 0.4.0-beta.2
     validations:
       required: true
   - type: input

@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.4.0-beta.1 — 2026-11-01
+## 0.4.0-beta.2 — 2026-11-01
+
+- First downloadable preview. Fix startup blocking on reverse DNS; retain the beta.1 candidate tag without publishing its binary release.
 
 First community preview from the standalone19-dev workbench; public license AGPL-3.0-only.
 

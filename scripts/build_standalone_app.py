@@ -95,7 +95,7 @@ def build(clean=True):
         'CFBundleName': 'MUSE FRAME',
         'CFBundleIdentifier': BUNDLE_ID,
         'CFBundleShortVersionString': version.split('-')[0],
-        'CFBundleVersion': '0.4.1001' if version=='0.4.0-beta.1' else version.split('-')[0],
+        'CFBundleVersion': '0.4.1002' if version=='0.4.0-beta.2' else version.split('-')[0],
         'CFBundleGetInfoString': version,
         'LSApplicationCategoryType': 'public.app-category.photography',
         'LSMinimumSystemVersion': bundle_minimum_macos(app),

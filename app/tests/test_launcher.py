@@ -25,6 +25,13 @@ class LauncherTests(unittest.TestCase):
    server=bind_server(port,BaseHTTPRequestHandler)
    try:self.assertGreater(server.server_port,port)
    finally:server.server_close()
+ def test_loopback_startup_does_not_depend_on_reverse_dns(self):
+  with patch('socket.getfqdn',side_effect=AssertionError('Loopback startup attempted reverse DNS')):
+   server=bind_server(0,BaseHTTPRequestHandler)
+  try:
+   self.assertEqual(server.socket.getsockname()[0],'127.0.0.1')
+   self.assertGreater(server.server_port,0)
+  finally:server.server_close()
  def test_diagnostics_does_not_expose_configuration_credentials(self):
   from runtime import EDITION
   if EDITION=='standalone':r=diagnostics()

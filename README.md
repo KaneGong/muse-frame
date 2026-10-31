@@ -4,9 +4,9 @@
 
 A local-first AI portrait photography workspace. Plan your shoot, organize references and create through your own image platform.
 
-**[简体中文](README.zh-CN.md) · [Download for Mac](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.1) · [Quick start](docs/en/quick-start.md) · [Report a bug](https://github.com/KaneGong/muse-frame/issues/new/choose)**
+**[简体中文](README.zh-CN.md) · [Download for Mac](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) · [Quick start](docs/en/quick-start.md) · [Report a bug](https://github.com/KaneGong/muse-frame/issues/new/choose)**
 
-**Community preview · 0.4.0-beta.1 · AGPL-3.0-only**
+**Community preview · 0.4.0-beta.2 · AGPL-3.0-only**
 
 This is an early public preview for feedback. Current downloadable App: **macOS 26+, Apple Silicon (arm64)**. It uses an ad-hoc signature and is **not Apple-notarized**. Windows and Intel Mac binaries are not available in this release.
 
@@ -24,7 +24,7 @@ MUSE FRAME does not train or bundle a generation model. Platform availability, c
 
 ## Start creating
 
-1. Download the Apple Silicon DMG from **[Releases](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.1)**, read its installation notes and copy the App to Applications.
+1. Download the Apple Silicon DMG from **[Releases](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2)**, read its installation notes and copy the App to Applications.
 2. Open **Connect & settings** and authorize your own platform account. A new installation does not copy another app's login or create paid tasks automatically.
 3. Create a project, choose references, configure shots and submit when ready. Generation consumes your platform credits.
 

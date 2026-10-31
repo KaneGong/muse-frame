@@ -2,6 +2,7 @@
 import argparse,json,logging,os,socket,sys,threading,time,urllib.request,webbrowser,html
 from pathlib import Path
 from http.server import ThreadingHTTPServer
+from socketserver import TCPServer
 from runtime import APP_ID,APP_NAME,VERSION,DEFAULT_PORT,data_dir,diagnostics
 
 class InstanceLock:
@@ -35,9 +36,17 @@ def existing_instance(root,timeout=5):
         time.sleep(.1)
     return None
 
+class LoopbackHTTPServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # HTTPServer's default getfqdn() can block on reverse DNS. This service
+        # listens only on numeric loopback and does not need a resolved hostname.
+        TCPServer.server_bind(self)
+        self.server_name='localhost'
+        self.server_port=self.server_address[1]
+
 def bind_server(port,handler):
     for candidate in range(port,min(port+20,65536)):
-        try:return ThreadingHTTPServer(('127.0.0.1',candidate),handler)
+        try:return LoopbackHTTPServer(('127.0.0.1',candidate),handler)
         except OSError as e:
             if e.errno not in [48,98,10048]:raise
     raise RuntimeError('启动端口均被占用，请关闭旧实例后重试。')
