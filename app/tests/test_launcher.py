@@ -38,7 +38,10 @@ class LauncherTests(unittest.TestCase):
   with self.assertRaises(ValueError):create_connection('hermes',Path.cwd())
  def test_full_launcher_health_single_instance_and_shutdown(self):
   with tempfile.TemporaryDirectory(prefix='portrait-launch-') as d:
-   root=Path(d);log=(root/'test.log').open('w');process=subprocess.Popen([sys.executable,str(Path(__file__).resolve().parents[1]/'launcher.py'),'--data',d,'--no-browser'],stdout=log,stderr=subprocess.STDOUT)
+   root=Path(d);log=(root/'test.log').open('w')
+   app_dir=Path(__file__).resolve().parents[1]
+   trace='import faulthandler,runpy,sys;faulthandler.dump_traceback_later(8);sys.path.insert(0,sys.argv[1]);sys.argv=sys.argv[2:];runpy.run_path(sys.argv[0],run_name="__main__")'
+   process=subprocess.Popen([sys.executable,'-c',trace,str(app_dir),str(app_dir/'launcher.py'),'--data',d,'--no-browser'],stdout=log,stderr=subprocess.STDOUT)
    try:
     port=existing_instance(root,timeout=12)
     if port is None:
