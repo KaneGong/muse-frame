@@ -40,7 +40,11 @@ class LauncherTests(unittest.TestCase):
   with tempfile.TemporaryDirectory(prefix='portrait-launch-') as d:
    root=Path(d);log=(root/'test.log').open('w');process=subprocess.Popen([sys.executable,str(Path(__file__).resolve().parents[1]/'launcher.py'),'--data',d,'--no-browser'],stdout=log,stderr=subprocess.STDOUT)
    try:
-    port=existing_instance(root,timeout=12);self.assertIsNotNone(port);url=f'http://127.0.0.1:{port}'
+    port=existing_instance(root,timeout=12)
+    if port is None:
+     details='\n'.join(p.name+': '+p.read_text(errors='replace')[-6000:] for p in [root/'test.log',root/'logs/startup.log'] if p.is_file())
+     self.fail(f'Launcher unavailable; child exit={process.poll()}\n{details}')
+    url=f'http://127.0.0.1:{port}'
     with urllib.request.urlopen(url+'/api/health') as r:self.assertEqual(json.load(r)['app_id'],APP_ID)
     with urllib.request.urlopen(url+'/api/state') as r:state=json.load(r)
     self.assertEqual(state['projects'],[]);self.assertEqual(state['connection']['state'],'disconnected')
