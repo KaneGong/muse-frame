@@ -1,5 +1,7 @@
 # Quick start
 
+New to the workflow? Follow the [illustrated user guide](user-guide.md) for references, shot planning, generation, editing and export.
+
 ## Mac download
 
 The first build targets Apple Silicon. Download the DMG, open it, copy the App to Applications, then launch it. It is ad-hoc signed, not Apple-notarized; see the README and Apple's linked guidance. Do not replace an App while it is generating or saving.

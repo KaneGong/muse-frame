@@ -1,49 +1,98 @@
+![映象所 MUSE FRAME · 把灵感，拍成一组作品。](docs/media/portfolio-banner.webp)
+
 # 映象所 · MUSE FRAME
 
-在本机管理 AI 人像摄影流程：准备参考、设计镜头，并连接你自己的绘图平台生成作品。
+**把灵感，拍成一组作品。**
 
-**[English](README.md) · [下载 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) · [快速开始](docs/zh-CN/quick-start.md) · [反馈问题](https://github.com/KaneGong/muse-frame/issues/new/choose)**
+映象所是一款以本地项目为中心的 AI 人像摄影工作台。从整理参考、设计造型、规划镜头，到生图、选片、修改和导出，把一次创作组织成完整的拍摄流程。通过你自己的 Lovart 或 LibTV 账号生成，项目与下载的图片保存在电脑上。
 
-社区预览版 **0.4.0-beta.2**，采用 **AGPL-3.0-only**。本轮先收集真实使用反馈，持续改进稳定性与体验。
+**[下载 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) · [完整使用教程](docs/zh-CN/user-guide.md) · [本地 WebUI](docs/zh-CN/quick-start.md#本地webui源码版) · [English](README.md)**
 
-当前下载包适用于 **macOS 26及以上的Apple Silicon / arm64 Mac**，使用临时签名，尚未经过 Apple 公证。Windows 和 Intel Mac 安装包留待后续实测发布。
+社区预览 **0.4.0-beta.2** · **AGPL-3.0-only** · 当前安装包：**macOS 26+、Apple Silicon** · 临时签名，**未 Apple 公证**。Windows 与 Intel Mac 安装包尚未提供。
 
-## 能做什么
+![真实 Mac App：浅色拍摄工作区、作品预览和右侧常驻参考栏](docs/media/screenshots/02-workspace-light.webp)
 
-- 按项目管理人物、身形、服装、环境与姿态参考。
-- 设计多个镜头，分别设置姿态、景别、画面位置和人物占比。
-- 连接自己的 Lovart 或 LibTV 账号，使用平台当前提供的模型。
-- 每个镜头生成1–4张；“多个镜头”与“同镜头多张”是不同设置。
-- 查看作品、用文字发起修改、本机基础调色和下载原图。
-- 在线图库先看大图、再选择，每次最多10张导入；导入后由用户选择拍摄参考。
-- 中英文界面；用户原文不自动翻译，部分连接状态、诊断、内置提示词与上游图库名称仍为中文。
+*截图来自真实 macOS App，使用独立演示项目和维护者提供的既有 AI 作品。演示环境有意保持未连接，截图不代表新执行了一次生图。*
 
-这是独立工作台，不是绘图模型，也不是 Lovart/LibTV 官方产品。出图效果、平台额度、审核和模型可用性由对应平台决定。
+## 从参考到成片，按一次拍摄来创作
 
-## 三步开始
+适合 AI 人像创作者、希望探索视觉方案的摄影师，以及需要本地工作流和开放源码的开发者。
 
-1. 从 [Releases](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 下载 Mac DMG，阅读安装说明，将 App 复制到“应用程序”。
-2. 打开“连接与设置”，自行授权绘图平台账号。全新安装不会复制其他软件登录，也不会自动提交收费生成。
-3. 新建项目、选择参考并设置镜头，准备好后点击生成；平台会按账号规则消耗额度。
+| 步骤 | 可以做什么 |
+| --- | --- |
+| **准备素材** | 新建项目，分别安排人物面部、身形、服装、环境和姿态参考。 |
+| **确定影调** | 选择摄影风格，再微调光线、色调、反差与景深。 |
+| **规划镜头** | 为每个镜头设置姿态、景别、画面位置和人物占比；可添加镜头或套用模板。 |
+| **提交生成** | 在右侧常驻栏核对最终提示词与参考顺序，通过自己的平台账号提交。 |
+| **选片与完善** | 放大查看、文字修改、本地调色，最后下载原图或打包。 |
 
-浏览器界面可按[源码启动说明](docs/zh-CN/quick-start.md)在本机运行。当前不是公网多用户服务。
+### 每种参考，各司其职
 
-## 数据与使用边界
+人物与身形、服装、环境、姿态分别承担不同作用。在线图库先放大看图，再复选导入，**每次最多 10 张**；导入后由你决定本次拍摄使用哪一张，不会自动替换当前选择。
 
-项目和已下载图片在本机保存。**提交生图或修改时，提示词及所选参考图会发送给对应平台。** 在线图库会访问作者源站，详见[隐私说明](docs/zh-CN/privacy.md)。
+### 镜头数和每镜头张数，分开控制
 
-App 已附带 Python。生成需要平台账号、额度和网络。模型目录连接成功不等于所有型号和参数均已实测；人物占比是近似提示词目标，见[兼容与已知限制](docs/zh-CN/compatibility.md)。
+成组模式按已配置的镜头清单生成，单张模式只使用当前镜头。右侧的张数是**每个镜头生成几张**：**3 个镜头 × 每镜头 4 张 = 共请求 12 张**。第一次建议从 1 个镜头、1 张图片开始核对效果，实际能力和限制以平台为准。
 
-未公证版本可能被 macOS 拦截；阅读 [Apple 官方说明](https://support.apple.com/zh-cn/102445)，由你决定是否信任并打开。无需全局关闭系统保护。
+![深色界面：四个镜头的配置清单与最终提示词](docs/media/screenshots/03-shots-dark.webp)
 
-## 反馈和参与
+### 预设是起点，也能继续微调
 
-缺陷请到 [Issues](https://github.com/KaneGong/muse-frame/issues/new/choose)；使用交流和建议可在启用后的 [Discussions](https://github.com/KaneGong/muse-frame/discussions) 提交。公开反馈请勿附带登录信息、私人照片或完整用户数据库。
+摄影风格提供基础设定，展开“风格微调”后，可以单独覆盖某一项、继续“随风格”，或移除该项要求。右侧提示词会帮助你检查最终提交的内容。
 
-[贡献说明](CONTRIBUTING.md) · [安全反馈](SECURITY.md) · [更新记录](CHANGELOG.zh-CN.md) · [构建说明](docs/zh-CN/build.md)
+![浅色界面：摄影风格预设与提示词检查](docs/media/screenshots/06-style-light.webp)
 
-## 许可
+### 保留原版，再修改和整理
 
-项目软件采用 [AGPL-3.0-only](LICENSE)，允许按协议条件商用。第三方依赖、参考图片与品牌分别见 [依赖声明](THIRD_PARTY_NOTICES.md)、[素材说明](ASSET_LICENSES.md)、[品牌说明](TRADEMARKS.md)。
+用复选框选片，下载所选原图或打包本机图片；次要功能收进“更多操作”。文字修改会创建新任务并保留原版，本地基础调色无需新提交生图任务。普通删除先进入回收站，可以恢复。
 
-对应源码按版本标签提供，并随 DMG 一同分发。再分发、修改或通过网络提供修改版时，请遵守对应源码义务。公开包不包含用户项目或第三方图库原图。
+![深色界面：作品与选片，已选择两张作品](docs/media/screenshots/04-results-dark.webp)
+
+## 作品选集
+
+从维护者整理的作品中选取四组：街巷、自然光室内、极简空间与冬日造型。它们展示既有创作，不代表每次生成的保证效果或模型一致性测试。
+
+| 街巷人像 | 室内自然光 | 极简空间 | 冬日造型 |
+| --- | --- | --- | --- |
+| ![砖巷里的白色针织造型](docs/media/examples/street.webp) | ![明亮室内的姜黄色针织造型](docs/media/examples/daylight.webp) | ![极简展厅里的粉色礼服](docs/media/examples/editorial.webp) | ![展厅里的驼色冬日造型](docs/media/examples/winter.webp) |
+
+[查看大图与更多 App 截图 →](docs/showcase.md)
+
+## 开始第一次拍摄
+
+1. 在 [Releases](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 下载 DMG，将 App 拖到“应用程序”再打开。当前版本未公证；如被系统拦截，请阅读 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。
+2. 在“连接与设置”选择 Lovart 或 LibTV，自行完成授权，再挑选要使用的模型。
+3. 新建项目并选好参考，确定环境与风格，先配置一个镜头。
+4. 在右侧核对模型、支持的画幅和分辨率、提示词、参考顺序与总张数，确认后提交；生成使用你的平台额度。
+5. 放大选片并保存原图，再尝试增加镜头或使用文字修改。
+
+**[图文教程：安装 → 参考 → 镜头 → 生成 → 修改 → 导出](docs/zh-CN/user-guide.md)**
+
+## 选择使用方式
+
+| | Mac App | 源码 WebUI |
+| --- | --- | --- |
+| 适合 | 直接打开桌面工作台 | 本地浏览器使用、开发和扩展 |
+| 当前要求 | macOS 26+、Apple Silicon arm64 | Python 3.11+ 和依赖；本轮验证 Python 3.14，开发检查使用 Node.js 22。 |
+| 安装 | [下载 DMG](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2)，已内置 Python | [源码启动教程](docs/zh-CN/quick-start.md#本地webui源码版) |
+| 状态 | 临时签名、未公证；其他系统版本和设备仍需继续测试 | 单用户本机服务，尚非托管的多人网站 |
+
+生图需要可访问的 Lovart 或 LibTV 账号及可用额度。本轮社区预览不收工作台订阅费，不赠送生图额度。工作台不训练、不内置生图模型，与两家平台无官方隶属关系。
+
+## 隐私与预览版边界
+
+项目和已下载图片存储在本机；**提交任务时，提示词与选中的参考图会发送至绘图平台**。在线图库会访问其来源网站。详见[隐私说明](docs/zh-CN/privacy.md)。
+
+模型目录、可用参数、费用和生成规则可能变化；连接成功不等于所有模型组合都已实测。身份、姿态、人物占比属于模型理解的生成要求，不能保证精确几何结果。支持中英文界面，但部分诊断、内置提示词和上游图库文字仍为中文。当前不提供涂抹蒙版编辑、外部识图模型反推提示词。详见[兼容性与已知限制](docs/zh-CN/compatibility.md)。
+
+## 一起把下一版做好
+
+欢迎先试一组小规模拍摄，通过 [Issues](https://github.com/KaneGong/muse-frame/issues/new/choose) 提交可复现问题或使用建议。请附版本、系统与芯片、步骤、平台与模型；公开报告前去除私人内容和账号凭据。
+
+[贡献指南](CONTRIBUTING.md) · [构建说明](docs/zh-CN/build.md) · [更新记录](CHANGELOG.md) · [安全反馈](SECURITY.md)
+
+## 开源与致谢
+
+软件采用 **[AGPL-3.0-only](LICENSE)**，可以按协议条件商用。每个发布标签保留对应源码，DMG 也包含对应源码包；再分发或修改时须保留源码提供方式，并遵守适用的网络服务源码义务。
+
+作品展示经过维护者授权，不会自动纳入 AGPL。仓库不包含第三方图库原图或用户项目。请分别阅读[素材来源](ASSET_LICENSES.md)、[依赖许可](THIRD_PARTY_NOTICES.md)和[品牌说明](TRADEMARKS.md)。

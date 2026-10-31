@@ -17,7 +17,7 @@ def audit():
         if any(t in {'work','data','outputs','tokens','node_modules','.venv','__pycache__','验证截图','costume-thumbs','costume-full'} for t in parts):problems.append({'path':str(rel),'reason':'private/build directory in source'});continue
         if p.is_symlink():problems.append({'path':str(rel),'reason':'source symlink needs explicit review'});continue
         if p.suffix.lower() in {'.db','.sqlite','.sqlite3','.wal','.shm','.log','.key','.pyc','.pkg','.zip','.dmg','.dylib','.so'} or p.name in {'sample.json','.env'}:problems.append({'path':str(rel),'reason':'private/generated artifact in source'});continue
-        if p.suffix.lower() in {'.png','.jpg','.ico','.icns'}:continue
+        if p.suffix.lower() in {'.png','.jpg','.webp','.ico','.icns'}:continue
         try:text=p.read_text()
         except UnicodeError:problems.append({'path':str(rel),'reason':'unexpected binary'});continue
         for i,line in enumerate(text.splitlines(),1):
