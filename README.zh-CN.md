@@ -4,7 +4,7 @@
 
 映象所是一个适用于 Mac 和 Windows 的本地 AI 人像摄影工作台。选好人物、服装、场景和姿态，配好取景和色调，就能准备第一张照片。需要细调时，可按镜头调整光影、身形参考和拍摄要求。作品、项目和任务记录保存在电脑上，确认提交时才会把所选参考图和提示词发送至你连接的 Lovart 或 LibTV 账号。
 
-**[下载 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [第一次拍摄教程](docs/zh-CN/webui-guide.md) · [安装与迁移](docs/zh-CN/quick-start.md) · [发布说明](RELEASE_NOTES.md) · [English](README.md)**
+**[下载 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [第一次拍摄图文教程](docs/zh-CN/webui-guide.md) · [安装与迁移](docs/zh-CN/quick-start.md) · [发布说明](RELEASE_NOTES.md) · [English](README.md)**
 
 ## 社区预发布版 0.5.0-beta.5
 
@@ -19,6 +19,8 @@ Mac 和 Windows 启动器会在系统默认浏览器中打开同一套界面，�
 此前的 [0.4.0-beta.2 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 仍可下载。该版使用内嵌窗口，[图文教程](docs/zh-CN/user-guide.md)对应旧版界面。
 
 ## 从参考图到作品
+
+[![Muse Frame 三栏工作台及参考图、镜头预览、快速出图和生成入口标注](docs/media/webui-guide/zh-CN/01-overview.png)](docs/zh-CN/webui-guide.md)
 
 - 新建拍摄，为人物、服装、场景和姿态分配各自的参考图。需要单独设置身形时，可在进阶选项中添加。
 - 选择拍法，也可以单独调整镜头的取景、人物位置、神态、色调和光线。浏览人物、服装、姿态图库并选择本次要用的图片。
