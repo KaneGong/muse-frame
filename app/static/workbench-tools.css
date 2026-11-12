@@ -1,0 +1,142 @@
+/* Workbench overlays use the same theme with enough room for the full task. */
+html[data-edition=standalone] :is(#wb-tool-dialog,#wb-prompt,#manage-dialog,#job-dialog,#settings-dialog,#retry-dialog,#edit-dialog,#field-dialog,#reuse-dialog,#preset-editor,#standalone-setup){
+ width:min(1180px,calc(100vw - 44px));max-width:calc(100vw - 44px);max-height:calc(100dvh - 44px);
+}
+html[data-edition=standalone] :is(#manage-dialog,#settings-dialog,#reuse-dialog,#standalone-setup){width:min(1000px,calc(100vw - 44px))}
+html[data-edition=standalone] #preset-editor{width:min(760px,calc(100vw - 44px))}
+html[data-edition=standalone] :is(#field-dialog,#edit-dialog){width:min(920px,calc(100vw - 44px))}
+html[data-edition=standalone] #retry-dialog{width:min(1060px,calc(100vw - 44px))}
+html[data-edition=standalone] .wb-framed-dialog{padding:0;overflow:hidden}
+html[data-edition=standalone] .wb-framed-dialog[open]{display:flex;flex-direction:column}
+.wb-framed-dialog>.dialog-head{flex:none;margin:0;padding:17px 22px;border-bottom:1px solid var(--line);background:var(--surface)}
+.wb-dialog-body{min-height:0;overflow:auto;overscroll-behavior:contain;padding:18px 22px}
+.wb-dialog-body>:first-child{margin-top:0}
+.wb-dialog-body>.settings-connection{display:none}
+.wb-dialog-footer{flex:none;padding:12px 22px;border-top:1px solid var(--line);background:var(--surface)}
+.wb-dialog-footer>.row{margin:0;flex-wrap:wrap;gap:7px}
+.wb-dialog-footer>.error{margin:7px 0 0}
+.wb-dialog-footer>.error:empty{display:none}
+#preset-editor #preset-prompt{min-height:130px;height:clamp(130px,23dvh,210px)}
+#settings-dialog .empty{min-height:0;padding:24px 15px}
+#standalone-setup .sound-settings label.check-row{display:flex;align-items:center;gap:8px}
+#standalone-setup .sound-settings input[type=checkbox]{width:auto;flex:none;margin:0}
+#standalone-setup .wb-dialog-body>.sound-settings{margin:18px 0 0;padding:16px}
+html[data-edition=standalone] :is(#wb-tool-dialog,#wb-prompt,#retry-dialog,#edit-dialog)>.dialog-head{top:0}
+html[data-edition=standalone] :is(#wb-tool-dialog,#wb-prompt,#retry-dialog,#edit-dialog)>.flow-body{flex:1 1 auto}
+html[data-edition=standalone] :is(#wb-prompt,#edit-dialog) textarea{min-height:clamp(150px,25dvh,260px)}
+#wb-tool-dialog{color:var(--text);background:var(--surface)}
+#wb-tool-dialog>.dialog-head small{display:block;font-size:9px;letter-spacing:.18em;color:var(--accent);margin-bottom:4px}
+#wb-tool-dialog .wb-tool-content{display:block}
+#wb-tool-dialog .wb-tool-content>.section-head{margin-bottom:12px}
+#wb-tool-dialog .wb-tool-content>.section-head h1{display:none}
+#wb-tool-dialog .wb-tool-content .batchbar{top:0;background:var(--surface)}
+#wb-tool-dialog .wb-tool-content .works-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,195px),1fr))}
+#wb-tool-dialog .wbt-intro{margin:0 0 12px;color:var(--muted);font-size:13px}
+#wb-tool-dialog .wbt-toolbar{
+ display:flex;flex-wrap:wrap;align-items:end;gap:10px 15px;padding:0 0 14px;border-bottom:1px solid var(--line);
+}
+#wb-tool-dialog .wbt-toolbar label{margin:0;min-width:0;max-width:100%;gap:4px;font-size:12px}
+#wb-tool-dialog .wbt-toolbar select{min-width:min(200px,100%);max-width:100%;min-height:35px;padding-block:6px}
+#wb-tool-dialog .wbt-actions,#wb-tool-dialog .wbt-scope{display:flex;flex-wrap:wrap;gap:5px}
+#wb-tool-dialog .wbt-actions button,#wb-tool-dialog .wbt-scope button{min-height:35px;padding:5px 8px;font-size:12px}
+#wb-tool-dialog .wbt-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 22px;min-width:0;margin:0;padding:0;border:0}
+#wb-tool-dialog .wbt-fields .option-section{min-width:0;margin:0;padding:13px 0;border-bottom:1px solid var(--line)}
+#wb-tool-dialog .wbt-fields .option-heading{flex-wrap:wrap}
+#wb-tool-dialog .wbt-saved-styles{margin:14px 0 0}
+#wb-tool-dialog .wbt-empty{margin:14px 0;color:var(--muted);font-size:12px}
+#wb-tool-dialog [data-wbt=right-light]{margin-top:10px}
+@media(max-width:680px){
+ html[data-edition=standalone] :is(#wb-tool-dialog,#wb-prompt,#manage-dialog,#job-dialog,#settings-dialog,#retry-dialog,#edit-dialog,#field-dialog,#reuse-dialog,#preset-editor,#standalone-setup){
+  width:calc(100vw - 16px);max-width:calc(100vw - 16px);max-height:calc(100dvh - 18px);
+ }
+ .wb-framed-dialog>.dialog-head,.wb-dialog-footer{padding-inline:14px}
+ .wb-dialog-body{padding:14px}
+ #wb-tool-dialog .flow-body{padding-inline:14px}
+ #wb-tool-dialog .wb-tool-content .batchbar{position:static}
+ #wb-tool-dialog .wbt-fields{grid-template-columns:minmax(0,1fr)}
+}
+.wb-resize-handle{display:none}
+@media(min-width:961px){
+ body.wb-active,body.wb-active.panel-open{
+  --wb-resize-extra:calc(100vw - var(--wb-resize-center-min,360px) - var(--wb-resize-left-min,176px) - var(--wb-resize-right-min,306px));
+  grid-template-columns:
+   min(var(--wb-user-reference,var(--wb-reference)),calc(var(--wb-resize-left-min,176px) + var(--wb-resize-extra) * var(--wb-resize-left-share,.45)))
+   minmax(var(--wb-resize-center-min,360px),1fr)
+   min(var(--wb-user-inspector,var(--wb-inspector)),calc(var(--wb-resize-right-min,306px) + var(--wb-resize-extra) * var(--wb-resize-right-share,.55)));
+ }
+ .wb-active .wb-resize-handle{
+  position:relative;z-index:12;grid-row:2;display:block;align-self:stretch;width:12px;
+  cursor:col-resize;touch-action:none;color:var(--accent);outline-offset:-3px;
+ }
+ .wb-active #wb-resize-left{grid-column:1;justify-self:end;transform:translateX(50%)}
+ .wb-active #wb-resize-right{grid-column:3;justify-self:start;transform:translateX(-50%)}
+ .wb-resize-handle::before,.wb-resize-handle::after{content:'';position:absolute;left:50%;transform:translateX(-50%);pointer-events:none}
+ .wb-resize-handle::before{top:0;bottom:0;width:1px;background:var(--line)}
+ .wb-resize-handle::after{top:50%;width:3px;height:35px;border-radius:6px;background:currentColor;opacity:.43}
+ .wb-resize-handle:hover::after,.wb-resize-handle:focus-visible::after,.wb-resizing .wb-resize-handle::after{opacity:1}
+ .wb-resize-handle:hover::before,.wb-resize-handle:focus-visible::before{background:currentColor;opacity:.75}
+ .wb-resize-handle:focus-visible{outline:1px solid currentColor}
+ .wb-resizing,.wb-resizing *{cursor:col-resize!important;user-select:none!important}
+ .wb-active #wb-rail{container:wb-reference / inline-size}
+ .wb-active #wb-settings{container:wb-settings / inline-size}
+ @container wb-reference (max-width:205px){
+  .wb-ref-card{grid-template-columns:minmax(0,45px) minmax(0,1fr) 12px;min-height:64px;gap:5px;padding:5px}
+  .wb-ref-copy small{font-size:10px}
+  .wb-rail-nav{grid-template-columns:minmax(0,1fr)}
+ }
+ @container wb-settings (max-width:315px){
+  .wbc-tabs button{font-size:11px}
+  .wb-shot-card>button{padding:5px}
+  .wb-shot-head{grid-template-columns:33px minmax(0,1fr);gap:4px}
+  .wb-shot-head img,.wb-shot-auto{width:33px;height:42px}
+ }
+}
+
+/* One project workspace: stable tabs above a single scrolling collection. */
+html[data-edition=standalone] #wb-tool-dialog:is([data-tool=results],[data-tool=tasks]){
+ width:min(1450px,calc(100vw - 40px));max-width:calc(100vw - 40px);
+ height:min(920px,calc(100dvh - 40px));max-height:calc(100dvh - 40px);
+}
+.wb-media-tabs{display:flex;align-items:center;justify-content:space-between;gap:16px;flex:none;padding:0 22px;border-bottom:1px solid var(--line)}
+.wb-media-tabs [role=tablist]{display:flex;gap:22px}
+.wb-media-tabs [role=tab]{min-height:48px;border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;padding:10px 3px;font-size:14px;font-weight:600;color:var(--muted)}
+.wb-media-tabs [role=tab][aria-selected=true]{border-bottom-color:var(--accent);color:var(--text)}
+.wb-media-caption{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--muted)}
+#wb-tool-dialog:is([data-tool=results],[data-tool=tasks]) .wb-tool-content{padding-top:14px}
+#wb-tool-dialog .filterbar{margin:0 0 12px;gap:7px}
+#wb-tool-dialog .filterbar input,#wb-tool-dialog .filterbar select{min-height:36px;padding:7px 9px;font-size:12px}
+#wb-tool-dialog #task-status-filters{display:none}
+#wb-tool-dialog #task-overview{font-size:12px;color:var(--muted);line-height:1.6}
+#wb-tool-dialog .works-grid{gap:14px;grid-auto-rows:1fr;align-items:stretch}
+#wb-tool-dialog .works-grid .asset-card{display:flex;flex-direction:column;min-width:0;height:100%}
+#wb-tool-dialog .works-grid .image-button{height:clamp(180px,29dvh,320px);aspect-ratio:auto;flex:none}
+#wb-tool-dialog .works-grid .card-body{display:flex;flex:1;flex-direction:column;gap:6px}
+#wb-tool-dialog .works-grid .card-title strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.8em;line-height:1.4}
+#wb-tool-dialog .works-grid .badges{padding:0;min-height:28px;max-height:43px;overflow:hidden}
+#wb-tool-dialog .works-grid .card-actions{margin-top:auto;grid-template-columns:repeat(3,minmax(0,1fr))}
+#wb-tool-dialog .works-grid .card-actions>button,#wb-tool-dialog .works-grid .asset-more-trigger{height:35px;min-height:35px;font-size:11px}
+#wb-tool-dialog .task-batch{margin:0 0 18px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+#wb-tool-dialog .batch-title{margin:0;padding:10px 12px;background:var(--accent-bg);font-size:12px;gap:10px}
+#wb-tool-dialog .batch-title strong{font-size:12px}
+#wb-tool-dialog .task-row{display:grid;grid-template-columns:68px minmax(0,1fr) auto;align-items:center;gap:12px;padding:12px;margin:0;border:0;border-top:1px solid var(--line)}
+#wb-tool-dialog .task-thumbs{width:68px;min-width:0;height:83px;overflow:hidden}
+#wb-tool-dialog .task-thumbs>:not(:first-child){display:none}
+#wb-tool-dialog .task-thumbs img{width:100%;height:83px;object-fit:contain}
+#wb-tool-dialog .task-row>.row{max-width:310px;justify-content:flex-end;gap:5px}
+#wb-tool-dialog .task-row>.row button{font-size:11px;min-height:32px;padding:6px 8px}
+#wb-tool-dialog .task-row .grow{min-width:0}
+#wb-tool-dialog .task-row small{font-size:11px;line-height:1.6;overflow-wrap:anywhere}
+@media(max-width:900px){
+ #wb-tool-dialog .task-row{grid-template-columns:58px minmax(0,1fr)}
+ #wb-tool-dialog .task-row>.row{grid-column:2;max-width:none;justify-content:flex-start}
+ #wb-tool-dialog .task-thumbs{width:58px}
+}
+@media(max-width:680px){
+ html[data-edition=standalone] #wb-tool-dialog:is([data-tool=results],[data-tool=tasks]){width:calc(100vw - 16px);max-width:calc(100vw - 16px);height:calc(100dvh - 18px);max-height:calc(100dvh - 18px)}
+ .wb-media-tabs{padding-inline:14px;gap:10px}.wb-media-tabs [role=tablist]{gap:15px}
+ #wb-tool-dialog .filterbar select{flex:1;min-width:100px;max-width:none}
+ #wb-tool-dialog .filterbar input[type=search]{flex-basis:100%}
+ #wb-tool-dialog .wb-tool-content .works-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ #wb-tool-dialog .works-grid .card-body{padding:9px}
+ #wb-tool-dialog .works-grid .card-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

@@ -42,6 +42,38 @@ class FastBridge:
 
 
 class PlatformSwitchTests(unittest.TestCase):
+    def connect_case(self,platform,catalog,credits=None):
+        app=server.App.__new__(server.App)
+        class Bridge:
+            def call(self,name,args):
+                if name=='get_credits':return {'structuredContent':credits if credits is not None else {}}
+                if isinstance(catalog,Exception):raise catalog
+                return {'structuredContent':catalog}
+            def close(self):pass
+        app.platform=platform;app.bridge=Bridge();app.catalog=[{'name':'stale'}];app.schemas={'stale':{}}
+        app.status={'state':'connected'};app.connecting=False;app.connect_token=0
+        app.connect()
+        end=time.monotonic()+2
+        while app.connecting and time.monotonic()<end:time.sleep(.01)
+        self.assertFalse(app.connecting)
+        return app
+
+    def test_both_platforms_clear_stale_models_after_failed_reconnect(self):
+        for platform in ['lovart','libtv']:
+            with self.subTest(platform=platform):
+                app=self.connect_case(platform,RuntimeError('network unavailable'))
+                self.assertEqual(app.status['state'],'disconnected')
+                self.assertEqual(app.catalog,[]);self.assertEqual(app.schemas,{})
+
+    def test_empty_or_malformed_catalog_is_not_a_ready_connection(self):
+        for catalog in [{'models':[]},{'models':[{'unexpected':True}]}]:
+            app=self.connect_case('lovart',catalog)
+            self.assertEqual(app.status['state'],'disconnected');self.assertEqual(app.catalog,[])
+
+    def test_billing_shape_error_does_not_block_a_healthy_model_connection(self):
+        app=self.connect_case('lovart',{'models':[{'name':'live-model'}]},credits=[])
+        self.assertEqual(app.status['state'],'connected');self.assertIsNone(app.status['credits'])
+
     def test_switching_platform_survives_a_late_lovart_connection_failure(self):
         started, release = threading.Event(), threading.Event()
         slow = SlowBridge(started, release)

@@ -1,14 +1,15 @@
 # Compatibility and preview limitations
 
-- macOS downloadable binary: macOS 26 or later, Apple Silicon arm64; currently ad-hoc signed and not notarized.
-- Bundled native libraries require macOS 26.0; the App declares that minimum. Actual release checks were on macOS27.0.1/arm64. Other supported versions and clean devices still need testing. Older systems can try the source WebUI with compatible Python dependencies.
-- Intel Mac and Windows binaries: not released or hardware-validated yet.
-- Source WebUI: single-user loopback only. No cloud multi-tenant isolation or hosted account/billing service is provided.
-- Platforms: Lovart and LibTV. Earlier isolated tests completed one four-image concurrent batch on each, and one Lovart text-guided edit. This is not validation of all models, account tiers, regions, failures or parameter combinations.
-- Each model's aspect ratios and size/resolution options come from the platform catalog. If it does not advertise a parameter, the App cannot guarantee that parameter is supported.
-- English interface is available. User prompts remain unchanged, and some connection statuses, diagnostics, built-in generation text and upstream gallery content remain Chinese.
-- Subject-size percentages are approximate prompt instructions. Models may not follow them precisely. The App cannot promise identity, pose or framing consistency on every generation.
-- Third-party gallery availability and download speed depend on the source host. Up to10 selected images import one at a time; failed/remaining selections can be resumed.
-- This preview does not include external vision-model prompt reverse engineering, brush/mask editing, in-app billing or bundled generation credits.
-- WebKit can report a scaled JPEG decode size as naturalWidth (WebKit bug325301). Local original metadata is used for original-size labels and actual-pixel zoom; previews do not inherit requested original dimensions.
-- Some low-height multi-shot layouts keep a large sticky shot summary. Scroll the controls below it when necessary; this remains a layout item for feedback.
+| Surface | Status |
+| --- | --- |
+| Mac package | Apple Silicon arm64. The DMG includes the minimum macOS target in `BUILD-INFO.txt`. The app is ad-hoc signed and lacks Apple notarization. Intel Mac binaries are unavailable. |
+| Windows package | x64 Setup installs for the current user. The installer and launcher are unsigned. CrossOver is a compatibility environment. Native Windows validation remains pending. |
+| Browser workspace | The packaged launchers open the default browser. The server runs on loopback for a single user. Browser layout and gallery behavior can vary. |
+| Source WebUI | Use Python 3.14 to match the packaged runtime. See the [source setup](quick-start.md#source-browser-ui). |
+
+- **Language.** English and Simplified Chinese share the same workspace. User-entered text stays as saved. Some provider diagnostics, built-in prompt text and upstream gallery labels remain in their source language.
+- **Provider behavior.** Lovart and LibTV require your own account and available credits. Their catalogs determine available models and parameters. Connection, generation review and paid output are distinct operations. Model availability, identity consistency and visual results vary.
+- **Local data.** Keep a backup before upgrading. The workbench copies supported workspace data and leaves credentials in their original profile. Provider jobs with uncertain submission status should be checked in task history before submitting again.
+- **Galleries.** Catalog availability and download speeds depend on source hosts. Follow the [asset notices](../../ASSET_LICENSES.md) and each source's terms.
+
+[Quick start](quick-start.md) · [Release notes](../../RELEASE_NOTES.md) · [0.4.0-beta.2 Mac release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2)

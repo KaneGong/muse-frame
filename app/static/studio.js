@@ -1,7 +1,7 @@
 'use strict';
 // Presentation layer: keep the existing project, prompt and task operations authoritative.
 Q.studioIcon=(name)=>`<span class="studio-icon" aria-hidden="true" style="--icon:url('/icons/${name}.svg')"></span>`;
-Q.studioTheme=()=>{let theme='light';try{theme=localStorage.getItem('qujing-theme')||'light';}catch{}return theme==='dark'?'dark':'light';};
+Q.studioTheme=()=>{let theme='light';try{theme=localStorage.getItem('qujing-theme')||(document.documentElement.dataset.edition==='standalone'?'dark':'light');}catch{}return theme==='dark'?'dark':'light';};
 Q.setStudioTheme=theme=>{
  theme=theme==='dark'?'dark':'light';document.documentElement.dataset.theme=theme;
  try{localStorage.setItem('qujing-theme',theme);}catch{}
@@ -140,6 +140,8 @@ Q.prepareStudioShell=()=>{
  const submit=document.createElement('div');submit.className='studio-submit';for(const id of ['preflight','generate','gen-status'])submit.append(Q.$(id));const note=inspector.querySelector(':scope>small');note.id='generate-note';note.textContent=(document.documentElement.dataset.edition==='standalone'?'由 '+((Q.meta.platform&&Q.meta.platform.name)||'绘图平台')+' 直连生成 · 每个镜头 1–4 张':'点击生成后由当前连接执行 · 每个镜头 1–4 张');submit.append(note);
  inspector.append(tabs,scroll,submit);tabs.querySelectorAll('button').forEach(b=>{const mode=b.dataset.inspectorMode,panel=Q.$({setup:'studio-setup',prompt:'prompt-details',refs:'reference-order'}[mode]);b.id='studio-tab-'+mode;b.setAttribute('aria-controls',panel.id);panel.setAttribute('role','tabpanel');panel.setAttribute('aria-labelledby',b.id);b.onclick=()=>Q.setStudioInspector(mode);});tabs.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;const buttons=[...tabs.querySelectorAll('button')],i=buttons.indexOf(document.activeElement);if(i<0)return;e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;Q.setStudioInspector(buttons[next].dataset.inspectorMode);buttons[next].focus();};Q.setStudioInspector('setup');Q.setStudioTheme(Q.studioTheme());
  const footer=document.createElement('footer');footer.className='studio-statusbar';footer.innerHTML='<span>当前项目独立保存</span><span>'+(document.documentElement.dataset.edition==='standalone'?'MUSE FRAME':'AI PORTRAIT STUDIO')+'</span>';footer.firstElementChild.replaceWith(Q.$('saved'));if(isStandalone)footer.lastElementChild.innerHTML='<a href="https://github.com/KaneGong/muse-frame/tree/v0.4.0-beta.2" target="_blank" rel="noopener noreferrer">AGPL-3.0 · Source code</a> · MUSE FRAME';document.body.append(footer);
+ // Set a visible native-dialog return target before a menu action opens its modal.
+ menu.addEventListener('click',e=>{if(e.target.closest('button,label')){tools.open=false;tools.querySelector('summary').focus({preventScroll:true});}},true);
  document.addEventListener('click',e=>{if(tools.open&&!tools.contains(e.target))tools.open=false;if(menu.contains(e.target)&&e.target.closest('button,label'))tools.open=false;});
  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.body.classList.contains('studio-focus'))Q.setStudioFocus(false);});
 };
@@ -154,6 +156,6 @@ Q.decorateStudioNav=()=>{
 };
 Q.renderSubmission=()=>{studioBaseSubmission();Q.refreshStudioSummary();};
 Q.reloadCurrent=async()=>{await studioBaseReload();if(Q.step==='photo'){Q.updateStudioCanvas();Q.refreshStudioSummary();}};
-Q.openProject=async id=>{await studioBaseOpen(id);if(Q.project?.id===id&&Q.assets.length)Q.navigate('photo');};
+Q.openProject=async id=>{await studioBaseOpen(id);if(!Q.workbenchEnabled&&Q.project?.id===id&&Q.assets.length)Q.navigate('photo');};
 Q.renderEmpty=(...args)=>{document.body.dataset.step='empty';studioBaseEmpty(...args);};
 Q.prepareStudioShell();

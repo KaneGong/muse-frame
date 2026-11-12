@@ -1,6 +1,6 @@
 """Explicit, scoped permanent removal, with a durable file cleanup queue."""
 import copy,hashlib,json,time
-from pathlib import Path
+from media_paths import portable_media_path,resolved_media_path,resolved_workspace_path
 from reference_upload import upload_prefix
 
 ACTIVE={'queued','preparing','submitting','running','cancelling'}
@@ -18,10 +18,15 @@ class PurgeStore:
     def was_purged(self,pid,aid):
         with self.lock:return bool(self.db.execute('select 1 from purged_project_assets where project_id=? and asset_id=?',(pid,aid)).fetchone())
     def purge_path(self,rel):
-        if not isinstance(rel,str) or not rel or Path(rel).is_absolute() or Path(rel).parts[0] not in ['assets','previews'] or '..' in Path(rel).parts:raise ValueError('图片文件路径无效，未删除')
-        path=self.root/rel
-        if path.is_symlink() or not path.resolve().is_relative_to(self.root.resolve()) or path.exists() and not path.is_file():raise ValueError('图片文件路径无效，未删除')
+        try:
+            path=self.root/portable_media_path(rel)
+            resolved_media_path(self.root,rel)
+        except (OSError,RuntimeError,ValueError) as error:raise ValueError('图片文件路径无效，未删除') from error
+        if path.is_symlink() or path.exists() and not path.is_file():raise ValueError('图片文件路径无效，未删除')
         return path
+    def _media_identity(self,rel):
+        try:return str(resolved_workspace_path(self.root,rel))
+        except (OSError,RuntimeError,ValueError):return None
     def purge_plan(self,pid,ids):
         if not isinstance(ids,list) or not 1<=len(ids)<=200 or any(not isinstance(i,str) or not i for i in ids) or len(set(ids))!=len(ids):raise ValueError('请选择1至200张不同的回收站图片')
         with self.lock:
@@ -43,14 +48,15 @@ class PurgeStore:
             if self.db.execute("select 1 from sqlite_master where type='table' and name='analyses'").fetchone():
                 if any(r['asset_id'] in selected for r in self.db.execute("select asset_id from analyses where state='running'")):blocked.append({'name':'姿态识图','reason':'所选图片正在识别，请等待识图完成'})
             # Includes immutable asset metadata, links and project revision: concurrent restore/reuse/edit requires renewed confirmation.
-            paths={str((self.root/rel).resolve()) for rel,_,_ in stats}
-            related=[a for a in all_assets if a['id'] in selected or a.get('retouch_base_id') in selected or any(isinstance(rel,str) and str((self.root/rel).resolve()) in paths for rel in [a.get('local'),a.get('original_local')])]
+            paths={self._media_identity(rel) for rel,_,_ in stats}-{None}
+            related=[a for a in all_assets if a['id'] in selected or a.get('retouch_base_id') in selected or any(self._media_identity(rel) in paths for rel in [a.get('local'),a.get('original_local')])]
             related_ids={a['id'] for a in related}
             signature={'project':project,'items':items,'assets':related,'links':[r for r in all_links if r['asset_id'] in related_ids],'stats':sorted(stats),'blocked':blocked}
             token=hashlib.sha256(json.dumps(signature,sort_keys=True,ensure_ascii=False).encode()).hexdigest()
             return {'ids':ids,'names':[a['name'] for a in items],'count':len(items),'shared_count':len(shared),'blocked':blocked,'token':token,'project_revision':project['revision']}
     def queue_file_deletion(self,rel):
         path=self.purge_path(rel);stat=path.stat() if path.exists() else None
+        rel=path.relative_to(self.root).as_posix()
         self.db.execute('insert or ignore into pending_file_deletions(path,created,error,expected_size,expected_mtime) values(?,?,NULL,?,?)',(rel,time.time(),stat.st_size if stat else None,stat.st_mtime_ns if stat else None))
     def adjustment_paths(self,a):
         return [v for k,v in (a.get('photo_adjustment') or {}).items() if k in ['local','base_local'] and isinstance(v,str)]
@@ -63,10 +69,9 @@ class PurgeStore:
             for aid in candidates:
                 a=assets[aid]
                 for upload in (self.root/'previews').glob(upload_prefix(aid)+'*'):
-                    self.queue_file_deletion(str(upload.relative_to(self.root)))
+                    self.queue_file_deletion(upload.relative_to(self.root).as_posix())
                 for rel in set(filter(None,[a.get('local'),a.get('original_local')])):
-                    path=self.purge_path(rel);stat=path.stat() if path.exists() else None
-                    self.db.execute('insert or ignore into pending_file_deletions(path,created,error,expected_size,expected_mtime) values(?,?,NULL,?,?)',(rel,time.time(),stat.st_size if stat else None,stat.st_mtime_ns if stat else None))
+                    self.queue_file_deletion(rel)
                 self.db.execute('delete from assets where id=?',(aid,));removed.append(aid)
         return removed
     def purge_assets(self,pid,ids,token):
@@ -110,13 +115,14 @@ class PurgeStore:
         # A failed unlink remains durable and retryable. Never report it as reclaimed space.
         freed=0;files=0;retained=0
         with self.lock:
-            referenced={str((self.root/rel).resolve()) for r in self.db.execute('select data from assets') for rel in [json.loads(r[0]).get('local'),json.loads(r[0]).get('original_local')] if isinstance(rel,str) and rel}
+            assets=(json.loads(row[0]) for row in self.db.execute('select data from assets'))
+            referenced={self._media_identity(a.get(field)) for a in assets for field in ('local','original_local')}
             for r in self.db.execute('select meta from project_assets'):
-                referenced.update(str((self.root/rel).resolve()) for rel in self.adjustment_paths(json.loads(r[0])))
+                referenced.update(self._media_identity(rel) for rel in self.adjustment_paths(json.loads(r[0])))
             durable=set(referenced);active_references=set()
             for j in self.jobs():
                 if j['state'] in ACTIVE:
-                    active_references.update(str((self.root/rel).resolve()) for a in j['payload'].get('reference_snapshot',[]) for rel in self.adjustment_paths(a))
+                    active_references.update(self._media_identity(rel) for a in j['payload'].get('reference_snapshot',[]) for rel in self.adjustment_paths(a))
             referenced.update(active_references)
             for row in list(self.db.execute('select * from pending_file_deletions')):
                 rel=row['path']

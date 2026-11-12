@@ -1,0 +1,37 @@
+.wb-develop::before,.wb-develop::after{
+ content:"";position:absolute;pointer-events:none;
+}
+.wb-develop::before{
+ width:min(52%,260px);aspect-ratio:1;border-radius:50%;
+ background:conic-gradient(from 30deg,transparent 16%,var(--wb-gold) 49%,transparent 72%);
+ mask:radial-gradient(farthest-side,transparent calc(100% - 2px),#000 calc(100% - 1px));
+ opacity:.68;animation:wb-develop-turn 2.7s linear infinite;
+}
+.wb-develop::after{
+ inset:0;background:linear-gradient(180deg,transparent 35%,color-mix(in srgb,var(--wb-gold) 18%,transparent) 50%,transparent 65%);
+ opacity:.78;animation:wb-develop-scan 2.6s ease-in-out infinite;
+}
+.wb-develop .wb-develop-copy{
+ z-index:1;inset:auto;position:relative;display:grid;justify-items:center;text-align:center;
+ gap:7px;padding:15px 19px;background:color-mix(in srgb,var(--wb-center) 84%,transparent);
+}
+.wb-develop-copy>.studio-icon{width:28px;height:28px;color:var(--wb-gold)}
+.wb-develop-copy strong{font-size:15px}
+.wb-develop-copy small{font-size:11px}
+.wb-reveal>img:not([data-reveal-ready=true]){animation:none}
+@keyframes wb-develop-turn{to{transform:rotate(1turn)}}
+@keyframes wb-develop-scan{
+ 0%{transform:translateY(-58%)}
+ 70%,100%{transform:translateY(58%)}
+}
+.wb-lightbox-status,.wb-lightbox-close{
+ position:absolute;top:15px;z-index:1;background:#101713e5;color:#efeee6;
+ border:1px solid #a5b2a75c;border-radius:6px;
+}
+.wb-lightbox-status{left:15px;max-width:calc(100% - 80px);padding:7px 9px;font-size:12px;pointer-events:none}
+.wb-lightbox-close{right:15px;width:35px;height:35px;padding:0;line-height:1;font-size:20px}
+.wb-lightbox-close:hover{background:#2d3a31;color:#fff}
+@media(max-width:600px){.wb-lightbox-status,.wb-lightbox-close{top:8px}.wb-lightbox-status{left:8px}.wb-lightbox-close{right:8px}}
+@media(prefers-reduced-motion:reduce){
+ .wb-develop::before,.wb-develop::after{animation:none}
+}

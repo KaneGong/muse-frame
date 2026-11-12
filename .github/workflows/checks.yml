@@ -19,5 +19,27 @@ jobs:
       - run: python -m pip install -r requirements.txt -r requirements-build-standalone.txt
       - run: npm ci --ignore-scripts
       - run: python -m unittest discover -s app/tests -p 'test_*.py'
+      - run: python -m unittest discover -s design/muse-frame-04/tests -p 'test_*.py'
+      - run: python -m unittest discover -s scripts/tests -p 'test_*.py'
       - run: npm test
+      - run: node --test design/muse-frame-04/tests/*.test.mjs
       - run: python scripts/audit_release.py
+  windows-webui:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.14'
+          architecture: x64
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version: '1.26.4'
+          cache: false
+      - name: Build Windows x64 installer
+        run: python scripts/build_webui_candidate.py windows --output "$env:RUNNER_TEMP\muse-frame-candidate" --work "$env:RUNNER_TEMP\muse-frame-build"
+      - name: Verify the installed Windows WebUI
+        run: |
+          $version = (Get-Content -Raw VERSION).Trim()
+          python scripts/verify_windows_webui.py "$env:RUNNER_TEMP\muse-frame-candidate\Muse-Frame-$version-Windows-x64-Setup.exe"

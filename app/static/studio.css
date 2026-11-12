@@ -38,6 +38,9 @@ dialog{background:var(--surface);color:var(--text);border-color:var(--line);bord
 .studio-topbar{align-items:center}.rail nav button .studio-icon{display:inline-block}
 .studio-preset-dialog{scroll-padding-top:100px}
 .scene-preset-top>span:first-child{background:var(--accent-bg);color:var(--accent);border-radius:3px}.scene-preset-card p{color:var(--muted)}.scene-preset-card button:first-child{background:var(--accent-bg);color:var(--accent);border-color:var(--line)}.scene-preset-card button:first-child:hover{border-color:var(--accent)}.scene-mode-note,#pose-analysis-status{color:var(--muted)}
+.scene-custom{background:var(--surface);color:var(--text);border-color:var(--line)}
+.scene-custom>summary{color:var(--text)}.scene-custom label{color:var(--muted)}
+.pose-source-preview img{background:var(--raised)}
 .sound-settings,#pose-generation-controls{background:var(--raised);border:1px solid var(--line);border-radius:4px}.rail-task-status[data-running=true]>strong:before{background:var(--accent)}
 
 /* 在线姿势库 · 按姿势组浏览，组内切 5 视角，按需下载原图 */
@@ -132,8 +135,14 @@ button,.button,input,select,textarea{border-radius:var(--radius-control)}
 .asset-card .asset-more{margin:0;padding:0;border:0}
 .asset-card .image-download-actions{display:flex;gap:8px;margin:0;align-items:stretch}
 .asset-card .image-download-actions>button,.asset-card .image-download-actions>a{flex:1 1 110px;display:flex;align-items:center;justify-content:center;min-height:40px;text-align:center;font-size:11px;line-height:1.5;padding:8px}
-.choice-image{border-radius:var(--radius-card)}
-.choice-image[aria-pressed=true]{box-shadow:inset 0 0 0 1px var(--accent)}
+.choice-image{position:relative;border-radius:var(--radius-card)}
+.choice-image[aria-pressed=true]{outline:2px solid var(--accent);outline-offset:1px}
+.choice-image[aria-pressed=true]::after{
+ content:"✓";position:absolute;top:8px;right:8px;display:grid;place-items:center;
+ width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--button-text);
+ font-size:14px;font-weight:700;pointer-events:none
+}
+.asset-card.in-use{border-color:var(--accent)}
 .style-grid .choice-image strong{padding:12px;min-height:42px}
 .advanced>summary{padding:14px 0;line-height:1.5}
 .pose-gallery-dialog>.dialog-head,.pose-gallery-dialog>.pg-tabs,.pose-gallery-dialog>.filterbar,.pose-gallery-dialog>.pg-foot,.pose-gallery-dialog>p,.pose-gallery-dialog>a,.pose-gallery-dialog>details{flex-shrink:0}
@@ -154,6 +163,7 @@ button,.button,input,select,textarea{border-radius:var(--radius-control)}
 .connection-guide .language-settings{padding:14px 16px;background:var(--raised);border:1px solid var(--line);border-radius:var(--radius-card)}
 .connection-guide .setup-check{padding:22px 0}
 .connection-guide .setup-check>strong{font-size:14px}
+#sa-platform-state[data-state="connected"]{color:var(--ok,#2f8f5b)}
 #sa-verify-list{display:grid;gap:10px;margin-top:12px}
 #sa-verify-list>p{padding:12px;background:var(--raised);border:1px solid var(--line);border-radius:var(--radius-control);overflow-wrap:anywhere;line-height:1.8}
 @media(max-width:680px){

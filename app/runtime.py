@@ -10,7 +10,7 @@ EDITION_NAME={'private':'私有版','standalone':'独立版','open':'开放版'}
 APP_ID='ai-portrait-studio'
 APP_NAME='映象所' if EDITION=='standalone' else 'AI人像摄影 Studio'
 ENGLISH_NAME='MUSE FRAME' if EDITION=='standalone' else 'AI Portrait Studio'
-VERSION='0.4.0-beta.2' if EDITION=='standalone' else '0.3.3-alpha.1'
+VERSION='0.5.0-beta.5' if EDITION=='standalone' else '0.3.3-alpha.1'
 DEFAULT_PORT={'private':8766,'standalone':8765,'open':8787}[EDITION]
 # Standalone owns its platform connection: no Codex CLI, no Agent session.
 DEFAULT_CONNECTION={'private':'codex-lovart','standalone':'lovart-direct','open':'codex-lovart'}[EDITION]
@@ -27,7 +27,13 @@ def data_dir():
             return Path(__file__).resolve().parent.parent/'data'
         if sys.platform=='win32':
             return Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local'))/'AI Portrait Studio Standalone'
-        if sys.platform=='darwin':return Path.home()/'Library/Application Support/AI Portrait Studio Standalone'
+        if sys.platform=='darwin':
+            # Local opt-in preview only. Published builds without this marker
+            # retain the existing directory; never erase or migrate it silently.
+            marker=Path(sys.executable).parent.parent/'Resources/local-data-profile'
+            profile=marker.read_text().strip() if marker.is_file() else ''
+            name='AI Portrait Studio Standalone Prompt V2' if profile=='prompt-v2' else 'AI Portrait Studio Standalone'
+            return Path.home()/'Library/Application Support'/name
         return Path(os.environ.get('XDG_DATA_HOME',Path.home()/'.local/share'))/APP_ID
     if sys.platform=='win32':
         return Path(os.environ.get('LOCALAPPDATA',Path.home()/'AppData/Local'))/'AI Portrait Studio'

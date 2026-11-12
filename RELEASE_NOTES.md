@@ -1,70 +1,63 @@
-![MUSE FRAME portfolio](https://raw.githubusercontent.com/KaneGong/muse-frame/main/docs/media/portfolio-banner.webp)
+# MUSE FRAME 0.5.0-beta.5 · Community prerelease / 社区预发布版
 
-# MUSE FRAME · 映象所 — 0.4.0-beta.2
+## English
 
-**Plan your shoot. Shape your frame. · 把灵感，拍成一组作品。**
+MUSE FRAME now opens the local workspace in your default browser from an Apple Silicon Mac app or a Windows x64 installer. This community prerelease adds workspace migration, backup and rollback alongside the bilingual interface.
 
-A local-first AI portrait workspace: arrange references, design a look, plan shots, generate through your own platform, then select, edit and export.
+### Downloads
 
-从参考、影调和镜头规划，到生图、选片、文字修改与导出，把一次 AI 人像创作组织成完整的拍摄流程。
+| File | Use |
+| --- | --- |
+| `Muse-Frame-0.5.0-beta.5-macOS-arm64.dmg` | Apple Silicon Mac. Drag the app into Applications. It is ad-hoc signed and lacks Apple notarization. The DMG's `BUILD-INFO.txt` lists the minimum macOS target. |
+| `Muse-Frame-0.5.0-beta.5-Windows-x64-Setup.exe` | Windows x64, for the current user. The installer and launcher are unsigned. Open MUSE FRAME from Start after setup. Native Windows validation is pending. |
+| `Muse-Frame-0.5.0-beta.5-source.zip`, `SOURCE-MANIFEST.json`, `SHA256SUMS.txt` | Download alongside the packages to inspect the corresponding source and check file integrity. |
 
-**[Product introduction / 产品介绍](https://github.com/KaneGong/muse-frame#readme) · [中文首页](https://github.com/KaneGong/muse-frame/blob/main/README.zh-CN.md) · [English guide](https://github.com/KaneGong/muse-frame/blob/main/docs/en/user-guide.md) · [中文图文教程](https://github.com/KaneGong/muse-frame/blob/main/docs/zh-CN/user-guide.md)**
+The earlier [0.4.0-beta.2 Mac release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) remains available.
 
-## Inside the workspace / 工作台一览
+### Changes since 0.4.0-beta.2
 
-![Actual Mac App, light shoot workspace](https://raw.githubusercontent.com/KaneGong/muse-frame/main/docs/media/screenshots/02-workspace-light.webp)
+- Plan a shoot in the local browser workspace. Browse, filter and favorite references, preview selected images and use the quick or advanced shooting controls.
+- Review the actual prompt and references before submitting. This includes built-in scene images in the packaged app.
+- Use English or Simplified Chinese. Your saved text stays as entered. Some provider diagnostics, built-in prompt text and gallery content retain their source language.
+- Inspect an old workspace, copy supported shoots, media and job history, back up to a folder or switch back to the previous workspace.
+- The browser loads versioned interface files on upgrade. If an older copy is still running, the launcher shows both version numbers and links to the running workspace so you can quit it when its jobs finish.
 
-- Separate face, body, outfit, environment and pose references; large online-library previews and up to 10 selected imports.
-- Photography presets with individual adjustments; multiple configured shots; 1–4 requested images per shot.
-- Persistent prompt/reference inspector, large previews, text-guided edits retaining the original, local color and original-image export.
+### Upgrade and validation
 
-- 分别管理面部、身形、服装、环境和姿态参考；在线图库先看大图，单次最多复选导入 10 张。
-- 摄影风格可单独微调；镜头逐个配置，每镜头请求 1–4 张，3 个镜头 × 4 张 = 共请求 12 张。
-- 右侧常驻核对提示词和参考，放大选片，文字修改保留原版，本地调色并导出原图。
+Wait for active jobs to finish. In **Your shoots → Workspace migration and backup**, use **Quit Muse Frame** before opening the new version. To bring over older data, close the source app and inspect its workspace before migrating. Keep the old app and its data. Migration and workspace backup exclude provider credentials. Connect your own Lovart or LibTV account when needed. Generation uses your provider credits.
 
-![Actual Mac App, dark works and selection](https://raw.githubusercontent.com/KaneGong/muse-frame/main/docs/media/screenshots/04-results-dark.webp)
+The workspace runs locally in your browser. CrossOver compatibility checks are separate from native Windows validation. This release makes no new claim about live provider authorization, paid generation or output quality.
 
-Screenshots show the actual App with an isolated demo project and maintainer-authorized, previously generated AI works. Disconnected status is intentional; no new generation run is claimed. [Larger works and all six screenshots](https://github.com/KaneGong/muse-frame/blob/main/docs/showcase.md).
+[Quick start](docs/en/quick-start.md) · [Compatibility](docs/en/compatibility.md) · [Privacy](docs/en/privacy.md) · [Report an issue](https://github.com/KaneGong/muse-frame/issues/new/choose)
 
-截图来自真实 App，使用独立演示项目和维护者授权的既有 AI 作品；未连接状态有意保留，不代表新增生图。横幅为基于作品和 Logo 的 AI 辅助排版。单幅作品和更多界面见上方影集链接。
+## 简体中文
 
-## Download / 下载
+映象所可通过 Apple 芯片 Mac 应用或 Windows x64 安装程序启动，在系统默认浏览器中打开本地工作台。本次社区预发布版提供中英文界面，以及工作区迁移、备份和回退。
 
-In the Assets list below / 页面底部 Assets 中：
+### 下载
 
-- **Mac App:** `MuseFrame-0.4.0-beta.2-macos-arm64.dmg`
-- **Corresponding source / 对应源码:** `MuseFrame-0.4.0-beta.2-source.zip` — also included inside the DMG / DMG 内也有
-- **Checksums / 校验文件:** `SHA256SUMS.txt`
-- **Source inventory / 源码清单:** `SOURCE-MANIFEST.json`
+| 文件 | 用途 |
+| --- | --- |
+| `Muse-Frame-0.5.0-beta.5-macOS-arm64.dmg` | Apple 芯片 Mac。将 App 拖入“应用程序”。App 采用临时签名，尚未经过 Apple 公证。最低系统版本见 DMG 内的 `BUILD-INFO.txt`。 |
+| `Muse-Frame-0.5.0-beta.5-Windows-x64-Setup.exe` | Windows x64，安装到当前用户。安装程序和启动器均未签名。安装后也可从开始菜单打开映象所。待 Windows 实机验证。 |
+| `Muse-Frame-0.5.0-beta.5-source.zip`、`SOURCE-MANIFEST.json`、`SHA256SUMS.txt` | 与安装包一同提供，可查阅对应源码并核对文件完整性。 |
 
-**Requires macOS 26+, Apple Silicon arm64. Ad-hoc signed, not Apple-notarized.** Release checks ran on macOS 27.0.1 / arm64; other versions/devices need more testing. Windows and Intel Mac binaries are not available yet. Copy the App to Applications. If macOS blocks it, read [Apple's guidance](https://support.apple.com/en-us/102445); do not disable Gatekeeper globally. Older systems can try the [source WebUI](https://github.com/KaneGong/muse-frame/blob/main/docs/en/quick-start.md#source-browser-ui).
+此前的 [0.4.0-beta.2 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 仍可下载。
 
-**当前安装包要求 macOS 26+、Apple Silicon，临时签名、未 Apple 公证。** 本轮实测环境为 macOS 27.0.1 / arm64，其他系统与设备仍需继续验证；Windows、Intel Mac 包尚未提供。打开 DMG 后将 App 复制到“应用程序”；若受系统拦截请参考 [Apple 官方说明](https://support.apple.com/zh-cn/102445)，无需全局关闭系统保护。旧系统可尝试[源码 WebUI](https://github.com/KaneGong/muse-frame/blob/main/docs/zh-CN/quick-start.md#本地webui源码版)。
+### 相比 0.4.0-beta.2 的变化
 
-## First shoot / 第一次使用
+- 在本地浏览器中规划拍摄。可浏览、筛选和收藏参考图，预览所选图片，并使用快拍或进阶控制。
+- 提交前核对实际提示词和参考图，包括安装包中的内置场景原图。
+- 提供简体中文和英文界面。已保存的原文保持原样。部分平台诊断、内置提示词和图库内容仍采用来源语言。
+- 可检查旧工作区、复制支持的拍摄、图片和任务历史、备份到文件夹，或切回上一份工作区。
+- 升级时浏览器会按版本加载界面文件。旧版仍在运行时，新启动器会显示两个版本号并提供打开在用工作区的入口，便于等任务结束后退出。
 
-1. Open settings, choose Lovart or LibTV and authorize your own account.
-2. Create a project, choose references and configure one shot.
-3. Review the model's supported ratio/resolution, final prompt, reference order and total count.
-4. Submit when ready, then inspect the task and save the original.
+### 升级与验证
 
-1. 在设置中选择 Lovart 或 LibTV，并完成自己的账号授权。
-2. 新建项目，选择参考，先配置一个镜头。
-3. 核对型号支持的画幅/分辨率、提示词、参考顺序和总张数。
-4. 确认后生成，在任务页查看结果并保存原图。
+等活动任务结束后，在**拍摄列表 → 工作区迁移与备份**中点**退出本机工作台**，再打开新版。迁移旧资料前，请退出旧程序并检查旧工作区，保留旧程序和原资料。迁移及工作区备份会排除平台凭据。需要时请自行连接 Lovart 或 LibTV，生图使用你的平台额度。
 
-Generation sends prompts and selected references to the provider and uses **your platform credits**. This preview has no workbench subscription or bundled generation credits. Model availability, fees and output quality depend on the provider. Connection checks do not validate every model combination. English UI is available; some diagnostics, built-in prompts and upstream labels remain Chinese.
+工作台在本机运行，并在浏览器中显示。CrossOver 兼容验证与 Windows 实机验证各自独立。本次发布说明不新增真实平台授权、付费生图或成片质量的验证结论。
 
-生成会发送提示词和选中参考图至绘图平台，使用**你自己的平台额度**。本轮工作台免费，不赠送生图额度；型号、费用与结果由平台决定，连接成功不代表全部组合实测。支持英文界面，部分诊断、内置提示词和上游标签仍为中文。
+[快速开始](docs/zh-CN/quick-start.md) · [兼容性](docs/zh-CN/compatibility.md) · [隐私](docs/zh-CN/privacy.md) · [问题反馈](https://github.com/KaneGong/muse-frame/issues/new/choose)
 
-## Preview notes / 预览说明
-
-beta.2 removes a reverse-DNS dependency that could block local startup. The beta.1 candidate tag is retained, but its binary release was not published. This is a community preview for feedback.
-
-beta.2 修复了可能阻碍本机启动的反向 DNS 依赖。beta.1 候选标签保留，其安装包未公开发布。欢迎先试用并反馈。
-
-[Known limits / 兼容性](https://github.com/KaneGong/muse-frame/blob/main/docs/en/compatibility.md) · [中文限制说明](https://github.com/KaneGong/muse-frame/blob/main/docs/zh-CN/compatibility.md) · [Privacy / 隐私](https://github.com/KaneGong/muse-frame/blob/main/docs/en/privacy.md) · [Issues / 反馈](https://github.com/KaneGong/muse-frame/issues/new/choose)
-
-Software is **AGPL-3.0-only**. Showcase artwork has separate [asset notices](https://github.com/KaneGong/muse-frame/blob/main/ASSET_LICENSES.md), not an automatic AGPL image license. Please remove credentials and personal content from public bug reports.
-
-软件采用 **AGPL-3.0-only**；展示作品遵循独立素材说明，不自动纳入 AGPL。公开反馈前请移除凭据和私人内容。
+Software / 软件 [AGPL-3.0-only](LICENSE) · [Asset notices / 素材说明](ASSET_LICENSES.md) · [Dependency notices / 依赖许可](THIRD_PARTY_NOTICES.md)

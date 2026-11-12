@@ -8,9 +8,23 @@ const photo={light:'光线',color:'色调',contrast:'曝光与反差',depth:'景
 function lineValue(text,label){const line=text.split('\n').find(x=>x.startsWith(label+'：'));return line?line.slice(label.length+1):'';}
 function setLine(text,label,value){const lines=text.split('\n');const i=lines.findIndex(x=>x.startsWith(label+'：'));if(i<0)return text+(text.endsWith('\n')?'':'\n')+label+'：'+value;lines[i]=label+'：'+value;return lines.join('\n');}
 const cameraLabels={shot:'景别',angle:'机位',placement:'画面位置',lens:'透视观感',scale:'人物占比'};
+const sectionLabels={...keys,...cameraLabels,...photo,lens:'透视',light:'光照',contrast:'影调',skin:'皮肤'};
+const sectioned=text=>text.includes('【本镜头拍摄要求】')&&text.includes('【成片要求】');
+function patchSection(text,key,value){
+ const label=sectionLabels[key];
+ if(!label)throw Error('未知提示词字段');
+ if(!value)return removeLine(text,label);
+ if(text.split('\n').some(line=>line.startsWith(label+'：')))return setLine(text,label,value);
+ const lines=text.split('\n'),at=key==='skin'?lines.length:lines.indexOf('【成片要求】');
+ lines.splice(at,0,label+'：'+value);return lines.join('\n');
+}
 function cameraParts(text){const parts=lineValue(text,'构图与取景').split('；').filter(Boolean),result={};const labelled=parts.some(p=>Object.values(cameraLabels).some(label=>p.startsWith(label+'：')));if(labelled){for(const [key,label] of Object.entries(cameraLabels))result[key]=parts.find(p=>p.startsWith(label+'：'))?.slice(label.length+1)||'';result.extra=parts.filter(p=>!Object.values(cameraLabels).some(label=>p.startsWith(label+'：')));}else{for(const [key,i] of Object.entries(camera))if(key!=='scale')result[key]=parts[i]||'';result.extra=parts.slice(4);}if(result.placement===legacyScale&&!result.scale){result.scale=result.placement;result.placement='';}return result;}
 function removeLine(text,label){return text.split('\n').filter(x=>!x.startsWith(label+'：')).join('\n');}
 function get(text,key){
+ if(sectioned(text)){
+  if(key==='environment')return text.split('\n').find(line=>/^图\d+｜场景：/.test(line))||lineValue(text,keys.environment);
+  if(sectionLabels[key])return lineValue(text,sectionLabels[key]);
+ }
  if(keys[key])return lineValue(text,keys[key]);
  if(key in camera)return cameraParts(text)[key];
  if(photo[key]){const s=lineValue(text,'摄影处理'),label=photo[key];const m=s.match(new RegExp(label+'：([^；]*)'));return m?m[1]:'';}
@@ -18,8 +32,9 @@ function get(text,key){
 }
 function patch(text,key,value){
  value=String(value??'').trim();
+ if(sectioned(text))return patchSection(text,key,value);
  if(keys[key])return value?setLine(text,keys[key],value):removeLine(text,keys[key]);
- if(key in camera){const parts=cameraParts(text);parts[key]=value;const line=[...Object.keys(camera).filter(k=>parts[k]).map(k=>cameraLabels[k]+'：'+parts[k]),...parts.extra].join('；');return line?setLine(text,'构图与取景',line):removeLine(text,'构图与取景');}
+ if(key in camera){const parts=cameraParts(text);parts[key]=value;const line=[...Object.keys(camera).filter(k=>parts[k]).map(k=>cameraLabels[k]+'：'+parts[k]),...parts.extra].join('；');return framingPriority(line?setLine(text,'构图与取景',line):removeLine(text,'构图与取景'));}
  if(photo[key]){let parts=lineValue(text,'摄影处理').split('；').filter(Boolean);const label=photo[key],at=parts.findIndex(p=>p.startsWith(label+'：'));if(at>=0){if(value)parts[at]=label+'：'+value;else parts.splice(at,1);}else if(value)parts.push(label+'：'+value);const line=parts.join('；');return line?setLine(text,'摄影处理',line):removeLine(text,'摄影处理');}
  throw Error('未知提示词字段');
 }
@@ -66,16 +81,37 @@ function supportConflict(text){
 }
 function validation(text,map,aspect){const issues=map.missing.map(x=>x.text);if(!text.trim())issues.push('填写提示词');if(!map.roles.scene&&/图4/.test(get(text,'environment')))issues.push('提示词提到图4，但尚未选择环境参考图');const maximum=Math.max(0,...[...text.matchAll(/图(\d+)/g)].map(m=>Number(m[1])));if(maximum>map.refs.length&&!issues.length)issues.push('提示词图片编号超出本次参考图数量');if(map.roles.pose&&!new RegExp('图'+map.numbers.pose+'(?!\\d)').test(get(text,'poseReference')))issues.push('核对姿态参考图编号');if(map.roles.pose&&!map.roles.scene&&/支撑物本身取自图4环境中已有的物件/.test(get(text,'poseReference')))issues.push('姿态图4被旧提示词误写成环境图，请先修正');if(!map.roles.pose&&get(text,'poseReference'))issues.push('重新选择姿态图片或移除姿态参考要求');const sc=supportConflict(text);if(sc)issues.push(sc);for(const c of fieldConflicts(text))issues.push(c);return issues;}
 const poseFramingClause='不沿用姿态参考图的人物画面占比、取景范围和拍摄距离；最终构图以本次景别、画面位置与人物占比设定为准，构图要求优先于姿态参考的原取景，画外肢体不必强行展示。';
-function poseFraming(text){const body=get(text,'poseReference');return body&&!body.includes(poseFramingClause)?setLine(text,'姿态参考',body+poseFramingClause):text;}
+// Only the explicitly selected natural environmental preset changes paragraph order.
+// Existing drafts and user-authored numeric framing are never migrated on load.
+function framingPriority(text){
+ if(!(get(text,'scale')||'').includes('以周围空间为主要画面'))return text;
+ const lines=text.split('\n'),labels=['构图与取景：','场景：','场景参考：','时间：','天气：'];
+ const isLayout=line=>labels.some(label=>line.startsWith(label));
+ return [...labels.flatMap(label=>lines.filter(line=>line.startsWith(label))),...lines.filter(line=>!isLayout(line))].join('\n');
+}
+function poseFraming(text){const body=get(text,'poseReference');return framingPriority(body&&!body.includes(poseFramingClause)?setLine(text,'姿态参考',body+poseFramingClause):text);}
 function poseReference(text,number){
  const t=removeLine(text,'姿态参考').replace('；指定景别优先于姿态参考的原取景，画外肢体关系不必强行展示。','。');
  if(!number)return t;
- // 姿态绑定前置到第 2 行：越靠前权重越高，避免被后续段落稀释。
+ // Keep pose instructions together; an explicit environmental framing stays first.
  // 手写的「姿态与接触关系」保持原样保留，只声明图片优先，移除图片时可原样还原。
  const body=`人物姿态完全照抄图${number}的骨架：身体朝向（正面、背面、侧面及扭转角度）、重心落在哪条腿或哪侧胯、四肢的方向与弯曲、头部朝向、以及身体与支撑物的关系，逐项与图${number}一致；不要按文字重新演绎姿态，文字只作补充，仅姿态骨架冲突时以图${number}为准。为了正脸看镜头而把身体转正，不算照抄。图${number}只用来确定身体与支撑物的关系，不取其外貌、五官、发型、服装、材质、背景、画质与表情；${number===5?'支撑物本身取自图4环境中已有的物件，不照搬线稿里的示意物。':'支撑物以文字场景中可用的物件为准，不将姿态图中的示意物当作环境参考。'}`;
  const head=t.split('\n');
  head.splice(1,0,'姿态参考：'+body+poseFramingClause);
- return head.join('\n');
+ return framingPriority(head.join('\n'));
+}
+// Only remap an existing reference when its logical slot changed. Do not
+// replace user-authored instructions as a side effect of selecting a face.
+function rebindPose(text,number){
+ const body=get(text,'poseReference');if(!body)return text;
+ if(!number)return removeLine(text,'姿态参考');
+ const explicit=body.match(/(?:姿态完全照抄|动作(?:骨架)?(?:取|来自|参考))图(\d+)/)?.[1]
+  ||body.match(/图(\d+)(?:的|提供)?(?:坐姿|站姿|动作|姿态|骨架)/)?.[1];
+ const possible=[...new Set([...body.matchAll(/图([45])(?!\d)/g)].map(m=>m[1]))];
+ const old=explicit||(possible.length===1?possible[0]:null);if(!old||Number(old)===number)return text;
+ let next=body.replace(new RegExp('图'+old+'(?!\\d)','g'),'图'+number);
+ if(number===4)next=next.replace('支撑物本身取自图4环境中已有的物件，不照搬线稿里的示意物。','支撑物以文字场景中可用的物件为准，不将姿态图中的示意物当作环境参考。');
+ return setLine(text,'姿态参考',next);
 }
 function environment(text,enabled,line='场景参考：参考图4只读取空间结构、家具布局、材质与光线特点；不读取其中的人物、人物姿态与人物服装。'){
  const list=text.split('\n'),index=list.findIndex(x=>x.startsWith('场景参考：'));
@@ -115,14 +151,14 @@ function alignSeat(text){
 /* 字段冲突规则：明确矛盾的字段组合，用于生成前收口与一键调和。 */
 const fieldRules=[
  {msg:'半身或特写景别与「环境占比大」冲突，请改为环境远景或调整人物占比',check:t=>/半身|近景特写|胸部以上|小腿附近/.test(get(t,'shot')||'')&&/占比较小|环境人像远景|40%–50%/.test(get(t,'scale')||''),fix:t=>patch(t,'shot','环境人像远景，完整展示人物与周围空间')},
- {msg:'棚拍柔光与户外场景冲突',check:t=>/棚拍柔光/.test(get(t,'light')||'')&&!/纯色影棚/.test(get(t,'scene')||''),fix:t=>patch(t,'light','柔和逆光勾勒轮廓，正面适量补光')},
- {msg:'窗边柔光与户外场景冲突',check:t=>/窗边/.test(get(t,'light')||'')&&/海边|花园绿地|城市街角/.test(get(t,'scene')||''),fix:t=>patch(t,'light','柔和逆光勾勒轮廓，正面适量补光')},
- {msg:'夜晚时间与白天光线冲突',check:t=>/夜晚/.test(get(t,'time')||'')&&/窗边|逆光|闪光|棚拍/.test(get(t,'light')||''),fix:t=>patch(t,'light','')},
- {msg:'户外雨景与室内场景冲突',check:t=>/雨后|细雨/.test(get(t,'weather')||'')&&/纯色影棚|室内空间/.test(get(t,'scene')||''),fix:t=>patch(t,'weather','')},
 ];
 function fieldConflicts(text){return fieldRules.filter(r=>r.check(text)).map(r=>r.msg);}
 function harmonize(text){let changed=false;for(const r of fieldRules){if(r.check(text)){text=r.fix(text);changed=true;}}return {text,changed};}
-function compact(text){return text.split('\n').filter(l=>!/^[^：]+：\s*$/.test(l)).join('\n');}
-const api={keys,photo,camera,get,patch,ratio,promptRatio,bindings,validation,environment,poseReference,poseFraming,supportConflict,sceneSeats,alignSeat,fieldConflicts,harmonize,compact};
+const emptyPromptFields=new Set([...Object.values(keys),...Object.values(photo),...Object.values(sectionLabels),'构图与取景']);
+function compact(text){return text.split('\n').filter(line=>{
+ const heading=line.trimEnd();
+ return !heading.endsWith('：')||!emptyPromptFields.has(heading.slice(0,-1));
+}).join('\n');}
+const api={keys,photo,camera,get,patch,ratio,promptRatio,bindings,validation,environment,poseReference,rebindPose,poseFraming,framingPriority,supportConflict,sceneSeats,alignSeat,fieldConflicts,harmonize,compact};
 if(typeof module!=='undefined')module.exports=api;else root.PromptEngine=api;
 })(typeof window==='undefined'?globalThis:window);

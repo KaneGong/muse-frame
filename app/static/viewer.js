@@ -2,7 +2,26 @@
 Q.viewerStatus=message=>{Q.$('viewer-status').textContent=message;Q.$('viewer-status').hidden=!message;};
 Q.viewerRun=fn=>async(...args)=>{try{return await fn(...args);}catch(e){Q.viewerStatus(e.message);Q.toast(e.message);}};
 Q.downloadImageUrl=async(url,name)=>{const safe=name.replace(/[\\/:*?"<>|]/g,'_');const api=Q.nativeBridge();if(api&&api.save_download&&String(url).startsWith('/'))return api.save_download(safe,url);const response=await fetch(url);if(!response.ok)throw Error('图片读取失败');const blob=await response.blob();const ext=({'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp'})[blob.type]||'.png';return Q.download(safe+ext,blob);};
-Q.getOriginal=async id=>{const pid=Q.project.id,before=Q.asset(id)?.photo_adjustment?.revision;let a=await Q.api('/api/original',{project_id:pid,id});if(Q.project?.id===pid){const at=Q.assets.findIndex(x=>x.id===id);if(at>=0){const current=Q.assets[at];if(current.photo_adjustment?.revision!==before)a={...a,photo_adjustment:current.photo_adjustment,display_url:current.display_url,adjusted:current.adjusted};Q.assets[at]=a;}}return a;};
+Q.originalPicture=a=>a?.display_url||a?.original_url||(a?.source==='uploaded'&&!a.preview_only?Q.picture(a):'');
+const originalRequests=new Map();
+Q.getOriginal=(id,{projectId=Q.project?.id}={})=>{
+ const key=JSON.stringify([projectId,id]);
+ if(originalRequests.has(key))return originalRequests.get(key);
+ const before=Q.project?.id===projectId?Q.asset(id)?.photo_adjustment?.revision:undefined;
+ const request=Q.api('/api/original',{project_id:projectId,id}).then(a=>{
+  if(Q.project?.id===projectId){
+   const at=Q.assets.findIndex(x=>x.id===id);
+   if(at>=0){
+    const current=Q.assets[at];
+    if(current.photo_adjustment?.revision!==before)a={...a,photo_adjustment:current.photo_adjustment,display_url:current.display_url,adjusted:current.adjusted};
+    Q.assets[at]=a;
+   }
+  }
+  return a;
+ }).finally(()=>originalRequests.delete(key));
+ originalRequests.set(key,request);
+ return request;
+};
 Q.downloadOriginal=async id=>{Q.toast('正在读取原图…');let a;try{a=await Q.getOriginal(id);}catch(e){await Q.reloadCurrent();if(Q.$('viewer').open)Q.viewerInfo();throw e;}const url=a.original_url||(a.source==='uploaded'&&!a.preview_only?Q.picture(a):'');if(!url)throw Error('没有可下载的本机原图，请从绘图平台获取');const saved=await Q.downloadImageUrl(url,Q.name(a)+'-original');if(saved&&saved.cancelled){Q.toast('已取消保存');return saved;}Q.toast(saved?.path?'原图已保存到 '+saved.path:'原图下载已开始');return saved;};
 Q.downloadCurrent=async id=>{const a=Q.asset(id);if(a?.adjusted&&a?.display_url){const saved=await Q.downloadImageUrl(a.display_url,Q.name(a));if(saved&&saved.cancelled){Q.toast('已取消保存');return saved;}Q.toast(saved?.path?'图片已保存到 '+saved.path:'图片下载已开始');return saved;}return Q.downloadOriginal(id);};
 Q.viewerInfo=()=>{const t=(key,fallback,params)=>Q.i18n?.text?.(key,params)||fallback;const a=Q.asset(Q.viewerId),im=Q.$('viewer-image');if(!a)return;Q.$('viewer-load-original').disabled=!!(a.original_url||a.original_local||a.source==='uploaded'&&!a.preview_only);const pixels=Q.imagePixelSize(a,im);const native=im.naturalWidth?`${pixels[0]} × ${pixels[1]}`:t('viewer.loading','读取中');const original=a.original_size?.every(Boolean)?` · ${t('viewer.originalSize','任务原图 '+a.original_size.join(' × '),{size:a.original_size.join(' × ')})}`:'';const load=Q.$('viewer-load-original');load.textContent=load.disabled?t('viewer.originalReady','原图已就绪'):t('viewer.loadOriginal','加载高清原图');load.dataset.i18n=load.disabled?'viewer.originalReady':'viewer.loadOriginal';Q.$('viewer-quality').textContent=`${t('viewer.currentDisplay','当前显示 '+native,{size:native})}${original} · ${a.adjusted?t('viewer.adjusted','已调色'):a.source==='retouched'?t('viewer.localAdjusted','本机调色版'):a.original_url||a.source==='uploaded'?t('viewer.localOriginal','本机原图'):t('viewer.preview','平台预览')}${a.original_error?' · '+a.original_error:''}`;};

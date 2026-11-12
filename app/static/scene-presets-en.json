@@ -10,5 +10,17 @@
   "street": {"name":"City street corner","category":"Outdoor","summary":"Stone façades, shop windows and street depth for standing or walking poses."},
   "park": {"name":"Tree-lined park","category":"Outdoor","summary":"Tree shadows, a path and a wooden bench create a light, natural mood."},
   "coast": {"name":"Seaside promenade","category":"Outdoor","summary":"The sea, horizon and pale promenade make an open setting."},
-  "rooftop": {"name":"City rooftop terrace","category":"Outdoor","summary":"A distant skyline, low wall and terrace seating create a relaxed urban mood."}
+  "rooftop": {"name":"City rooftop terrace","category":"Outdoor","summary":"A distant skyline, low wall and terrace seating create a relaxed urban mood."},
+  "vintage-apartment": {"name":"Vintage apartment","category":"Indoor","summary":"Worn floorboards, arches and an armchair frame a bright adjoining room."},
+  "hotel-window": {"name":"Hotel window","category":"Indoor","summary":"A tall window, simple curtains and a seat leave a clear route through the room."},
+  "record-shop": {"name":"Record shop","category":"Indoor","summary":"Low record bins and a glazed entrance frame a clear aisle."},
+  "arcade-street": {"name":"Historic arcade","category":"Outdoor","summary":"A continuous arcade, wooden doors and stone steps suit street portraits."},
+  "brick-alley": {"name":"Brick alley","category":"Outdoor","summary":"Brick walls and windows lead into a walkable alley with a low ledge."},
+  "subway-entry": {"name":"Subway entrance","category":"Outdoor","summary":"Steps, rails and a canopy frame a standing area beside the entrance."},
+  "newsstand": {"name":"Street newsstand","category":"Outdoor","summary":"A kiosk and awning leave a clear pedestrian space by the street."},
+  "hill-tree": {"name":"Grassy slope and tree","category":"Outdoor","summary":"A gentle slope leads toward one tree against an open horizon."},
+  "lake-pier": {"name":"Lakeside timber pier","category":"Outdoor","summary":"A timber pier and shore bench open onto still water."},
+  "reed-path": {"name":"Wetland boardwalk","category":"Outdoor","summary":"Reeds frame an open route across shallow water."},
+  "glass-conservatory": {"name":"Glass conservatory","category":"Indoor","summary":"Glass and greenery frame a central path and a side bench."},
+  "concrete-courtyard": {"name":"Concrete courtyard","category":"Studio","summary":"Concrete columns, a low platform and steps establish strong spatial lines."}
 }

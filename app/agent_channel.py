@@ -1,6 +1,7 @@
 """Project-scoped external executor contract. No platform or Agent credentials are reused."""
 import base64, hashlib, json, os, secrets, sys, time, uuid
 from pathlib import Path
+from media_paths import resolved_workspace_path
 from store import ACTIVE
 from agent_identity import identify_agent
 from reference_upload import prepare_upload,DEFAULT_BASE64_LIMIT
@@ -115,8 +116,9 @@ class AgentChannel(AgentLifecycle):
             self.store.asset(aid,pid)
             rel=(snap.get('photo_adjustment') or {}).get('local') or snap.get('original_local') or snap.get('local')
             if not rel:raise AgentError('E_REFERENCE','参考图尚未保存在本机，请先在网页加载原图')
-            path=(self.root/rel).resolve()
-            if not path.is_relative_to(self.root.resolve()) or not path.is_file() or path.stat().st_size>100*1024*1024:raise AgentError('E_REFERENCE','参考图文件不可用或过大')
+            try:path=resolved_workspace_path(self.root,rel)
+            except (OSError,RuntimeError,ValueError) as error:raise AgentError('E_REFERENCE','参考图文件不可用或过大') from error
+            if not path.is_file() or path.stat().st_size>100*1024*1024:raise AgentError('E_REFERENCE','参考图文件不可用或过大')
             try:prepared=prepare_upload(self.root,aid,path,p.get('max_base64_chars',DEFAULT_BASE64_LIMIT))
             except (OSError,ValueError) as e:raise AgentError('E_REFERENCE',str(e)) from None
             digest=prepared['sha256']

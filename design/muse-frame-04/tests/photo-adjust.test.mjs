@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {ADJUSTMENTS,applyAdjustments,defaultAdjustments} from '../photo-adjust.mjs';
+const source=()=>({width:19,height:17,data:Uint8ClampedArray.from({length:19*17*4},(_,i)=>i%4===3?i%256:20+(i*37)%215)});
+test('neutral adjustment is lossless and returns independent storage',()=>{const im=source(),out=applyAdjustments(im);assert.deepEqual(out,im);assert.notEqual(out.data,im.data);});
+test('each of 12 old adjustment controls affects pixels while preserving alpha and source',()=>{assert.equal(ADJUSTMENTS.length,12);for(const a of ADJUSTMENTS){const im=source(),copy=new Uint8ClampedArray(im.data),out=applyAdjustments(im,{[a.id]:a.max});assert.notDeepEqual(out.data,im.data,a.id);assert.deepEqual(im.data,copy);for(let i=3;i<copy.length;i+=4)assert.equal(out.data[i],copy[i],a.id);}});
+test('exposure is linear-light and negative exposure darkens while zero is neutral',()=>{const im={width:1,height:1,data:new Uint8ClampedArray([100,100,100,255])};const b=applyAdjustments(im,{exposure:1}),d=applyAdjustments(im,{exposure:-1});assert.ok(b.data[0]>130&&b.data[0]<145);assert.ok(d.data[0]<100);});
+test('rejects invalid ranges, nonfinite, unknown settings and malformed images',()=>{for(const v of [NaN,Infinity,3,'1',true])assert.throws(()=>applyAdjustments(source(),{exposure:v}));assert.throws(()=>applyAdjustments(source(),{unknown:1}));assert.throws(()=>applyAdjustments({width:1,height:1,data:[]}));assert.equal(Object.keys(defaultAdjustments()).length,12);});

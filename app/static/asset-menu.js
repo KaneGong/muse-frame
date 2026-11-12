@@ -1,10 +1,11 @@
 'use strict';
 // A shared floating menu keeps card geometry and existing asset actions intact.
 Q.closeAssetMenu=({restoreFocus=false}={})=>{
- const menu=Q.$('asset-action-menu'),anchor=Q.assetMenuAnchor;
+ const menu=Q.assetMenuElement,anchor=Q.assetMenuAnchor;
+ Q.assetMenuObserver?.disconnect();Q.assetMenuAnchor=null;anchor?.setAttribute('aria-expanded','false');
  if(!menu||menu.hidden)return;
  if(typeof menu.hidePopover==='function'&&menu.matches(':popover-open'))menu.hidePopover();
- menu.hidden=true;anchor?.setAttribute('aria-expanded','false');Q.assetMenuAnchor=null;Q.assetMenuObserver?.disconnect();
+ menu.hidden=true;
  if(restoreFocus&&anchor?.isConnected)anchor.focus({preventScroll:true});
 };
 Q.openAssetMenu=(anchor,{last=false}={})=>{
@@ -26,7 +27,13 @@ Q.openAssetMenu=(anchor,{last=false}={})=>{
   document.addEventListener('focusin',e=>{if(!menu.hidden&&!menu.contains(e.target)&&!Q.assetMenuAnchor?.contains(e.target))Q.closeAssetMenu();});
   document.addEventListener('scroll',e=>{if(!menu.hidden&&!menu.contains(e.target))Q.closeAssetMenu();},true);
   window.addEventListener('resize',()=>Q.closeAssetMenu());
+  document.addEventListener('close',e=>{if(e.target.contains?.(menu))Q.closeAssetMenu();},true);
  }
+ // A body-level popover is still outside a modal's interactive subtree.
+ // Keep it beside the cards in their owning dialog, above clipping via popover.
+ const owner=anchor.closest('dialog[open]')||document.body;
+ if(menu.parentElement!==owner)owner.append(menu);
+ Q.assetMenuElement=menu;
  const source=anchor.parentElement.querySelector('.asset-menu-source');if(!source)return;
  menu.replaceChildren(...[...source.children].map(b=>b.cloneNode(true)));
  const icons={'save-pose':'camera',adopt:'check-circle',regenerate:'aperture',rename:'pencil',trash:'trash',purge:'trash'};

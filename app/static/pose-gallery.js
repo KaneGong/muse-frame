@@ -20,6 +20,7 @@ Q.poseGalleryCategory=name=>Q.poseCategory({name:String(name||'')});
 Q.openPoseGallery=async()=>{
  if(Q.poseGallery.importing)return;
  if(!Q.active())throw Error('请先恢复项目');
+ const st=Q.poseGallery,pid=Q.project.id,dialog=Q.$('pose-gallery-dialog'),token=st.loadToken=(st.loadToken||0)+1;
  Q.poseGallery.selected=null;
  Q.poseGallery.selAngles={};Q.poseGallery.projectId=Q.project.id;
  Q.$('pose-gallery-import').disabled=true;
@@ -27,15 +28,17 @@ Q.openPoseGallery=async()=>{
  Q.$('pose-gallery-status').textContent=Q.pgText('loading','正在读取姿势库…');
  Q.$('pose-gallery-grid').innerHTML='';
  Q.i18n?.refresh?.();Q.$('pose-gallery-dialog').showModal();
+ const current=()=>st.loadToken===token&&dialog.open&&Q.project?.id===pid;
  try{
   const data=await Q.api('/api/pose-gallery');
+  if(!current())return;
   Q.poseGallery.items=data.items||[];
   Q.poseGallery.groups=Q.groupGalleryPoses(Q.poseGallery.items);
   Q.poseGallery.source=data.source;Q.poseGallery.author=data.author;
   Q.poseGallery.sys='全部';Q.poseGallery.cat='';Q.poseGallery.q='';Q.poseGallery.limit=60;
   Q.$('pose-gallery-note').textContent=Q.pgText('sourceNote','来源 '+data.source+' · 原作者 '+data.author+' · 原图 900×1200 按需下载，只保存在你自己的项目或本机全局库，不随 App 分发。',{source:data.source,author:data.author});
   Q.renderPoseGallery();
- }catch(e){Q.$('pose-gallery-status').textContent=e.message||'姿势库读取失败';}
+ }catch(e){if(current())Q.$('pose-gallery-status').textContent=e.message||'姿势库读取失败';}
 };
 
 Q.renderPoseGallery=()=>{
@@ -76,7 +79,7 @@ Q.renderPoseGallery=()=>{
   const item=g?.angles[angle];if(!item)return;
   const selected=(st.selAngles[g.key]||[]).includes(angle);
   Q.openGalleryPreview({src:Q.galleryUrl(item.orig),title:g.name+' · '+angle,selected,onSelect:()=>{
-   if(st.importing)return;
+   if(st.importing||st.projectId&&st.projectId!==Q.project?.id)return;
    const angles=st.selAngles[g.key]||[];
    if(angles.includes(angle)){st.selAngles[g.key]=angles.filter(a=>a!==angle);if(!st.selAngles[g.key].length)delete st.selAngles[g.key];}
    else if(Q.selectedGalleryPoses().length>=10){Q.$('pose-gallery-status').textContent=Q.galleryBatchText('limit','每次最多选择 10 张');return;}
@@ -136,8 +139,8 @@ Q.importGalleryPose=async()=>{
 };
 
 Q.wirePoseGallery=()=>{
- if(!Q.$('pose-gallery-open'))return;
- Q.$('pose-gallery-open').onclick=Q.run(Q.openPoseGallery);
+ const trigger=Q.$('pose-gallery-open');
+ if(trigger)trigger.onclick=Q.run(Q.openPoseGallery);
  Q.$('pose-gallery-search').oninput=e=>{Q.poseGallery.q=e.target.value;Q.poseGallery.limit=60;Q.renderPoseGallery();};
  Q.$('pose-gallery-cat').onchange=e=>{Q.poseGallery.cat=e.target.value;Q.poseGallery.limit=60;Q.renderPoseGallery();};
  Q.$('pose-gallery-more').onclick=()=>{Q.poseGallery.limit+=60;Q.renderPoseGallery();};

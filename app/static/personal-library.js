@@ -36,42 +36,54 @@ Q.studioPresetOpen=key=>{
 };
 const personalChoosePose=Q.choosePose;
 Q.sharedPoseRequests=new Map();
-Q.choosePose=p=>{
- if(!p?.sourceProject)return personalChoosePose(p);
- const key=Q.project?.id+':'+p.id;
- if(!Q.sharedPoseRequests.has(key))Q.sharedPoseRequests.set(key,Q.importPersonalPose(p).finally(()=>Q.sharedPoseRequests.delete(key)));
+Q.choosePose=(p,target)=>{
+ if(!p?.sourceProject)return personalChoosePose(p,target);
+ if(!Q.active())return Q.importPersonalPose(p,target);
+ const requestKey=t=>t.projectId+':'+t.switchToken+':'+t.shotId+':'+t.sequence+':'+p.id;
+ if(!target){
+  const pending=Q.sharedPoseRequests.get(requestKey(Q.capturePoseTarget()));
+  if(pending)return pending;
+  target=Q.beginPoseSelection();
+ }
+ const key=requestKey(target);
+ if(!Q.sharedPoseRequests.has(key))Q.sharedPoseRequests.set(key,Q.importPersonalPose(p,target).finally(()=>Q.sharedPoseRequests.delete(key)));
  return Q.sharedPoseRequests.get(key);
 };
-Q.importPersonalPose=async p=>{
- if(!p?.sourceProject)return personalChoosePose(p);
+Q.importPersonalPose=async(p,target)=>{
+ if(!p?.sourceProject)return personalChoosePose(p,target);
  if(!Q.active())throw Error('请先打开可编辑项目');
- const pid=Q.project.id;
+ target??=Q.beginPoseSelection();
+ const pid=target.projectId;
  let local=Q.d().customPoses.find(x=>x.sharedOrigin===p.id);
  if(!local){
   if(p.assetId){
    const r=await Q.api('/api/reuse',{source_project:p.sourceProject,project_id:pid,ids:[p.assetId]});
-   if(Q.project?.id!==pid)return;
+   if(!Q.poseTargetProjectIsCurrent(target))return;
    for(let a of r.assets){
-    if(a.trashed){const restored=await Q.api('/api/assets-action',{project_id:pid,ids:[a.id],changes:{trashed:false}});if(Q.project?.id!==pid)return;a=restored.assets[0];}
+    if(a.trashed){const restored=await Q.api('/api/assets-action',{project_id:pid,ids:[a.id],changes:{trashed:false}});if(!Q.poseTargetProjectIsCurrent(target))return;a=restored.assets[0];}
     const at=Q.assets.findIndex(x=>x.id===a.id);if(at<0)Q.assets.push(a);else Q.assets[at]=a;
    }
   }
-  if(Q.project?.id!==pid)return;
-  local={id:'custom-'+crypto.randomUUID(),name:p.name,prompt:p.prompt,category:Q.poseCategory(p),assetId:p.assetId||'',sharedOrigin:p.id};
-  Q.d().customPoses.push(local);Q.changed();await Q.save();
+  if(!Q.poseTargetProjectIsCurrent(target))return;
+  local=Q.d().customPoses.find(x=>x.sharedOrigin===p.id);
+  if(!local){
+   local={id:'custom-'+crypto.randomUUID(),name:p.name,prompt:p.prompt,category:Q.poseCategory(p),assetId:p.assetId||'',sharedOrigin:p.id};
+   Q.d().customPoses.push(local);Q.changed();await Q.save();
+  }
  }
- if(Q.project?.id!==pid)return;
+ if(!Q.poseTargetProjectIsCurrent(target))return;
  if(local.archived){local.archived=false;Q.changed();await Q.save();}
- await personalChoosePose(local);
- if(Q.project?.id===pid){Q.toast('姿态已添加到本项目，图片与描述可继续独立编辑');if(Q.$('pose-groups'))Q.renderPoses();}
+ if(!Q.poseTargetIsCurrent(target))return;
+ await personalChoosePose(local,target);
+ if(Q.poseTargetProjectIsCurrent(target)){Q.toast('姿态已添加到本项目，图片与描述可继续独立编辑');if(Q.$('pose-groups'))Q.renderPoses();}
 };
 
 // Only the visible photograph is fetched at full resolution. No batch downloads.
 Q.hdRequests=new Map();Q.hdAttempts=new Map();
 const personalGetOriginal=Q.getOriginal;
-Q.getOriginal=id=>{
- const key=Q.project.id+':'+id;
- if(!Q.hdRequests.has(key))Q.hdRequests.set(key,personalGetOriginal(id).finally(()=>Q.hdRequests.delete(key)));
+Q.getOriginal=(id,{projectId=Q.project?.id}={})=>{
+ const key=JSON.stringify([projectId,id]);
+ if(!Q.hdRequests.has(key))Q.hdRequests.set(key,personalGetOriginal(id,{projectId}).finally(()=>Q.hdRequests.delete(key)));
  return Q.hdRequests.get(key);
 };
 Q.ensureVisibleOriginal=(id,force=false)=>{
@@ -102,6 +114,6 @@ Q.wireViewer=()=>{
  for(const id of ['compare-toggle','compare-select'])Q.$(id).addEventListener(id==='compare-toggle'?'click':'change',()=>{if(!Q.$('compare-pan').hidden)Q.ensureVisibleOriginal(Q.$('compare-select').value);});
 };
 const personalRenderPoses=Q.renderPoses;
-Q.renderPoses=()=>{personalRenderPoses();if(Q.sharedPoseErrors)Q.$('pose-groups').insertAdjacentHTML('afterbegin','<p role="status">部分项目的姿态暂未读取成功，重新打开摄影设定可重试。</p>');};
+Q.renderPoses=options=>{personalRenderPoses(options);const root=options?.root||Q.$('pose-groups');if(Q.sharedPoseErrors&&root)root.insertAdjacentHTML('afterbegin','<p role="status">部分项目的姿态暂未读取成功，重新打开摄影设定可重试。</p>');};
 const personalPoseOpen=Q.openPose;
 Q.openPose=id=>{personalPoseOpen(id);if(Q.$('pose-dialog').open)Q.$('pose-dialog-title').textContent=id?(Q.i18n?.text?.('pose.editShared')||'编辑姿态 · 可跨项目复用'):(Q.i18n?.text?.('pose.addShared')||'添加姿态 · 可跨项目复用');};

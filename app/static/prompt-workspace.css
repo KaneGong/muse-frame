@@ -1,0 +1,20 @@
+/* Uses the Studio palette in both themes. The inspector remains the scroll host. */
+.shoot-requirements{display:grid;gap:12px;margin:0 0 20px;padding:0 0 18px;border-bottom:1px solid var(--line)}
+.shoot-requirements>label{display:grid;gap:6px;min-width:0}
+.shoot-requirements>label>span{color:var(--muted);font-size:12px;line-height:1.5}
+.shoot-requirements select,.shoot-requirements textarea{width:100%;min-width:0;box-sizing:border-box}
+.shoot-requirements textarea{min-height:54px;max-height:180px;resize:vertical;line-height:1.65;padding:9px 10px}
+.shoot-input-help{color:var(--muted);font-size:11px;line-height:1.6}
+.shoot-requirements p{margin:0;line-height:1.6;font-size:11px}
+.shoot-requirements>button{justify-self:start}
+.shoot-requirements .shoot-inherit{justify-self:start;min-height:30px;padding:5px 9px;font-size:11px;color:var(--muted)}
+.shoot-mode-controls{display:grid;gap:10px;margin:12px 0}
+.shoot-mode-controls>.row{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.shoot-mode-controls button{min-height:36px;white-space:normal;line-height:1.4}
+.shoot-mode-controls p{margin:0;line-height:1.65;font-size:11px}
+.shoot-mode-controls>button{border-color:var(--accent);color:var(--accent)}
+#prompt[readonly]{background:var(--surface);cursor:text;color:var(--text)}
+.shoot-field-source{color:var(--muted);font-size:11px;line-height:1.5;margin:0 0 9px}
+.shoot-style-scope{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 20px;padding:12px;border:1px solid var(--line);background:var(--surface);border-radius:6px}
+.shoot-style-scope>span{font-size:12px;color:var(--muted);margin-right:4px}
+.shoot-style-scope button{min-height:34px}

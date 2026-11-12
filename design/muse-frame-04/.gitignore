@@ -1,0 +1,6 @@
+__pycache__/
+!data/
+data/*
+!data/library.json
+!data/scenes.json
+!data/costumes.json

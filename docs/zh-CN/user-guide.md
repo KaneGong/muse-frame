@@ -1,5 +1,7 @@
 # 映象所使用指南
 
+0.5.0-beta.5 浏览器工作台请看 [WebUI 快速开始](quick-start.md)。本图文教程对应 0.4.0-beta.2。
+
 [返回产品首页](../../README.zh-CN.md) · [English](../en/user-guide.md) · [作品与界面](../showcase.md)
 
 本指南对应 0.4.0-beta.2 社区预览。截图为真实 Mac App，使用独立演示项目和维护者授权的既有 AI 作品，没有复制账号授权，也没有为拍截图新增生图任务。截图的未连接状态是有意保留的。
@@ -10,7 +12,7 @@
 
 从 [官方 Release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 下载 DMG，打开后将 App 复制到“应用程序”，再从那里启动。不要在 App 正在保存或生成时替换它。当前为临时签名、未 Apple 公证版本；如 macOS 阻止打开，请阅读 [Apple 官方说明](https://support.apple.com/zh-cn/102445)，在确认来源后使用系统提供的打开方式，无需全局关闭 Gatekeeper。
 
-更熟悉代码的用户可以使用[本地 WebUI 启动步骤](quick-start.md#本地webui源码版)。它是电脑上的单用户服务，默认只监听本机地址。
+更熟悉代码的用户可以使用[本地 WebUI 启动步骤](https://github.com/KaneGong/muse-frame/blob/v0.4.0-beta.2/docs/zh-CN/quick-start.md#本地webui源码版)。它是电脑上的单用户服务，默认只监听本机地址。
 
 ## 2. 连接你自己的绘图平台
 

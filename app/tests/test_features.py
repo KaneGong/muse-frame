@@ -65,6 +65,8 @@ class FeatureTests(unittest.TestCase):
    for _ in range(2):
     with self.assertRaisesRegex(ValueError,'HTTP 403.*绘图平台'):self.app.original(self.p['id'],'x')
    self.assertEqual(op.return_value.open.call_count,1)
+   with self.assertRaisesRegex(ValueError,'HTTP 403'):self.app.original(self.p['id'],'x',retry=True)
+   self.assertEqual(op.return_value.open.call_count,2)
   self.assertFalse(self.s.asset('x',self.p['id']).get('original_saved',False))
  def test_old_client_failure_does_not_block_repaired_client(self):
   self.s.put_asset({'id':'x','name':'x','url':'https://a.lovart.ai/a.png','original_error':'old HTTP 403','original_attempt':time.time()},self.p['id'])

@@ -13,22 +13,24 @@
     '<h2 id="standalone-setup-title" data-i18n="connection.title">连接与设置</h2></div>',
     '<button id="standalone-close" aria-label="关闭连接设置" data-i18n-aria-label="connection.close">×</button></div>',
     '<p class="setup-lead" data-i18n="connection.intro">连接绘图平台后，即可使用平台模型创作。</p>',
-    '<section class="setup-check"><strong data-i18n="connection.platform">绘图平台</strong>',
+    '<section class="setup-check"><strong data-i18n="connection.platformConnection">平台连接</strong>',
     '<div id="sa-platforms" class="sa-platforms"></div>',
-    '<p id="sa-platform-state">正在读取…</p>',
+    '<p id="sa-platform-state" role="status">正在读取…</p>',
     '<div class="setup-actions"><button id="sa-connect" class="primary" data-i18n="platform.connect">连接</button>',
     '<button id="sa-diagnose" data-i18n="platform.diagnose">诊断</button>',
     '<button id="sa-login" data-i18n="platform.login">授权登录</button></div>',
+    '<p id="sa-feedback" role="status"></p>',
     '<div id="sa-diagnose-report" class="sa-diagnose"></div>',
     '<p class="setup-fine" id="sa-auth-note"></p></section>',
     '<section class="setup-check"><strong data-i18n="connection.models">拍摄使用的模型</strong>',
     '<p data-i18n="connection.modelsHelp">点击「选择模型」，从平台全部模型中挑选要在拍摄中使用的；按供应商分组，勾选型号即可。一个都不勾表示全部可用。</p>',
     '<div class="setup-actions"><button id="sa-pick-models" class="primary" data-i18n="connection.chooseModels">选择模型</button></div>',
-    '<p id="sa-models-summary" class="muted"></p>',
+    '<p id="sa-models-summary" class="muted"></p></section>',
+    '<section class="setup-check" aria-labelledby="sa-verify-heading"><strong id="sa-verify-heading" data-i18n="connection.parameterCheck">模型参数检查</strong>',
+    '<p data-i18n="connection.parameterCheckHelp">平台连上后，会逐个读取模型支持的画幅与分辨率。检查在后台进行，可能需要一分钟左右。</p>',
     '<div class="setup-actions"><button id="sa-verify-models" type="button" data-i18n="connection.verifyModels">检查模型参数</button></div>',
     '<p id="sa-verify-status" role="status"></p><details id="sa-verify-details" hidden><summary data-i18n="connection.parameterDetails">查看各模型画幅和分辨率</summary><div id="sa-verify-list"></div></details>',
-    '<p id="sa-models-feedback" role="status"></p></section>',
-    '<p id="sa-feedback" role="status"></p>',
+    '</section>',
     '<section class="setup-check"><strong data-i18n="connection.download">下载</strong>',
     '<p data-i18n="connection.downloadMac">每次下载原图、导出项目或打包时，都会弹出 macOS 保存窗口，由你选择文件夹和文件名。</p>',
     '<p class="setup-fine" data-i18n="connection.downloadBrowser">浏览器版仍使用浏览器的下载设置。</p></section>',
@@ -105,11 +107,16 @@
       pickerState.models=models;
       renderModelsSummary(models);
       const platformName=(state.platform&&state.platform.name)||currentPlatform;
-      if(connection.state==='connected'){
-        $('sa-platform-state').textContent=t('connection.connected',platformName+' 已连接 · '+models.length+' 个图像模型',{platform:platformName,count:models.length})+
-          (connection.credits==null?'':' · 额度 '+connection.credits);
-      }else{
-        $('sa-platform-state').textContent=platformName+'：'+readableConnectionMessage(connection.message||'',platformName);
+      const status=$('sa-platform-state');
+      const connected=connection.state==='connected';
+      const label=connected?t('platform.connected','已连接'):connection.state==='connecting'?t('platform.connecting','连接中'):t('platform.disconnected','未连接');
+      status.dataset.state=connection.state||'disconnected';
+      status.textContent=platformName+' · '+label+(connected&&connection.credits!=null?' · '+t('connection.credits','额度 '+connection.credits,{credits:connection.credits}):'');
+      if(connection.state==='disconnected'&&connection.message&&connection.message!=='尚未连接 '+platformName){
+        status.textContent+=' · '+readableConnectionMessage(connection.message,platformName);
+      }
+      if(!$('sa-verify-models').disabled&&verifiedPlatform!==currentPlatform){
+        $('sa-verify-status').textContent=connected?t('connection.verifyIdle','等待检查模型参数。'):t('connection.verifyConnect','请先连接平台以检查模型参数。');
       }
       $('sa-connect').textContent=connection.state==='connected'?t('connection.reconnect','重新连接'):t('platform.connect','连接');$('sa-connect').dataset.i18n=connection.state==='connected'?'connection.reconnect':'platform.connect';
       if(verifiedPlatform===currentPlatform&&verifiedResults.length)renderVerification();
@@ -119,6 +126,13 @@
 
   let diagnosisRevision=0;
   let verificationRevision=0,verifiedPlatform='',verifiedResults=[];
+  function resetVerification(){
+    verificationRevision++;
+    verifiedPlatform='';verifiedResults=[];
+    $('sa-verify-models').disabled=false;
+    $('sa-verify-status').textContent=t('connection.verifyIdle','等待检查模型参数。');
+    $('sa-verify-details').hidden=true;
+  }
   function renderVerification(){
     const failed=verifiedResults.filter(x=>!x.ok).length;
     $('sa-verify-status').textContent=failed?t('connection.verifyPartial','已检查 '+verifiedResults.length+' 个模型；'+failed+' 个未取得参数，请重试。',{total:verifiedResults.length,failed}):t('connection.verifyDone','已检查 '+verifiedResults.length+' 个模型的画幅与尺寸信息。',{total:verifiedResults.length});
@@ -252,10 +266,11 @@
 
   async function switchPlatform(platform){
     if(platform===currentPlatform){await refresh();return;}
-    clearDiagnosis();verificationRevision++;verifiedPlatform='';$('sa-verify-models').disabled=false;$('sa-verify-status').textContent='';$('sa-verify-details').hidden=true;
+    clearDiagnosis();resetVerification();
     feedback(t('connection.switching','正在切换平台…'));
     await Q.api('/api/platform',{platform});
     currentPlatform=platform;
+    await refresh();
     // The new platform connects in the background; wait for it to settle so the
     // panel never shows the previous platform's catalog.
     for(let i=0;i<14;i++){
@@ -269,23 +284,24 @@
     }
     await refresh();
     await Q.refreshMeta?.();
-    feedback(t('connection.switched','已切换绘图平台。'),'ok');
-    if(Q.meta.connection?.state==='connected')void verifyModels();
+    feedback('');
+    if($('sa-platform-state').dataset.state==='connected')void verifyModels();
   }
 
   async function connect(){
-    clearDiagnosis();
+    clearDiagnosis();resetVerification();
     $('sa-connect').disabled=true;
     feedback(t('connection.connectingFeedback','正在连接…'));
     try{
       await Q.api('/api/connect',{});
+      await refresh();
       for(let i=0;i<12;i++){
         await new Promise(r=>setTimeout(r,3000));
         const state=(await Q.api('/api/state')).connection||{};
         if(state.state==='connected'){feedback(t('connection.connectedFeedback','已连接。'),'ok');break;}
         if(state.state==='disconnected'&&i>=1){feedback(readableConnectionMessage(state.message||'',currentPlatform==='lovart'?'Lovart':'LibTV'),'error');break;}
       }
-      await refresh();await Q.refreshMeta?.();if(Q.meta.connection?.state==='connected')void verifyModels();
+      await refresh();await Q.refreshMeta?.();if($('sa-platform-state').dataset.state==='connected')void verifyModels();
     }catch(e){feedback(readableConnectionMessage(e.message||'',currentPlatform==='lovart'?'Lovart':'LibTV'),'error');}
     finally{$('sa-connect').disabled=false;}
   }
@@ -302,7 +318,7 @@
     feedback(result.note||'已打开授权页','ok');
   });
 
-  const open=async()=>{if(!dialog.open)dialog.showModal();await refresh();if(Q.meta.connection?.state==='connected'&&verifiedPlatform!==currentPlatform)void verifyModels();};
+  const open=async()=>{if(!dialog.open)dialog.showModal();await refresh();if($('sa-platform-state').dataset.state==='connected'&&verifiedPlatform!==currentPlatform&&!$('sa-verify-models').disabled)void verifyModels();};
   Q.openStandaloneConnection=open;
   Q.refreshStandaloneSettings=async()=>{if(!dialog.open)return;const hadDiagnosis=!!$('sa-diagnose-report').textContent.trim();await refresh();if(hadDiagnosis&&dialog.open)await diagnose();};
   Q.openConnection=open;

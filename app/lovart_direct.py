@@ -129,21 +129,26 @@ def refresh_token(path, token):
 
 
 class _LoginCallback(BaseHTTPRequestHandler):
-    result = {}
+    def setup(self):
+        self.request.settimeout(1)
+        super().setup()
 
     def do_GET(self):
-        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        _LoginCallback.result = {k: v[0] for k, v in query.items()}
-        ok = 'code' in _LoginCallback.result
-        body = ('<html><body style="font:16px -apple-system;padding:48px">'
-                '<h2>%s</h2><p>%s</p></body></html>') % (
-            'Lovart 授权完成' if ok else '授权失败',
-            '可以关闭此页面，回到 AI 人像摄影工作台。' if ok
-            else str(_LoginCallback.result.get('error', 'no code')))
-        raw = body.encode()
-        self.send_response(200)
+        url = urllib.parse.urlparse(self.path)
+        query = urllib.parse.parse_qs(url.query)
+        result = {k: v[0] for k, v in query.items()}
+        valid = url.path == '/callback' and result.get('state') == self.server.oauth_state
+        if valid:
+            self.server.oauth_result = result
+        message = ('已收到 Lovart 授权回传，请返回工作台查看连接状态。' if valid and result.get('code')
+                   else 'Lovart 未完成授权，请返回工作台查看原因并重试。' if valid
+                   else '这不是本次授权的回传，请使用最新打开的授权页。')
+        raw = ('<!doctype html><meta charset="utf-8"><title>Lovart</title><p>' + message + '</p>').encode()
+        self.send_response(200 if valid else 400)
         self.send_header('Content-Type', 'text/html; charset=utf-8')
         self.send_header('Content-Length', str(len(raw)))
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('Referrer-Policy', 'no-referrer')
         self.end_headers()
         self.wfile.write(raw)
 
@@ -151,10 +156,19 @@ class _LoginCallback(BaseHTTPRequestHandler):
         pass
 
 
-def login(path, timeout=None):
+class TransportError(RuntimeError):
+    """The platform could not be reached, independent of protocol version."""
+
+
+class LoginError(RuntimeError):
+    """An authorization failure with a safe message for the workbench."""
+
+
+def login(path, timeout=None, cancelled=None):
     """One-time interactive authorization. Opens a browser, waits on loopback."""
     if timeout is None:
         timeout = float(os.environ.get('LOVART_LOGIN_TIMEOUT', '240'))
+    cancelled = cancelled or threading.Event()
     verifier = _b64url(secrets.token_bytes(48))
     challenge = _b64url(hashlib.sha256(verifier.encode()).digest())
     state = secrets.token_urlsafe(16)
@@ -167,34 +181,49 @@ def login(path, timeout=None):
         'state': state,
         'resource': MCP_URL,
     })
-    _LoginCallback.result = {}
-    server = HTTPServer(('127.0.0.1', CALLBACK_PORT), _LoginCallback)
-    server.timeout = 1
-    print('请在浏览器完成 Lovart 授权：' + url, flush=True)
     try:
-        webbrowser.open(url)
+        server = HTTPServer(('127.0.0.1', CALLBACK_PORT), _LoginCallback)
     except OSError:
-        pass
-    deadline = time.time() + timeout
-    while time.time() < deadline and not _LoginCallback.result:
-        server.handle_request()
-    server.server_close()
-    result = _LoginCallback.result
+        raise LoginError('Lovart 授权回传端口正被其他程序使用，请关闭其他授权尝试后重试。') from None
+    with server:
+        server.timeout = 0.25
+        server.oauth_state = state
+        server.oauth_result = None
+        try:
+            opened = webbrowser.open(url)
+        except OSError:
+            opened = False
+        if not opened:
+            raise LoginError('无法打开浏览器授权页，请检查默认浏览器后重试。')
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline and not cancelled.is_set() and server.oauth_result is None:
+            server.handle_request()
+    if cancelled.is_set():
+        raise LoginError('已结束上一次授权。')
+    result = server.oauth_result
+    if result is None:
+        raise LoginError('未收到 Lovart 授权回传，已超时。请重试。')
     if not result.get('code'):
-        raise RuntimeError('授权未完成：' + str(result.get('error') or '超时'))
-    if result.get('state') != state:
-        raise RuntimeError('授权状态校验失败，请重试')
-    _, _, raw = _post_form(TOKEN_URL, {
-        'grant_type': 'authorization_code',
-        'code': result['code'],
-        'redirect_uri': REDIRECT_URI,
-        'client_id': CLIENT_ID,
-        'code_verifier': verifier,
-        'resource': MCP_URL,
-    })
-    token = json.loads(raw)
-    if 'access_token' not in token:
-        raise RuntimeError('授权换取令牌失败')
+        message = '你取消了 Lovart 授权或平台拒绝了请求。' if result.get('error') == 'access_denied' else 'Lovart 未返回授权码。'
+        raise LoginError(message + '可以重新授权。')
+    try:
+        _, _, raw = _post_form(TOKEN_URL, {
+            'grant_type': 'authorization_code',
+            'code': result['code'],
+            'redirect_uri': REDIRECT_URI,
+            'client_id': CLIENT_ID,
+            'code_verifier': verifier,
+            'resource': MCP_URL,
+        }, timeout=15)
+        token = json.loads(raw)
+    except urllib.error.HTTPError as error:
+        raise LoginError(f'Lovart 换取授权失败（HTTP {error.code}），请重新授权。') from None
+    except (OSError, ValueError):
+        raise LoginError('Lovart 换取授权时连接或响应异常，请重新授权。') from None
+    if not isinstance(token, dict) or not token.get('access_token'):
+        raise LoginError('Lovart 未确认授权，请重新授权。')
+    if cancelled.is_set():
+        raise LoginError('已结束上一次授权。')
     save_token(path, token)
     return token
 
@@ -226,7 +255,8 @@ class LovartDirect:
         self.protocol = None
         self._seq = 0
         self._token = None
-        self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        # Use the system-configured network path, matching OAuth token requests.
+        self._opener = urllib.request.build_opener()
         self.last_tools_at = 0.0
 
     # ---- token -------------------------------------------------------
@@ -262,6 +292,7 @@ class LovartDirect:
         except urllib.error.HTTPError as err:
             if err.code != 401:
                 raise
+            err.close()
             # Stale access token: refresh once and retry the same message.
             fresh = refresh_token(self.token_path, self._token or token)
             self._token = fresh
@@ -279,10 +310,11 @@ class LovartDirect:
         try:
             response = self._post(message, timeout=timeout)
         except urllib.error.HTTPError as err:
-            detail = err.read().decode('utf-8', 'replace')[:300]
+            with err:
+                detail = err.read().decode('utf-8', 'replace')[:300]
             raise RuntimeError('平台连接错误 HTTP %d：%s' % (err.code, detail)) from None
         except OSError as err:
-            raise RuntimeError('连接中断（%s）；已提交的生成不会自动重新提交'
+            raise TransportError('连接中断（%s）；已提交的生成不会自动重新提交'
                                % err.__class__.__name__) from None
         with response:
             session = response.headers.get('Mcp-Session-Id')
@@ -323,10 +355,13 @@ class LovartDirect:
                         'protocolVersion': version,
                         'capabilities': {},
                         'clientInfo': {'name': 'ai-portrait-studio', 'version': '0.4.0-standalone.1'},
-                    }, timeout=60)
+                    }, timeout=15)
                     self.protocol = version
                     initialized = True
                     break
+                except TransportError:
+                    self.session_id = None
+                    raise RuntimeError('Lovart 网络连接失败，请检查网络后重试。') from None
                 except RuntimeError as err:
                     last_error = err
                     self.session_id = None
@@ -334,10 +369,10 @@ class LovartDirect:
                 raise RuntimeError('Lovart 握手失败：%s' % last_error)
             # Notification: no id, no response expected.
             try:
-                self._post({'jsonrpc': '2.0', 'method': 'notifications/initialized'}, timeout=30).close()
+                self._post({'jsonrpc': '2.0', 'method': 'notifications/initialized'}, timeout=15).close()
             except OSError:
                 pass
-            listing = self._rpc('tools/list', {}, timeout=60) or {}
+            listing = self._rpc('tools/list', {}, timeout=15) or {}
             self.tools = {tool['name']: tool for tool in listing.get('tools', [])}
             if not self.tools:
                 raise RuntimeError('Lovart 未返回任何工具，请检查平台账号状态')
@@ -348,7 +383,8 @@ class LovartDirect:
             self.connect()
             if name not in self.tools:
                 raise RuntimeError('当前 Lovart 连接缺少工具：' + name)
-            result = self._rpc('tools/call', {'name': name, 'arguments': args or {}}) or {}
+            timeout = 15 if name in ('list_models', 'get_credits') else 300
+            result = self._rpc('tools/call', {'name': name, 'arguments': args or {}}, timeout=timeout) or {}
             return result
 
     def close(self):
@@ -356,6 +392,7 @@ class LovartDirect:
             self.tools = {}
             self.session_id = None
             self.protocol = None
+            self._token = None
 
     # ---- diagnostics -------------------------------------------------
     def info(self):

@@ -1,33 +1,41 @@
 # Quick start
 
-New to the workflow? Follow the [illustrated user guide](user-guide.md) for references, shot planning, generation, editing and export.
+## Install the local WebUI
 
-## Mac download
+1. On an **Apple Silicon Mac**, open the DMG, drag `Muse Frame.app` into Applications and double-click it. The app is ad-hoc signed and lacks Apple notarization. The DMG's `BUILD-INFO.txt` lists the minimum macOS target. [Apple's guidance for opening an app](https://support.apple.com/en-us/102445).
+2. On **Windows x64**, open the Setup executable and confirm installation for your Windows user. It launches Muse Frame after setup and adds a Start menu entry. The installer and launcher are unsigned. Native Windows validation is pending.
+3. Muse Frame opens in your default browser. Closing the tab leaves the local service running. Double-click the launcher to reopen it. To stop the service, finish active jobs and use **Your shoots → Workspace migration and backup → Quit Muse Frame**.
 
-The first build targets Apple Silicon. Download the DMG, open it, copy the App to Applications, then launch it. It is ad-hoc signed, not Apple-notarized; see the README and Apple's linked guidance. Do not replace an App while it is generating or saving.
-
-Open Connect & settings, select Lovart or LibTV, and complete authorization yourself. The platform account and credits are yours. Prepare face/body/outfit references and optionally an environment/pose reference, then configure shots. The image count is per shot.
-
-For a small subject in a large environment, choose Environmental long shot and More environment. Position can separately be centered or have side space. For older projects, reselect the legacy subject-size option to update its wording; saved custom text is not silently rewritten.
+Choose the interface language in Settings. To generate, connect your own Lovart or LibTV account, create a shoot and choose your references. Start with one shot. In the generation review, check the model, parameters, reference images and order, and prompt. Submitting sends that material to your provider and uses your provider credits.
 
 ## Source browser UI
 
-Use Python 3.14 (the tested build version) and Node.js 22 for development checks. Python 3.11+ is required by the code, but older supported interpreters have not been individually validated for this preview.
+Use Python 3.14 to match the build environment. From the source root on macOS or Linux:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python app/launcher.py --port 8765 --no-browser
+.venv/bin/python design/muse-frame-04/beta.py --data ./data --no-browser
 ```
 
-Then open http://127.0.0.1:8765 (or read data/instance.json for the chosen port if 8765 is busy). Data stays in the source checkout's ignored data/ directory. Never expose this single-user server to the public internet.
+From PowerShell on Windows with the Python launcher installed:
 
-Alternatively: `.venv/bin/python app/server.py --port 8765 --data ./data`.
+```powershell
+py -3.14 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe design/muse-frame-04/beta.py --data ./data --no-browser
+```
 
-## Data and updates
+Open the loopback URL printed in the terminal, usually `http://127.0.0.1:9014/`. The launcher selects a nearby port when its default is occupied. These commands keep source-run data in the ignored `data/` folder. Keep the service on loopback for single-user use.
 
-The packaged Mac App uses `~/Library/Application Support/AI Portrait Studio Standalone`. The source checkout uses its own data/ directory. They are separate. Keep the legacy App/data identity so existing installations retain their projects.
+## Update, migrate and roll back
 
-Quit the App before backing up or replacing it. Back up the complete application data folder securely; it contains account authorization. Do not upload it to GitHub. Uninstalling the App alone does not delete projects.
+**Updating a 0.5.0 WebUI build.** Finish active jobs, save your work and quit the running service before opening the new app. When a different version still holds the workspace open, the new launcher shows both version numbers and links to the running copy. Open that copy's workspace page, quit there once the jobs finish, then launch the version you want.
 
-Closing the App stops its local service. A task already submitted to a provider can continue there; reopen to recover its result. Do not resubmit an uncertain task just because it is slow.
+**Bringing over an older workspace.** Quit the old application and leave its files in place. In **Your shoots → Workspace migration and backup**, choose a detected old workspace or the folder containing its database and images. Choose **Inspect workspace** and review the counts for shoots, assets, results and job history. Resolve missing local files before you choose **Migrate workspace**. Migration creates a separate workspace from supported data, including the saved prompts and locally available images. Historical jobs brought in by migration are not resubmitted automatically.
+
+**Back up or switch workspaces.** Use **Back up to a folder** to save a separate copy of the active workspace. After a migration, **Switch back to the previous workspace** reopens the preceding copy and keeps the workspace you just left. The old app can still open its original data. Keep both versions' data and avoid opening a new workspace in the old app.
+
+The packaged WebUI profile is `~/Library/Application Support/MUSE FRAME` on macOS and `%LOCALAPPDATA%\MUSE FRAME` on Windows. The 0.4.0-beta.2 Mac App used `~/Library/Application Support/AI Portrait Studio Standalone`. The WebUI's workspace copy and backup exclude account credentials. If the WebUI needs authorization, connect the provider yourself. A full manual profile copy may include credentials and should be kept private.
+
+[Compatibility](compatibility.md) · [Privacy](privacy.md) · [0.4.0-beta.2 illustrated guide](user-guide.md)

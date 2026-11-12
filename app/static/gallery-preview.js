@@ -48,6 +48,6 @@ Q.openGalleryPreview=({src,title,onSelect,selected=false})=>{
  Q.$('gallery-preview-cancel').textContent=text('action.cancel','取消');
  choose.textContent=selected?text('gallery.preview.unselect','取消选择'):text('gallery.preview.select','选择这张');
  Q.$('gallery-preview-close').onclick=Q.$('gallery-preview-cancel').onclick=()=>dialog.close();
- choose.onclick=()=>{if(choose.disabled)return;dialog.close();onSelect();};
+ choose.onclick=()=>{if(choose.disabled||!current())return;choose.disabled=true;dialog.close();onSelect();};
  load();dialog.showModal();
 };

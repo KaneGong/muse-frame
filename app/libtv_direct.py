@@ -5,7 +5,7 @@ upload_asset, generate_image/edit_image, get_task_status/get_task, cancel_task).
 LibTV exposes a different shape — nodes, edges, signed uploads, durable tasks — so
 this adapter translates between them instead of leaking LibTV's model upward.
 
-Only the eight image models the user chose are exposed.
+Model choices and parameters are read from the platform catalog.
 """
 import base64
 import hashlib
@@ -24,6 +24,11 @@ import token_store
 
 _PROJECT_LOCK = threading.RLock()
 _NODE_MAP_LOCK = threading.RLock()
+
+
+class PreparationError(RuntimeError):
+    """Local or reference preparation stopped before the paid generation write."""
+
 
 MCP_URL = 'https://mcp.liblib.tv/mcp'
 ISSUER = 'https://mcp.liblib.tv/'
@@ -304,8 +309,10 @@ class LibTVBridge:
             response = self._opener.open(request, timeout=timeout)
         except urllib.error.HTTPError as err:
             if err.code != 401:
-                detail = err.read().decode('utf-8', 'replace')[:200]
+                with err:
+                    detail = err.read().decode('utf-8', 'replace')[:200]
                 raise RuntimeError('LibTV 接口错误 HTTP %d：%s' % (err.code, detail)) from None
+            err.close()
             self.token = refresh_token(self.token or {}, force=True)
             headers['Authorization'] = 'Bearer ' + self.token['access_token']
             request = urllib.request.Request(MCP_URL, data=body, headers=headers, method='POST')
@@ -384,11 +391,15 @@ class LibTVBridge:
             self.tools = {t['name']: t for t in listing.get('tools', [])}
             if 'create_node' not in self.tools:
                 raise RuntimeError('LibTV 未返回创作工具，请检查授权')
-            self._ensure_project()
+            stored = _read(_project_path())
+            self.project = stored.get('uuid') if stored and stored.get('account') == _account_key(self.token) else None
 
     def close(self):
         with self._lock:
             self.tools = {}
+            self.session = None
+            self.protocol = None
+            self._schemas = {}
 
     def _ensure_project(self):
         with _PROJECT_LOCK:
@@ -448,12 +459,10 @@ class LibTVBridge:
 
     def _list_models(self, args):
         # 动态拉取平台当前全部图像模型，按供应商分组交给前端做多级选择。
-        matches = []
-        try:
-            result = self.tool('search_models', {'action': 'search', 'nodeType': 'image'}) or {}
-            matches = result.get('matches') or []
-        except Exception:
-            matches = []
+        # A transport/login failure must reach the connection status. A static
+        # fallback must never make an unavailable platform appear connected.
+        result = self.tool('search_models', {'action': 'search', 'nodeType': 'image'}) or {}
+        matches = result.get('matches') or []
         models = []
         for m in matches:
             key = m.get('modelKey') or m.get('modelId')
@@ -507,60 +516,139 @@ class LibTVBridge:
         return {'structuredContent': out}
 
     def _upload(self, args):
-        data = base64.b64decode(args.get('data_base64') or '')
-        filename = args.get('filename') or 'reference.jpg'
-        ticket = self.tool('upload_ticket', {'file_name': filename, 'file_size': len(data),
-                                             'projectId': self.project})
-        parts = ticket.get('parts') or []
-        if not parts:
-            raise RuntimeError('LibTV 未返回上传地址')
-        for index, part in enumerate(parts):
-            chunk = data
-            if len(parts) > 1 and part.get('partNumber'):
-                size = int(ticket.get('part_size') or 0)
-                if size:
-                    start = (part['partNumber'] - 1) * size
-                    chunk = data[start:start + size]
-            _put(part.get('url'), chunk)
-        completed = self.tool('upload_complete', {'path': ticket.get('path'),
-                                                  'upload_id': ticket.get('uploadId')})
-        file_ref = completed.get('file_ref') or completed.get('fileRef')
-        # LibTV rejects a duplicate node name in the same canvas, and prepared
-        # uploads reuse filenames, so every reference node gets a unique suffix.
-        stem, dot, ext = filename.rpartition('.')
-        unique = (stem if dot else filename) + '-' + uuid.uuid4().hex[:6] + ('.' + ext if dot else '')
-        media = self.tool('upload_media', {'name': unique, 'fileRef': file_ref, 'mediaType': 'image',
-                                           'projectId': self.project,
-                                           'idempotencyKey': 'up-' + uuid.uuid4().hex[:20]})
-        node_id = media.get('nodeId')
+        if not self.project:
+            self._ensure_project()
+        project_id = self.project
+        account = _account_key(self.token)
+        upload_key = args.get('upload_key')
+        scope = _node_scope(account, project_id)
+        key = hashlib.sha256((scope + '/' + upload_key).encode()).hexdigest() if upload_key else None
+        pending = _upload_record(key)
+        if not pending:
+            data = base64.b64decode(args.get('data_base64') or '')
+            filename = args.get('filename') or 'reference.jpg'
+            ticket = self.tool('upload_ticket', {'file_name': filename, 'file_size': len(data), 'projectId': project_id})
+            parts = ticket.get('parts') or []
+            if not parts:
+                raise PreparationError('LibTV 未返回上传地址，本次未发起生图。')
+            part_size = int(ticket.get('part_size') or ticket.get('partSize') or 0)
+            if len(parts) > 1 and (part_size <= 0 or any(
+                    type(part.get('partNumber')) is not int or part['partNumber'] < 1 for part in parts)):
+                raise PreparationError('LibTV 返回的分段上传信息不完整，本次未发起生图。')
+            for part in parts:
+                chunk = data
+                if len(parts) > 1:
+                    start = (part['partNumber'] - 1) * part_size
+                    chunk = data[start:start + part_size]
+                _put(part.get('url'), chunk)
+            completed = self.tool('upload_complete', {'path': ticket.get('path'), 'upload_id': ticket.get('uploadId')})
+            file_ref = completed.get('file_ref') or completed.get('fileRef')
+            if not file_ref:
+                raise PreparationError('LibTV 未确认参考图上传，本次未发起生图。')
+            suffix = key[:18] if key else uuid.uuid4().hex[:18]
+            stem, dot, ext = filename.rpartition('.')
+            name = (stem if dot else filename) + '-' + suffix + ('.' + ext if dot else '')
+            pending = {'name': name, 'fileRef': file_ref, 'mediaType': 'image',
+                       'projectId': project_id, 'idempotencyKey': 'up-' + suffix}
+            _upload_record(key, pending)
+        request = {k: pending[k] for k in ('name', 'fileRef', 'mediaType', 'projectId', 'idempotencyKey')}
+        operation = pending.get('operation')
+        node_id = pending.get('node_id')
+        node = {}
+        status = pending.get('status', '')
+        if not (operation or node_id):
+            try:
+                media = self.tool('upload_media', request)
+            except (RuntimeError, OSError, ValueError) as error:
+                try:
+                    node = self.tool('read_node', {'node': request['name'], 'projectId': project_id})
+                    media = node
+                except (RuntimeError, OSError, ValueError):
+                    raise PreparationError('LibTV 未确认参考图挂载，已保留上传记录，本次未发起生图。') from error
+                if not _media_node_id(media):
+                    raise PreparationError('LibTV 未确认参考图挂载，已保留上传记录，本次未发起生图。') from error
+            status = _upload_status(media)
+            operation = media.get('operationId') or media.get('operation_id')
+            operation = operation if isinstance(operation, str) and operation.startswith('wop_') else None
+            node_id = _media_node_id(media) if status not in ('pending', 'rejected') else None
+            if operation:
+                pending.update(operation=operation,status=status)
+                _upload_record(key, pending)
+        for delay in (0, 0.5, 1, 2, 3):
+            if node_id or status == 'rejected':
+                break
+            if delay:
+                time.sleep(delay)
+            if operation:
+                try:
+                    resolved = self.tool('get_web_operation_status', {'operationId': operation, 'projectId': project_id})
+                    latest_status = _upload_status(resolved)
+                    status = latest_status or status
+                    if status == 'rejected':
+                        break
+                    # An operation receipt with a concrete attachment node is ready
+                    # unless the same response explicitly reports review.
+                    if latest_status != 'pending':
+                        node_id = _media_node_id(resolved)
+                except (RuntimeError, OSError, ValueError):
+                    pass
+            if not node_id:
+                try:
+                    node = self.tool('read_node', {'node': request['name'], 'projectId': project_id})
+                    if _upload_status(node) not in ('pending', 'rejected'):
+                        node_id = _media_node_id(node)
+                except (RuntimeError, OSError, ValueError):
+                    pass
         if not node_id:
-            raise RuntimeError('LibTV 上传后未返回节点')
-        # The canvas node carries the real CDN url; the workbench only accepts
-        # https image urls, so remember url -> node for the later reference edge.
+            if status == 'rejected':
+                raise PreparationError('LibTV 未通过这张参考图的审核，请更换素材；本次未发起生图。')
+            if operation:
+                pending['status'] = status
+                _upload_record(key, pending)
+            if status == 'pending':
+                raise PreparationError('LibTV 素材仍在审核，已保留本次上传记录；可稍后继续提交，未发起生图。')
+            raise PreparationError('LibTV 未确认素材已加入画布，已保留上传记录，本次未发起生图。')
+        pending['node_id'] = node_id
+        _upload_record(key, pending)
+        # The canvas node carries the actual CDN URL. Remember its mapping so
+        # generation can bind the exact uploaded node as a reference.
         url = ''
         try:
-            node = self.tool('read_node', {'node': node_id, 'projectId': self.project})
-            urls = ((node.get('node') or {}).get('data') or {}).get('url') or []
+            if not node:
+                node = self.tool('read_node', {'node': node_id, 'projectId': self.project})
+            urls = _node_data(node.get('node') or {}).get('url') or []
             if isinstance(urls, str):
                 urls = [urls]
             url = next((item for item in urls if isinstance(item, str) and item.startswith('https://')), '')
-        except Exception:
-            url = ''
+        except (RuntimeError, OSError, ValueError):
+            pass
         if not url:
             url = 'https://www.liblib.tv/canvas/%s?node=%s' % (self.project, node_id)
         _remember_node(url, node_id, project_id=self.project, account=_account_key(self.token))
         return {'structuredContent': {'url': url, 'project_id': self.project,
                                       'platform_node_id': node_id}}
 
+    def prepare_submission(self, job_id, prompt):
+        self.connect()
+        project_id = self.project or self._ensure_project()
+        base = (' '.join(prompt.split()) or '生成')[:15]
+        return {'project_id': project_id, 'node_name': f'{base} · MF-{job_id[:16]}',
+                'submission_key': 'mf-' + job_id}
+
     def _generate(self, args):
+        if not self.project and self.tools:
+            self._ensure_project()
         model = _model_key(args.get('model'))
         prompt = args.get('prompt') or ''
         # 修改模式后端传 images=refs，生成模式传 ref_images=refs；两者都要认，
         # 否则修改会把要编辑的原图丢掉，退化成纯文生图。
         supplied = args.get('ref_images') or args.get('images') or []
         slots = args.get('ref_slots') or supplied
+        receipt = args.get('receipt')
+        if receipt and receipt.get('project_id') != self.project:
+            raise PreparationError('LibTV 参考与目标画布不一致，本次未发起生成。')
         account = _account_key(self.token) if self.project is not None else None
-        slot_nodes = [_node_id(url, project_id=self.project, account=account) for url in slots]
+        slot_nodes = [_node_id(url, project_id=self.project, account=account, strict_project=True) for url in slots]
         # 自愈：token/账号变更或跨项目复用会让旧 url 的 node 记录落在不可见的
         # scope 里。图片地址本身仍可读取，重新上传一次即可恢复，不必让用户
         # 重新选图。失败才报错。
@@ -568,14 +656,18 @@ class LibTVBridge:
             for index, url in enumerate(slots):
                 if slot_nodes[index]:
                     continue
+                import platforms
+                if not platforms.allow_image_url(url) or '/canvas/' in urllib.parse.urlparse(url).path:
+                    continue
                 try:
                     request = urllib.request.Request(url, headers={'User-Agent': 'AI-Portrait-Studio/1.0'})
                     with urllib.request.urlopen(request, timeout=30) as response:
-                        data = response.read()
-                    if not data:
+                        data = response.read(20 * 1024 * 1024 + 1)
+                    if not data or len(data) > 20 * 1024 * 1024:
                         continue
                     uploaded = self._upload({'data_base64': base64.b64encode(data).decode('ascii'),
-                                             'filename': 'reference-%d.jpg' % (index + 1)})
+                                             'filename': 'reference-%d.jpg' % (index + 1),
+                                             'upload_key': hashlib.sha256(data).hexdigest()})
                     node = (uploaded.get('structuredContent') or {}).get('platform_node_id')
                     if node:
                         slot_nodes[index] = node
@@ -583,12 +675,15 @@ class LibTVBridge:
                     continue
         if slots and len([node for node in slot_nodes if node]) != len(slots):
             missing = len(slots) - len([node for node in slot_nodes if node])
-            raise RuntimeError('有 %d 张参考图未能映射到平台节点（可能未上传），请重新选择参考图后重试；不会以缺图生成' % missing)
+            raise PreparationError('有 %d 张参考图未能映射到平台节点（可能未上传），请重新选择参考图后重试；不会以缺图生成' % missing)
         refs = list(dict.fromkeys(node for node in slot_nodes if node))
         limit = MODEL_MAX_REFS.get(model) or 14
         if len(refs) > limit:
-            raise RuntimeError('当前模型最多 %d 张参考图，请减少参考后重试' % limit)
-        raw = self._live_schema(model)
+            raise PreparationError('当前模型最多 %d 张参考图，请减少参考后重试' % limit)
+        try:
+            raw = self._live_schema(model)
+        except (RuntimeError, OSError) as error:
+            raise PreparationError('暂时无法读取 LibTV 模型参数，未发起生成。') from error
         props = self._creative_props(raw)
         params = {'count': 1}
         ratio = args.get('aspect_ratio') or (args.get('params') or {}).get('aspect_ratio')
@@ -614,48 +709,122 @@ class LibTVBridge:
             mapping = '；'.join('图%d={{Node %s}}' % (index + 1, node)
                                 for index, node in enumerate(slot_nodes))
             prompt = '参考图映射：' + mapping + '。\n' + prompt
-        # LibTV rejects duplicate node names in one canvas; the prompt prefix is
-        # not unique, so add a short suffix.
-        base = ((args.get('prompt') or '生成').strip() or '生成')[:18]
-        node = self._project_tool('create_node', {
-            'name': base + ' · ' + uuid.uuid4().hex[:4],
-            'nodeType': 'image', 'projectId': self.project, 'prompt': prompt,
-            'model': model, 'params': params, 'left': refs, 'run': True,
-            'idempotencyKey': 'gen-' + uuid.uuid4().hex[:20],
-        })
+        receipt = args.get('receipt') or {
+            'project_id': self.project,
+            'node_name': ((args.get('prompt') or '生成').strip() or '生成')[:18] + ' · ' + uuid.uuid4().hex[:4],
+            'submission_key': 'gen-' + uuid.uuid4().hex[:20],
+        }
+        request = {
+            'name': receipt['node_name'], 'nodeType': 'image', 'projectId': receipt['project_id'],
+            'prompt': prompt, 'model': model, 'params': params, 'left': refs, 'run': True,
+            'idempotencyKey': receipt['submission_key'],
+        }
+        # New jobs pin their canvas and write key before submitting. A failed
+        # write must never be redirected to another canvas using old references.
+        node = self.tool('create_node', request) if args.get('receipt') else self._project_tool('create_node', request)
+        node_id = _media_node_id(node)
         task = _task_id(node)
+        if not (task and node_id) and (node_id or args.get('receipt')):
+            try:
+                found = self.find_generation({**receipt, 'node_id': node_id})
+                if not task or found.get('task_id') == task:
+                    task = found.get('task_id') or task
+                    node_id = found.get('node_id') or node_id
+            except (RuntimeError, OSError, ValueError):
+                pass
+        return {'structuredContent': {
+            **receipt, 'project_id': receipt['project_id'] or self.project,
+            'task_ids': [task] if task else [], 'node_id': node_id,
+            'status': 'pending' if task else 'needs_review',
+            'error': None if task else {'message': 'LibTV 未返回完整接单回执，请从原画布查找已有任务。'},
+        }}
+
+    def find_generation(self, receipt):
+        self.connect()
+        project_id = receipt.get('project_id')
+        if not project_id:
+            return {}
+        selector = receipt.get('node_id') or receipt.get('node_name')
+        if selector:
+            response = self.tool('read_node', {'projectId': project_id, 'node': selector})
+            node = response.get('node') or {}
+            node_id = response.get('nodeId') or node.get('id')
+            task = _task_id(node)
+            return {'node_id': node_id, 'task_id': task} if node_id and task else {}
+        # Old records lack the write key. Limit matching to one exact prompt,
+        # model and short window around the locally recorded submission.
+        if not receipt.get('submitted_at') or not receipt.get('prompt'):
+            return {}
+        raw = self.tool('read_project_context', {'projectId': project_id})
+        matches = []
+        for node in (raw.get('data') or {}).get('nodeList') or []:
+            data = _node_data(node)
+            params = data.get('params') or {}
+            prompt = params.get('prompt') or ''
+            if prompt.startswith('参考图映射：'):
+                prompt = prompt.partition('\n')[2]
+            created = node.get('createdAtMs')
+            if (prompt.strip() == receipt['prompt'].strip() and params.get('model') == receipt['model']
+                    and isinstance(created, (int, float)) and -2 <= created/1000-receipt['submitted_at'] <= 60):
+                matches.append(node)
+        if len(matches) != 1:
+            return {}
+        node = matches[0]
+        node_id, task = node.get('nodeKey'), _task_id(node)
+        return {'node_id': node_id, 'task_id': task} if node_id and task else {}
+
+    def _read_generation(self, args):
+        task = (args.get('task_ids') or [None])[0]
         if not task:
-            raise RuntimeError('LibTV 未返回任务编号，请到平台核对后再试')
-        return {'structuredContent': {'task_ids': [task], 'project_id': self.project,
-                                      'status': 'pending', 'node_id': node.get('nodeId')}}
+            raise RuntimeError('缺少任务编号')
+        project_id = args.get('project_id') or self.project
+        try:
+            state = self.tool('task_status', {'project_id': project_id, 'task_id': task}) or {}
+            return _state(state), state, []
+        except RuntimeError as error:
+            if 'TASK_CONTEXT_UNAVAILABLE' not in str(error):
+                raise
+        node_id = args.get('node_id')
+        if node_id:
+            response = self.tool('read_node', {'projectId': project_id, 'node': node_id})
+            node = response.get('node') or {}
+            if (response.get('nodeId') or node.get('id')) == node_id and _task_id(node) == str(task):
+                info = _node_data(node).get('taskInfo') or {}
+                failure = info.get('failedReason')
+                if not info.get('loading') and failure:
+                    return 'failed', {'error': {'message': str(failure)[:700]}}, []
+                if not info.get('loading') and str(info.get('status')) == '2':
+                    artifacts = _node_media(response, node_id, project_id=project_id, account=_account_key(self.token),
+                                            allow_materialized=True)
+                    if artifacts:
+                        return 'completed', {}, artifacts
+        return 'not_found', {'error': {'message': 'LibTV 任务查询暂不可用，画布尚无可核实的结果。'}}, []
 
     def _task_status(self, args):
-        task = (args.get('task_ids') or [None])[0]
-        if not task:
-            raise RuntimeError('缺少任务编号')
-        state = self.tool('task_status', {'project_id': self.project, 'task_id': task}) or {}
-        return {'structuredContent': {'status': _state(state), 'task_ids': [task],
-                                      'task_id': task, 'raw': state}}
+        outcome, state, _ = self._read_generation(args)
+        task = args['task_ids'][0]
+        project_id = args.get('project_id') or self.project
+        error = state.get('error')
+        message = (error.get('message') or error.get('code')) if isinstance(error, dict) else error
+        return {'structuredContent': {'status': outcome, 'task_ids': [task],
+                                      'task_id': task, 'project_id': project_id, 'raw': state,
+                                      'error': {'message': str(message)[:700]} if message else None}}
 
     def _task(self, args):
-        task = (args.get('task_ids') or [None])[0]
-        if not task:
-            raise RuntimeError('缺少任务编号')
-        state = self.tool('task_status', {'project_id': self.project, 'task_id': task}) or {}
-        outcome = _state(state)
+        project_id = args.get('project_id') or self.project
+        outcome, state, artifacts = self._read_generation(args)
         if outcome != 'completed':
             return {'structuredContent': {'status': outcome, 'artifacts': []}}
-        artifacts = []
         for item in (state.get('artifacts') or []):
             node_key = item.get('node_key')
             if not node_key:
                 continue
             try:
-                node = self.tool('read_node', {'node': node_key, 'projectId': self.project})
+                node = self.tool('read_node', {'node': node_key, 'projectId': project_id})
             except Exception:
                 continue
-            artifacts.extend(_node_media(node, node_key, project_id=self.project,
-                                         account=_account_key(self.token)))
+            artifacts.extend(_node_media(node, node_key, project_id=project_id,
+                                         account=_account_key(self.token), allow_materialized=True))
         if not artifacts:
             raise ValueError('平台已结束但未返回可用图片；请在 LibTV 画布核对，不要重复生成')
         content = []
@@ -673,13 +842,17 @@ class LibTVBridge:
             except Exception:
                 pass
         return {'content': content,
-                'structuredContent': {'status': 'completed', 'artifacts': artifacts,
-                                      'edit_url': 'https://www.liblib.tv/canvas/' + self.project}}
+                'structuredContent': {'status': 'completed', 'artifacts': artifacts, 'project_id': project_id,
+                                      'edit_url': 'https://www.liblib.tv/canvas/' + project_id}}
 
     def _cancel(self, args):
         task = args.get('task_id')
-        state = self.tool('task_cancel', {'project_id': self.project, 'task_id': task}) or {}
-        return {'structuredContent': {'cancelled': True, 'raw': state}}
+        target = {'project_id': args.get('project_id') or self.project, 'task_id': task}
+        result = self.tool('task_cancel', target) or {}
+        cancelled = _state(result) == 'cancelled' or result.get('cancelled') is True
+        if not cancelled:
+            cancelled = _state(self.tool('task_status', target) or {}) == 'cancelled'
+        return {'structuredContent': {'cancelled': cancelled, 'raw': result}}
 
 
 def failed_project(created):
@@ -744,7 +917,7 @@ def _remember_node(url, node_id, project_id=None, account=None):
         _write(_node_map_path(), mapping)
 
 
-def _node_id(url, project_id=None, account=None):
+def _node_id(url, project_id=None, account=None, *, strict_project=False):
     text = str(url or '')
     with _NODE_MAP_LOCK:
         mapping = _read(_node_map_path()) or {}
@@ -766,7 +939,7 @@ def _node_id(url, project_id=None, account=None):
                 return scope[text]
             # 参考图可能从其他项目复用：URL 记录在源项目 scope 下，同一账号内
             # 允许跨项目回退查找，否则复用参考图的生成会被误判为"未上传"。
-            if account is not None:
+            if account is not None and not strict_project:
                 prefix = str(account) + '/'
                 for key, other in scopes.items():
                     if key.startswith(prefix) and text in other:
@@ -805,18 +978,68 @@ def _put(url, chunk):
         raise RuntimeError('参考图上传失败（HTTP %s），请稍后重试' % (code or 'ERR'))
 
 
+def _upload_record(key, value=None):
+    if not key:
+        return {}
+    path = str(token_store.path('libtv-reference-uploads.json'))
+    with _NODE_MAP_LOCK:
+        records = _read(path) or {}
+        if value is not None:
+            records[key] = value
+            _write(path, records)
+        return records.get(key, {})
+
+
+def _upload_status(response):
+    entries = (response, response.get('result'), response.get('data'))
+    status = ' '.join(str(entry.get(key) or '').lower() for entry in entries if isinstance(entry,dict)
+                      for key in ('status', 'reviewStatus', 'state'))
+    if any(word in status for word in ('reject', 'fail', 'denied', 'blocked', '审核未通过')):
+        return 'rejected'
+    if any(word in status for word in ('pending', 'processing', 'reviewing', 'in_review', 'in-review',
+                                       'review_required', 'reviewrequired', 'waiting', '审核中')):
+        return 'pending'
+    if any(word in status for word in ('confirmed', 'approved', 'completed', 'success')):
+        return 'confirmed'
+    return ''
+
+
+def _media_node_id(response):
+    if not isinstance(response, dict):
+        return None
+    for record in (response, response.get('result'), response.get('data')):
+        if not isinstance(record, dict):
+            continue
+        node = record.get('node') or {}
+        candidate = record.get('nodeId') or record.get('nodeKey') or (node.get('id') if isinstance(node, dict) else None)
+        if isinstance(candidate, str) and candidate and not candidate.startswith(('cop_', 'wop_', 'sop_', 'res_')):
+            return candidate
+    return None
+
+
+def _node_data(node):
+    data = node.get('data') or {}
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except ValueError:
+            return {}
+    return data if isinstance(data, dict) else {}
+
+
 def _task_id(payload):
-    for key in ('taskId', 'task_id', 'taskID'):
-        if payload.get(key):
-            return payload[key]
-    data = payload.get('data') or {}
-    for key in ('taskId', 'task_id'):
-        if data.get(key):
-            return data[key]
+    data = _node_data(payload)
     node = payload.get('node') or {}
-    for key in ('taskId', 'task_id'):
-        if node.get(key):
-            return node[key]
+    node_data = _node_data(node)
+    for source in (payload, data, node, data.get('taskInfo'), node_data, node_data.get('taskInfo')):
+        if not isinstance(source, dict):
+            continue
+        for key in ('taskId', 'task_id', 'taskID'):
+            value = source.get(key)
+            if isinstance(value, (str, int)) and not isinstance(value, bool):
+                value = str(value)
+                if value and not value.startswith(('cop_', 'wop_', 'sop_')):
+                    return value
     return None
 
 
@@ -829,11 +1052,15 @@ def _state(payload):
     outcome = str(payload.get('outcome') or '').upper()
     if outcome in ('SUCCEEDED', 'SUCCESS', 'COMPLETED', 'DONE'):
         return 'completed'
-    if outcome in ('FAILED', 'CANCELED', 'CANCELLED', 'ERROR'):
+    if outcome in ('CANCELED', 'CANCELLED'):
+        return 'cancelled'
+    if outcome in ('FAILED', 'ERROR'):
         return 'failed'
     readiness = str(payload.get('readiness') or '').upper()
     if readiness.startswith('TERMINAL'):
-        if 'FAIL' in readiness or 'ERROR' in readiness or 'CANCEL' in readiness:
+        if 'CANCEL' in readiness:
+            return 'cancelled'
+        if 'FAIL' in readiness or 'ERROR' in readiness:
             return 'failed'
         return 'completed'
     error = payload.get('error')
@@ -867,7 +1094,7 @@ def _images(payload):
     return unique
 
 
-def _node_media(payload, node_id=None, project_id=None, account=None):
+def _node_media(payload, node_id=None, project_id=None, account=None, allow_materialized=False):
     """Resolve a finished image node into url/size pairs.
 
     task_status only reports resource ids; the durable canvas node carries the
@@ -875,7 +1102,8 @@ def _node_media(payload, node_id=None, project_id=None, account=None):
     """
     node = (payload or {}).get('node') or {}
     node_id = node_id or (payload or {}).get('nodeId') or node.get('nodeId') or node.get('id')
-    info = (node.get('data') or {}).get('taskInfo') or {}
+    data = _node_data(node)
+    info = data.get('taskInfo') or {}
     raw = info.get('taskResult')
     results = []
     if isinstance(raw, str):
@@ -904,4 +1132,12 @@ def _node_media(payload, node_id=None, project_id=None, account=None):
         results.append({'url': url, 'width': width, 'height': height,
                         'platform_node_id': node_id} if node_id else
                        {'url': url, 'width': width, 'height': height})
+    if not results and allow_materialized:
+        from platforms import allow_image_url
+        urls = data.get('url') or []
+        for url in ([urls] if isinstance(urls, str) else urls):
+            if allow_image_url(url) and urllib.parse.urlparse(url).path.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                if node_id:
+                    _remember_node(url, node_id, project_id=project_id, account=account)
+                results.append({'url': url, 'platform_node_id': node_id})
     return results

@@ -1,5 +1,7 @@
 # MUSE FRAME user guide
 
+For the 0.5.0-beta.5 browser workspace, use the [WebUI quick start](quick-start.md). This illustrated guide covers 0.4.0-beta.2.
+
 [Product page](../../README.md) · [简体中文](../zh-CN/user-guide.md) · [Gallery and screenshots](../showcase.md)
 
 For community preview 0.4.0-beta.2. Screenshots show the actual Mac App with an isolated demo project and previously generated AI works authorized by the maintainer. No account authorization was copied and no new generation was submitted for these screenshots. The disconnected status is intentional.
@@ -10,7 +12,7 @@ The downloadable App requires **macOS 26+, Apple Silicon (M-series)**. Windows a
 
 Download the DMG from the [official Release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2), open it, copy the App to Applications and launch that copy. Do not replace it while saving or generating. The preview is ad-hoc signed and not Apple-notarized. If macOS blocks it, read [Apple's guidance](https://support.apple.com/en-us/102445) and decide whether to trust the source. There is no need to disable Gatekeeper globally.
 
-For a browser workspace, follow the [source WebUI setup](quick-start.md#source-browser-ui). This is a local single-user service, bound to the loopback address.
+For a browser workspace, follow the [source WebUI setup](https://github.com/KaneGong/muse-frame/blob/v0.4.0-beta.2/docs/en/quick-start.md#source-browser-ui). This is a local single-user service, bound to the loopback address.
 
 ## 2. Connect your image platform
 

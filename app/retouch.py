@@ -2,22 +2,28 @@
 import base64,io,math,time,uuid,threading,json,hashlib
 from collections import OrderedDict
 from PIL import Image,ImageOps,ImageEnhance,ImageCms,ImageFilter,ImageChops
+from media_paths import media_url,resolved_workspace_path
 
 RENDER_LOCK=threading.Lock()
 LEGACY_LIMITS={'exposure':(-2,2),'contrast':(-50,50),'warmth':(-50,50),'saturation':(-50,50)}
 LIMITS={**LEGACY_LIMITS,**{k:(-50,50) for k in ['highlights','shadows','whites','blacks','clarity','texture']}}
+OPTIONAL_LIMITS={'tint':(-100,100),'sharpness':(0,100)}
 PROXIES=OrderedDict()
 MASTERS=OrderedDict()
 
 def settings(value,version=1):
     if type(version)!=int or version not in [1,2]:raise ValueError('调色版本不支持')
-    allowed=LEGACY_LIMITS if version==1 else LIMITS
+    allowed=LEGACY_LIMITS if version==1 else {**LIMITS,**OPTIONAL_LIMITS}
     if not isinstance(value,dict) or set(value)-set(allowed):raise ValueError('调色参数无效')
     result={}
     for key,(low,high) in allowed.items():
         number=value.get(key,0)
         if isinstance(number,bool) or not isinstance(number,(int,float)) or not math.isfinite(number) or not low<=number<=high:raise ValueError('调色参数超出允许范围：'+key)
-        result[key]=round(number,3)
+        rounded=round(number,3)
+        # Keep neutral additions out of v2 recipes so existing request keys
+        # and stored presets still compare equal after upgrading.
+        if key not in OPTIONAL_LIMITS or rounded:
+            result[key]=rounded
     return result
 
 def load_image(path):
@@ -31,9 +37,12 @@ def load_image(path):
 
 def base_adjust(image,p):
     alpha=image.getchannel('A');image=image.convert('RGB')
-    if p['exposure'] or p['warmth']:
+    tint=p.get('tint',0)
+    if p['exposure'] or p['warmth'] or tint:
+        warmth=p['warmth']*.003
+        magenta=tint*.0015
         tables=[]
-        for gain in [1+p['warmth']*.003,1,1-p['warmth']*.003]:
+        for gain in [1+warmth+magenta,1-2*magenta,1-warmth+magenta]:
             for n in range(256):
                 c=n/255;linear=(c/12.92 if c<=.04045 else ((c+.055)/1.055)**2.4)*2**p['exposure']*gain
                 encoded=12.92*linear if linear<=.0031308 else 1.055*linear**(1/2.4)-.055
@@ -65,6 +74,9 @@ def adjust_v2(source,p,details=None):
             if p[k]:
                 delta=details[k].point([max(0,min(255,round(128+(n-128)*p[k]*gain))) if abs(n-128)>1 else 128 for n in range(256)])
                 delta=ImageChops.composite(delta,neutral,mask);image=ImageChops.add(image,delta.convert('RGB'),offset=-128)
+    if sharpness:=p.get('sharpness',0):
+        radius=max(.6,min(image.size)*.0006)
+        image=image.filter(ImageFilter.UnsharpMask(radius=radius,percent=round(sharpness*1.5),threshold=2))
     image.putalpha(alpha);return image
 
 def render(path,value,version=1):
@@ -95,8 +107,9 @@ class Retouch:
         if a.get('trashed') or a.get('role')!='output':raise ValueError('请选择当前项目中可用的摄影作品')
         rel=a.get('original_local') or (a.get('local') if a.get('source')=='uploaded' and not a.get('preview_only') else None)
         if not rel:raise ValueError('请先成功加载高清原图，再进行调色；不会用低清预览代替原图')
-        path=(self.store.root/rel).resolve()
-        if not path.is_relative_to(self.store.root.resolve()) or not path.is_file():raise ValueError('本机原图暂不可读，请重新加载或导入原图')
+        try:path=resolved_workspace_path(self.store.root,rel)
+        except (OSError,RuntimeError,ValueError) as error:raise ValueError('本机原图暂不可读，请重新加载或导入原图') from error
+        if not path.is_file():raise ValueError('本机原图暂不可读，请重新加载或导入原图')
         return a,path
 
     def retouch_preview(self,pid,aid,value,version=1,max_edge=1600,edit_current=False):
@@ -178,9 +191,8 @@ class Retouch:
                 if base and base!=aid:self.original(pid,aid)
                 else:raise
             a,path,value=self.adjustment_source(pid,aid)
-        from urllib.parse import quote
-        rel=str(path.relative_to(self.store.root.resolve()))
-        return {'asset':a,'settings':value,'revision':self.adjustment_revision(a,path),'baseline_url':'/files/'+rel+'?project_id='+quote(pid)}
+        rel=path.relative_to(self.store.root.resolve()).as_posix()
+        return {'asset':a,'settings':value,'revision':self.adjustment_revision(a,path),'baseline_url':media_url(rel,pid)}
 
     def confirm_retouch(self,pid,aid,value,revision,request_key,version=2):
         if version!=2:raise ValueError('调色版本不支持')
@@ -199,7 +211,8 @@ class Retouch:
         image=render(path,p,2) if any(p.values()) else None
         raw=png(image) if image else None
         if raw and len(raw)>90*1024*1024:raise ValueError('调色结果超过90MB，未确认；请使用较小的原图')
-        rel='assets/adjustment-'+uuid.uuid4().hex+'.png' if raw else str(path.relative_to(self.store.root.resolve()))
+        base_rel=path.relative_to(self.store.root.resolve()).as_posix()
+        rel='assets/adjustment-'+uuid.uuid4().hex+'.png' if raw else base_rel
         target=self.store.root/rel
         with self.store.lock:
             a,path,done=check()
@@ -208,7 +221,7 @@ class Retouch:
             try:
                 if raw:target.write_bytes(raw)
                 with self.store.atomic():
-                    meta['photo_adjustment']={'settings':p,'engine_version':2,'base_local':str(path.relative_to(self.store.root.resolve())),'local':rel,'revision':uuid.uuid4().hex,'request_key':request_key}
+                    meta['photo_adjustment']={'settings':p,'engine_version':2,'base_local':base_rel,'local':rel,'revision':uuid.uuid4().hex,'request_key':request_key}
                     self.store.db.execute('update project_assets set meta=? where project_id=? and asset_id=?',(json.dumps(meta,ensure_ascii=False),pid,aid))
                     if old.get('local') and old['local']!=rel:self.store.queue_file_deletion(old['local'])
             except BaseException:

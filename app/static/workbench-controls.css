@@ -1,0 +1,76 @@
+.workbench-controls{min-width:0;color:var(--text)}
+.workbench-controls .wbc-tabs{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;
+ border-bottom:1px solid var(--line);margin:0 0 13px;
+}
+.workbench-controls .wbc-tabs button{
+ min-height:38px;padding:5px 2px;border:0;border-radius:0;background:transparent;
+ color:var(--muted);font-size:12px;box-shadow:none;
+}
+.workbench-controls .wbc-tabs button[aria-selected=true]{
+ color:var(--accent);box-shadow:inset 0 -2px var(--accent);font-weight:650;
+}
+.workbench-controls .wbc-pane{border:0;min-width:0;margin:0;padding:0}
+.workbench-controls h3{font-size:13px;font-weight:650;margin:13px 0 7px}
+.workbench-controls .wbc-pane>h3:first-child,.workbench-controls .wbc-heading h3{margin-top:0}
+.workbench-controls .wbc-heading{
+ display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:7px;
+}
+.workbench-controls .wbc-heading h3{margin-bottom:0}
+.workbench-controls .wbc-quiet{
+ min-height:29px;padding:3px 6px;border-color:transparent;background:transparent;box-shadow:none;
+ color:var(--muted);font-size:11px;line-height:1.3;
+}
+.workbench-controls .wbc-quiet:hover{background:var(--accent-bg);color:var(--text)}
+.workbench-controls .wbc-quiet[aria-pressed=true]{color:var(--accent);font-weight:650}
+.workbench-controls .wbc-frames,.workbench-controls .wbc-looks{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;
+}
+.workbench-controls .wbc-frames button,.workbench-controls .wbc-looks button{
+ position:relative;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;
+ min-width:0;padding:3px;gap:4px;border-radius:6px;background:var(--surface);
+ border:1px solid var(--line);color:var(--text);font-size:11px;box-shadow:none;
+}
+.workbench-controls .wbc-frames button:hover,.workbench-controls .wbc-looks button:hover{
+ border-color:var(--accent);
+}
+.workbench-controls .wbc-frames button[aria-pressed=true],.workbench-controls .wbc-looks button[aria-pressed=true]{
+ border-color:var(--accent);background:var(--accent-bg);box-shadow:inset 0 0 0 1px var(--accent);
+}
+.workbench-controls .wbc-frames button[aria-pressed=true]::after,.workbench-controls .wbc-looks button[aria-pressed=true]::after{
+ content:"✓";position:absolute;right:7px;top:7px;display:grid;place-items:center;
+ width:17px;height:17px;border-radius:4px;background:var(--accent);color:var(--surface);
+ font-size:11px;font-weight:750;
+}
+.workbench-controls .wbc-frames img{
+ display:block;width:100%;height:100px;object-fit:contain;border-radius:3px;
+ background:color-mix(in srgb,var(--surface) 20%,#131914);
+}
+.workbench-controls .wbc-frames button>span{padding:2px;line-height:1.35}
+.workbench-controls .wbc-grid,.workbench-controls .wbc-scopes{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+}
+.workbench-controls .wbc-field{
+ min-width:0;gap:4px;color:var(--muted);font-size:11px;font-weight:500;
+}
+.workbench-controls .wbc-field select,.workbench-controls .wbc-field input,.workbench-controls .wbc-field textarea{
+ min-width:0;width:100%;min-height:34px;margin:0;padding:6px 8px;
+ color:var(--text);background:var(--surface);font-size:12px;
+}
+.workbench-controls .wbc-field select{text-overflow:ellipsis}
+.workbench-controls .wbc-field textarea{min-height:82px}
+.workbench-controls .wbc-wide{grid-column:1/-1}
+.workbench-controls .wbc-help{
+ color:var(--muted);font-size:11px;line-height:1.6;margin:7px 0;
+ overflow-wrap:anywhere;
+}
+.workbench-controls .wbc-notes{margin-top:13px}
+.workbench-controls .wbc-scopes{margin:0 0 8px}
+.workbench-controls .wbc-scopes button{min-height:33px;padding:4px 6px;font-size:11px}
+.workbench-controls .wbc-look-sample{border-radius:4px;background:var(--surface)}
+.workbench-controls .wbc-looks button{align-items:stretch;text-align:left;padding-bottom:5px}
+.workbench-controls .wbc-looks strong,.workbench-controls .wbc-looks small{padding-inline:3px;overflow-wrap:anywhere}
+.workbench-controls .wbc-looks small{font-size:9px;line-height:1.35}
+.workbench-controls .wbc-style-actions{margin-top:7px}
+.workbench-controls .wbc-look-sample{aspect-ratio:1;overflow:hidden}
+.workbench-controls .wbc-look-sample img{display:block;width:100%;height:100%;object-fit:cover;object-position:center}

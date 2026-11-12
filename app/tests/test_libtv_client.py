@@ -11,6 +11,20 @@ import libtv_direct
 
 
 class LibTVClientTests(unittest.TestCase):
+    def test_reconnect_discards_expired_session_and_model_schema_cache(self):
+        bridge = libtv_direct.LibTVBridge()
+        bridge.session='expired-session';bridge.protocol='2025-06-18';bridge.tools={'create_node':{}};bridge._schemas={'old':{'schema':{}}}
+        bridge.close()
+        self.assertIsNone(bridge.session)
+        self.assertIsNone(bridge.protocol)
+        self.assertEqual(bridge._schemas,{})
+
+    def test_catalog_network_error_does_not_turn_into_a_fake_live_catalog(self):
+        bridge=libtv_direct.LibTVBridge()
+        def offline(*a,**k):raise OSError('network unavailable')
+        bridge.tool=offline
+        with self.assertRaises(OSError):bridge._list_models({})
+
     def test_client_copied_from_another_tool_is_reregistered_for_our_callback(self):
         with tempfile.TemporaryDirectory() as tokens, patch.dict(os.environ, {'PORTRAIT_TOKEN_DIR': tokens}):
             stale = {'client_id': 'dsh-client', 'client_name': 'DeepSeek Harness (LibTV)',
@@ -111,6 +125,139 @@ class LibTVClientTests(unittest.TestCase):
                           'aspect_ratio': '16:9', 'resolution': 'high', 'size': '1536*2048'})
         self.assertEqual(node_args['params'], {'count': 1, 'ratio': '16:9', 'quality': 'high', 'size': '1536*2048'})
 
+    def test_upload_finds_existing_node_after_an_operation_receipt(self):
+        bridge = libtv_direct.LibTVBridge()
+        bridge.project = 'project-a'
+        calls = []
+        def tool(name, args):
+            calls.append((name, args))
+            if name == 'upload_ticket':
+                return {'parts':[{'url':'https://upload.invalid/'}], 'uploadId':'upload-a', 'path':'file-a'}
+            if name == 'upload_complete':
+                return {'file_ref':'file-a'}
+            if name == 'upload_media':
+                return {'operationId':'wop_upload-a', 'status':'pending'}
+            if name == 'get_web_operation_status':
+                return {'result':{'nodeId':'i-existing'}}
+            if name == 'read_node':
+                return {'nodeId':'i-existing', 'node':{'data':{'url':['https://libtv-res.liblib.art/example.png']}}}
+            self.fail(name)
+        bridge.tool = tool
+        with patch.object(libtv_direct, '_put'), patch.object(libtv_direct, '_remember_node'):
+            result = bridge._upload({'data_base64':'AQID', 'filename':'test.png'})['structuredContent']
+        self.assertEqual(result['platform_node_id'], 'i-existing')
+        self.assertEqual([name for name, _ in calls].count('upload_media'), 1)
+        self.assertEqual(calls[-1][1]['node'], 'i-existing')
+
+    def test_pending_upload_resumes_same_write_after_a_bounded_wait(self):
+        bridge = libtv_direct.LibTVBridge()
+        bridge.project = 'canvas-a'
+        bridge.token = {'account_id': 'fixture'}
+        calls = []
+        ready = False
+        def tool(name, args):
+            calls.append((name, args))
+            if name == 'upload_ticket':
+                return {'parts':[{'url':'https://upload.invalid/'}], 'uploadId':'upload-a', 'path':'file-a'}
+            if name == 'upload_complete':
+                return {'fileRef':'file-a'}
+            if name == 'upload_media':
+                return {'operationId':'wop_fixture', 'status':'pending'}
+            if name == 'get_web_operation_status':
+                return {'result':{'nodeId':'node-ref'}} if ready else {'status':'pending'}
+            if name == 'read_node':
+                return {'nodeId':'node-ref', 'node':{'data':{'url':['https://libtv-res.liblib.art/a.png']}}} if ready else {}
+            self.fail(name)
+        bridge.tool = tool
+        with tempfile.TemporaryDirectory() as tokens, patch.dict(os.environ, {'PORTRAIT_TOKEN_DIR': tokens}), \
+                patch.object(libtv_direct, '_put'), patch.object(libtv_direct.time, 'sleep'):
+            payload = {'data_base64':'AQID','filename':'test.png','upload_key':'same-content'}
+            with self.assertRaisesRegex(libtv_direct.PreparationError, '审核'):
+                bridge._upload(payload)
+            ready = True
+            result = bridge._upload(payload)['structuredContent']
+        self.assertEqual(result['platform_node_id'], 'node-ref')
+        self.assertEqual([name for name, _ in calls].count('upload_ticket'), 1)
+        self.assertEqual([name for name, _ in calls].count('upload_media'), 1)
+
+    def test_known_task_without_node_retains_exact_node_receipt(self):
+        bridge = libtv_direct.LibTVBridge()
+        bridge.project = 'canvas-a'
+        bridge._live_schema = lambda _: {}
+        bridge.connect = lambda: None
+        def tool(name, args):
+            if name == 'create_node':
+                return {'taskId':'task-123'}
+            if name == 'read_node':
+                return {'nodeId':'node-output','node':{'id':'node-output','data':{'taskInfo':{'taskId':'task-123'}}}}
+            self.fail(name)
+        bridge.tool = tool
+        result = bridge._generate({'model':'lib-image-2.5-f','prompt':'test',
+            'receipt':{'project_id':'canvas-a','node_name':'unique','submission_key':'unique'}})['structuredContent']
+        self.assertEqual(result['task_ids'], ['task-123'])
+        self.assertEqual(result['node_id'], 'node-output')
+
+    def test_missing_create_receipt_recovers_exact_node_without_second_write(self):
+        bridge = libtv_direct.LibTVBridge()
+        bridge.connect = lambda: None
+        bridge.project = 'canvas-a'
+        bridge._schemas['fixture'] = {}
+        calls = []
+        def tool(name, args):
+            calls.append((name, args))
+            if name == 'create_node':
+                return {'nodeId': 'i-exact', 'operationId': 'cop_canvas_only'}
+            if name == 'read_node':
+                return {'nodeId': 'i-exact', 'node': {'id': 'i-exact',
+                    'data': json.dumps({'taskInfo': {'taskId': 'task-123'}})}}
+            self.fail(name)
+        bridge.tool = tool
+        receipt = bridge.prepare_submission('0123456789abcdefabcd', '修改背景')
+        result = bridge._generate({'model': 'fixture', 'prompt': '修改背景', 'receipt': receipt})['structuredContent']
+        self.assertEqual(result['task_ids'], ['task-123'])
+        self.assertEqual(result['node_id'], 'i-exact')
+        self.assertEqual([name for name, _ in calls], ['create_node', 'read_node'])
+        self.assertEqual(calls[0][1]['idempotencyKey'], receipt['submission_key'])
+        self.assertIsNone(libtv_direct._task_id({'taskId': 'cop_canvas_only'}))
+
+    def test_expired_status_uses_materialized_image_only_for_exact_task(self):
+        bridge = libtv_direct.LibTVBridge()
+        url = 'https://libtv-res.liblib.art/result/example.png'
+        def tool(name, args):
+            if name == 'task_status':
+                raise RuntimeError('TASK_CONTEXT_UNAVAILABLE: Task context is absent or expired')
+            if name == 'read_node':
+                return {'nodeId': 'i-exact', 'node': {'data': {'taskInfo': {
+                    'taskId': 'task-123', 'status': 2, 'loading': False}, 'url': [url]}}}
+            self.fail(name)
+        bridge.tool = tool
+        args = {'task_ids': ['task-123'], 'project_id': 'canvas-a', 'node_id': 'i-exact'}
+        with patch.object(libtv_direct, '_remember_node'):
+            status, _, artifacts = bridge._read_generation(args)
+        self.assertEqual(status, 'completed')
+        self.assertEqual(artifacts[0]['url'], url)
+        self.assertEqual(bridge._read_generation({**args, 'task_ids': ['task-456']})[0], 'not_found')
+
+    def test_cancel_and_failure_follow_the_remote_task_receipt(self):
+        bridge = libtv_direct.LibTVBridge()
+        bridge.project = 'current-project'
+        calls = []
+        outcome = 'PENDING'
+        def tool(name, args):
+            calls.append((name, args))
+            if name == 'task_cancel':
+                return {'ok': True}
+            return {'outcome': outcome, 'error': {'message': 'fixture failure'} if outcome == 'FAILED' else None}
+        bridge.tool = tool
+        request = {'task_id': 'task-a', 'project_id': 'original-project'}
+        self.assertFalse(bridge._cancel(request)['structuredContent']['cancelled'])
+        outcome = 'CANCELLED'
+        self.assertTrue(bridge._cancel(request)['structuredContent']['cancelled'])
+        outcome = 'FAILED'
+        result = bridge._task_status({'task_ids': ['task-a'], 'project_id': 'original-project'})
+        self.assertEqual(result['structuredContent']['error']['message'], 'fixture failure')
+        self.assertTrue(all(args['project_id'] == 'original-project' for _, args in calls))
+
     def test_project_id_is_rebuilt_after_account_scoped_refusal(self):
         bridge = libtv_direct.LibTVBridge()
         bridge.token = {'sub': 'account-a'}
@@ -149,6 +296,8 @@ class LibTVClientTests(unittest.TestCase):
                                         project_id='source-project', account='account-a')
             # 参考图从其他项目复用时，同账号内必须能找回节点，否则会被误判为未上传
             self.assertEqual(libtv_direct._node_id('https://cdn/reused.jpg', 'target-project', 'account-a'), 'node-reused')
+            self.assertIsNone(libtv_direct._node_id('https://cdn/reused.jpg', 'target-project', 'account-a',
+                                                    strict_project=True))
             # 跨账号仍然隔离
             self.assertIsNone(libtv_direct._node_id('https://cdn/reused.jpg', 'target-project', 'account-b'))
 

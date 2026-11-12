@@ -1,31 +1,41 @@
 # 快速开始
 
-首次使用建议先看[完整图文教程](user-guide.md)，按参考、镜头、生成、修改与导出的顺序操作。
+## 安装本地 WebUI
 
-## Mac下载版
+1. **Apple 芯片 Mac** 打开 DMG，将 `Muse Frame.app` 拖入“应用程序”后双击。App 采用临时签名，尚未经过 Apple 公证。最低 macOS 版本见 DMG 内的 `BUILD-INFO.txt`。[Apple 的应用打开说明](https://support.apple.com/zh-cn/102445)。
+2. **Windows x64** 双击 Setup 安装程序，确认安装到当前用户。安装完成后会启动映象所，下次可从开始菜单打开。安装程序和启动器均未签名，待 Windows 实机验证。
+3. 映象所会打开系统默认浏览器。关闭标签页后，本机服务仍在运行。再次双击启动器可重开页面。需要停止服务时，先等活动任务结束，再从**拍摄列表 → 工作区迁移与备份 → 退出本机工作台**退出。
 
-当前仅提供Apple Silicon版本。下载DMG，将App复制到“应用程序”再打开。当前为临时签名、未Apple公证版本，系统拦截说明见README。不要在生成或保存期间替换App。
+可在设置中切换界面语言。要生图，请自行连接 Lovart 或 LibTV 账号，新建拍摄并选好参考图。先配置一个镜头，在生成确认页核对模型、参数、参考图及顺序和提示词。确认提交后，这些资料会发送至平台，并使用你的平台额度。
 
-在“连接与设置”选择Lovart或LibTV，自行完成平台授权。准备人物/身形/服装参考，按需选择环境和姿态，再设置镜头。右侧张数是每个镜头的生成张数。
+## 本地 WebUI 源码版
 
-希望小人物、大环境时，选择“环境远景”与“环境占比大”；左右位置独立选择。旧项目中的旧版占比描述需要重新选择一次才更新，不会自动重写你的原文。
-
-## 本地WebUI源码版
-
-本轮开发验证使用Python3.14与Node.js22。代码至少需要Python3.11，其他解释器版本尚未逐一实测。
+使用与构建环境一致的 Python 3.14。Mac 或 Linux 在源码根目录运行：
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python app/launcher.py --port 8765 --no-browser
+.venv/bin/python design/muse-frame-04/beta.py --data ./data --no-browser
 ```
 
-浏览器打开http://127.0.0.1:8765；端口被占用时可读取data/instance.json中的实际本地端口。也可直接运行：`.venv/bin/python app/server.py --port 8765 --data ./data`。这是单用户本机服务，请勿直接暴露到公网。
+Windows 安装 Python 启动器后，在 PowerShell 运行：
 
-## 数据与更新
+```powershell
+py -3.14 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe design/muse-frame-04/beta.py --data ./data --no-browser
+```
 
-Mac App数据保存在`~/Library/Application Support/AI Portrait Studio Standalone`，源码版使用自己的data/目录，两者互相独立。品牌更新沿用既有应用和数据标识，避免丢失旧项目。
+在浏览器打开终端显示的本地地址，通常为 `http://127.0.0.1:9014/`。默认端口被占用时，启动器会尝试相邻端口。上述命令将资料保存到源码目录下已被 Git 忽略的 `data/`。本服务仅供本机单用户使用。
 
-先退出App，再备份或替换。完整数据目录含账号授权信息，请在本机安全保存，勿上传GitHub。只删除App不会自动删除项目。
+## 升级、迁移与回退
 
-退出App会停止本机后台。已提交的平台任务可能继续，重新打开后按已有任务编号回收；任务状态不确定时不要直接重复提交。
+**升级 0.5.0 WebUI。** 等活动任务结束，保存并退出本机工作台，再打开新版。如果另一版本仍占用工作区，新启动器会显示两个版本号和打开在用工作区的入口。打开在用工作区，等任务结束后在那里退出，再双击要启动的版本。
+
+**接续旧工作区。** 先退出旧程序，保留原有资料。打开**拍摄列表 → 工作区迁移与备份**，选择已找到的旧工作区，或手动选中含数据库和图片的旧资料目录。点**检查内容**，核对拍摄、素材、作品与任务数。若缺失本机文件，先补齐，再点**迁入新版**。迁移会把支持的数据复制到一份独立工作区，其中包括已保存的提示词和可用本机图片。迁入的历史任务不会自动重新提交。
+
+**备份或切回。** 选择**备份到文件夹**可保存当前工作区的独立副本。迁移后选择**回退到上一份工作区**可重新打开前一份，并保留刚离开的工作区。旧程序仍可打开自己的原资料。请保留两份资料，并避免用旧程序写入新版工作区。
+
+Mac 安装版资料位于 `~/Library/Application Support/MUSE FRAME`，Windows 位于 `%LOCALAPPDATA%\MUSE FRAME`。旧版 0.4.0-beta.2 Mac App 使用 `~/Library/Application Support/AI Portrait Studio Standalone`。WebUI 内的迁移与备份会排除账号凭据。需要连接平台时，由你在新版自行授权。手工复制完整资料目录时可能一并复制授权文件，请私密保存。
+
+[兼容性](compatibility.md) · [隐私](privacy.md) · [0.4.0-beta.2 图文教程](user-guide.md)

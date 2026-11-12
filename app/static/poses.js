@@ -18,19 +18,19 @@ Q.fillPosePromptTemplate=()=>{
 document.addEventListener('DOMContentLoaded',()=>{const b=Q.$('pose-prompt-template');if(b)b.onclick=Q.fillPosePromptTemplate;});
 Q.ensurePoseAsset=async()=>{if(Q.poseAssetId)return Q.poseAssetId;const f=Q.$('pose-file').files[0];if(!f)throw Error('请先上传姿态参考图片');if(Q.poseUploadPromise){await Q.poseUploadPromise;return Q.ensurePoseAsset();}const pid=Q.poseProject,token=Q.poseFileToken;Q.poseUploadPromise=Q.uploadFile(f,'pose',pid).then(a=>{if(Q.poseFileToken===token)Q.poseAssetId=a.id;return a.id;}).finally(()=>Q.poseUploadPromise=null);return Q.poseUploadPromise;};
 Q.syncPoseModeButtons=()=>{const generation=Q.$('pose-mode').value==='generate',save=Q.$('pose-save-actions'),fee=Q.$('pose-flow-note');if(save)save.hidden=generation;if(Q.$('pose-generate'))Q.$('pose-generate').hidden=!generation;if(fee){fee.dataset.i18n=generation?'flow.fee':'flow.localSave';fee.textContent=Q.i18n?.text?.(fee.dataset.i18n)||(generation?'确认后创建新任务，并使用绘图平台额度':'仅保存到本机，不会提交生图任务');}document.querySelectorAll('[data-pose-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.poseMode===Q.$('pose-mode').value)));};
-Q.wirePoses=()=>{document.querySelectorAll('[data-pose-mode]').forEach(b=>b.onclick=Q.run(async()=>{Q.$('pose-mode').value=b.dataset.poseMode;await Q.poseModeChanged();if(b.dataset.poseMode==='manual')Q.$('pose-prompt').focus();}));Q.$('pose-mode').onchange=Q.run(Q.poseModeChanged);Q.$('pose-style-source').onchange=()=>{Q.updatePoseStylePreview();Q.rebuildPosePrompt();};Q.$('pose-action-reference').onchange=Q.rebuildPosePrompt;Q.$('pose-model').onchange=Q.run(async()=>{await Q.modelSettings('pose-');Q.syncPoseRatio();});Q.$('pose-ratio').onchange=Q.syncPoseRatio;Q.$('pose-generate').onclick=Q.generatePose;Q.$('pose-prompt').oninput=()=>{if(Q.$('pose-mode').value==='generate')Q.rebuildPosePrompt();};Q.$('pose-file').onchange=()=>{Q.poseAssetId='';Q.renderPoseObservation?.(null);Q.poseAnalysisTask=null;Q.poseAnalysisResults=[];Q.$('pose-analysis-history')?.replaceChildren();Q.poseFileToken=crypto.randomUUID();const f=Q.$('pose-file').files[0];if(Q.poseObjectUrl)URL.revokeObjectURL(Q.poseObjectUrl);Q.poseObjectUrl=f?URL.createObjectURL(f):'';Q.$('pose-source-preview').innerHTML=f?`<img src="${Q.poseObjectUrl}" alt="待识别的姿态参考图">`:'';Q.$('pose-analysis-status').textContent='';Q.$('pose-analyze').disabled=false;Q.$('pose-action-reference').checked=!!f;if(Q.$('pose-mode').value==='generate')Q.rebuildPosePrompt();};Q.$('pose-analyze').onclick=Q.run(Q.startPoseAnalysis);Q.$('save-pose').onclick=Q.run(()=>Q.savePose(false));Q.$('save-pose-apply').onclick=Q.run(()=>Q.savePose(true));};
+Q.wirePoses=()=>{document.querySelectorAll('[data-pose-mode]').forEach(b=>b.onclick=Q.run(async()=>{Q.$('pose-mode').value=b.dataset.poseMode;await Q.poseModeChanged();if(b.dataset.poseMode==='manual')Q.$('pose-prompt').focus();}));Q.$('pose-mode').onchange=Q.run(Q.poseModeChanged);Q.$('pose-style-source').onchange=()=>{Q.updatePoseStylePreview();Q.rebuildPosePrompt();};Q.$('pose-action-reference').onchange=Q.rebuildPosePrompt;Q.$('pose-model').onchange=Q.run(()=>Q.modelSettings('pose-'));Q.$('pose-generate').onclick=Q.generatePose;Q.$('pose-prompt').oninput=()=>{if(Q.$('pose-mode').value==='generate')Q.rebuildPosePrompt();};Q.$('pose-file').onchange=()=>{Q.poseAssetId='';Q.renderPoseObservation?.(null);Q.poseAnalysisTask=null;Q.poseAnalysisResults=[];Q.$('pose-analysis-history')?.replaceChildren();Q.poseFileToken=crypto.randomUUID();const f=Q.$('pose-file').files[0];if(Q.poseObjectUrl)URL.revokeObjectURL(Q.poseObjectUrl);Q.poseObjectUrl=f?URL.createObjectURL(f):'';Q.$('pose-source-preview').innerHTML=f?`<img src="${Q.poseObjectUrl}" alt="待识别的姿态参考图">`:'';Q.$('pose-analysis-status').textContent='';Q.$('pose-analyze').disabled=false;Q.$('pose-action-reference').checked=!!f;if(Q.$('pose-mode').value==='generate')Q.rebuildPosePrompt();};Q.$('pose-analyze').onclick=Q.run(Q.startPoseAnalysis);Q.$('save-pose').onclick=Q.run(()=>Q.savePose(false));Q.$('save-pose-apply').onclick=Q.run(()=>Q.savePose(true));};
 Q.savePose=async apply=>{if(Q.poseSaving)return;Q.poseSaving=true;const disabled=Q.$('save-pose').disabled;Q.$('save-pose').disabled=Q.$('save-pose-apply').disabled=true;try{const name=Q.$('pose-name').value.trim(),prompt=Q.$('pose-prompt').value.trim().replace(/\s*\n+\s*/g,' ');if(!name||!prompt)throw Error('请填写姿态名称与动作描述');if(Q.project.id!==Q.poseProject||!Q.active())throw Error('项目已切换，请重新添加姿态');const assetId=Q.poseAssetId||(Q.$('pose-file').files[0]?await Q.ensurePoseAsset():'');const p={...(Q.poseEditing||{}),id:Q.poseEditing?.id||'custom-'+crypto.randomUUID(),name,prompt,category:Q.$('pose-category').value,assetId,archived:!!Q.poseEditing?.archived};if(Q.$('pose-save-global').checked){await Q.api('/api/preset',{field:'pose',name,prompt});await Q.loadPresets();}if(Q.project?.id!==Q.poseProject)throw Error('项目已切换，请重新打开姿态');Q.d().customPoses=Q.d().customPoses.filter(x=>x.id!==p.id);Q.d().customPoses.push(p);Q.changed();await Q.save();await Q.reloadCurrent();Q.$('pose-dialog').close();if(apply){if(Q.$('settings-dialog').open)Q.$('settings-dialog').close();Q.changeField('pose',p.prompt,'姿态与接触关系',{poseAsset:p.assetId});}else Q.toast('姿态已保存，当前提示词未改动；点选卡片可带入');if(['lens','photo'].includes(Q.step))Q.renderPoses();if(Q.$('settings-dialog').open)Q.renderPresetSettings();}finally{Q.poseSaving=false;Q.$('save-pose').disabled=Q.$('save-pose-apply').disabled=disabled;}};
 
 Q.poseImagePrompt=(action,style=true,actionImage=false)=>{
  const n=style?2:1;
  const styleLine=style
-  ?'样板参考：图1只规定示意画面的美术风格——黑色单线线稿，纯白背景，只保留轮廓线与结构分割线，不填充、不上色、无渐变、无阴影；肩肘腕髋膝踝等关节画小圆圈，头部画十字辅助线。只借用图1的形象与画风，不沿用它的姿势、支撑物与取景。'
+  ?'样板参考：图1只规定示意画面的美术风格——黑色单线线稿，纯白背景，只保留轮廓线与结构分割线，不填充、不上色、无渐变、无阴影；肩肘腕髋膝踝等关节画小圆圈，头部画十字辅助线。不沿用图1的人物身份、姿势、支撑物与取景。'
   :'统一视觉：黑色单线线稿，纯白背景，只保留轮廓线与结构分割线，不填充、不上色、无渐变、无阴影；肩肘腕髋膝踝等关节画小圆圈，头部画十字辅助线；赤足，头发只用简单线条勾勒，面部空白、无五官。';
  const checklist='① 重心：身体重量落在哪条腿或哪一侧胯上；支撑点在哪里；身体是否偏斜、单侧承重，或向某一侧倾。\n② 腿部：左腿、右腿分别是伸直还是屈膝；膝盖弯曲角度；大腿与躯干的夹角；小腿与大腿的夹角；双脚分开还是并拢、脚尖朝向；是否交叉，以及哪条腿在上。\n③ 手臂：左臂、右臂分别是支撑、扶物、叉腰、抬起还是垂放；肘部弯曲角度；手腕角度与手指朝向；手掌贴附或抓握在什么位置。\n④ 头部：脸朝向哪一侧、是否转头回眸；低头、平视还是仰头及幅度；下巴高度与颈部转动。\n⑤ 躯干：前倾、直立还是后仰及其倾斜角度；肩线是否一高一低；胯部朝向与扭转。\n⑥ 支撑物：形状、高度、与身体的接触位置及承重方式。';
  const actionLine=actionImage
-  ?'动作参考：图'+n+' 是动作的最高优先依据，必须逐项复刻，不得自行发挥。\n'+checklist+'\n只提取以上骨架与关节关系，不复制图'+n+' 的外貌、五官、服装、妆发、材质与背景；图'+n+' 中若有鞋，脚部一律按赤足处理。'+(action.trim()?'\n动作补充（仅辅助，若与图'+n+' 冲突以图'+n+' 为准）：'+action.trim():'')
+  ?'动作参考：图'+n+'是动作的唯一图片来源。按下列维度还原可见的动作，未露出的关节不硬猜。\n'+checklist+'\n只提取以上骨架与关节关系，不复制图'+n+'的外貌、五官、服装、妆发、材质与背景；图'+n+'中若有鞋，脚部一律按赤足处理。'+(action.trim()?'\n动作补充（仅辅助，若与图'+n+' 冲突以图'+n+' 为准）：'+action.trim():'')
   :'动作描述：'+(action.trim()||'请先填写详细动作描述。')+'\n请据此设计姿态，并让画面明确体现同样六个维度：\n'+checklist;
- return `制作一张 3:4 竖幅的人物姿态示意图，用于统一姿态卡片库。只展示一位成年女性，完整头部与脚部入镜，四周留少量余量。\n\n${styleLine}\n\n${actionLine}\n\n全图保持黑色单线线稿与纯白背景，仅有轮廓线、关节小圆圈、头部十字辅助线和身体结构分割线；不填充、不上色、无渐变、无阴影、无五官，不穿鞋，不做 3D 渲染或真人摄影；不添加文字、标签与拼版。`;
+ return `制作一张人物姿态示意图，用于统一姿态卡片库。只展示一位成年人物；用单一机位清楚呈现主要关节与接触关系，头、手、脚完整入镜，四周留少量余量。\n\n${styleLine}\n\n${actionLine}\n\n全图保持黑色单线线稿与纯白背景，仅有轮廓线、关节小圆圈、头部十字辅助线和身体结构分割线；不填充、不上色、无渐变、无阴影、无五官，不穿鞋，不做 3D 渲染或真人摄影；不添加文字、标签与拼版。`;
 };
 Q.migratePrompt=()=>{
  // 旧项目 draft 里存着旧模板的固定表达（画幅、让权标签、绝对化的面部要求）。
@@ -69,21 +69,96 @@ Q.migratePoseReference=()=>{
  d.dirty=true;
  Q.changed?.();
 };
-Q.setupPoseStyle=()=>{const select=Q.$('pose-style-source');const samples=Q.assets.filter(a=>a.role==='pose'&&!a.trashed);const preferred=samples.find(a=>/姿态示意/.test(a.name||''))||samples.find(a=>a.gallery_id||a.gallery_meta)||samples[0];select.replaceChildren(...samples.map(a=>new Option((Q.i18n?.text?.('project.currentLabel')||'本项目')+' · '+Q.name(a),'asset:'+a.id)),new Option(Q.i18n?.text?.('pose.noStyle')||'不使用样板，仅用文字','none'));select.value=preferred?'asset:'+preferred.id:'none';Q.$('pose-action-reference').checked=!!Q.poseAssetId;Q.updatePoseStylePreview();};
-Q.updatePoseStylePreview=()=>{const value=Q.$('pose-style-source').value,[kind,id]=value.split(':');Q.$('pose-style-preview').innerHTML=kind==='builtin'?`<img src="${Q.images[id]}" alt="统一姿态样板">`:kind==='asset'?Q.img(Q.asset(id)):'';};
-Q.rebuildPosePrompt=()=>{Q.$('pose-generation-prompt').value=Q.poseImagePrompt(Q.$('pose-prompt').value,Q.$('pose-style-source').value!=='none',Q.$('pose-action-reference').checked);Q.syncPoseRatio();};
-Q.poseStyleAsset=async(pid,value)=>{if(value==='none')return '';const [kind,id]=value.split(':');if(kind==='asset')return id;let a=Q.assets.find(a=>a.builtin_pose_id===id&&!a.trashed);if(!a){a=await Q.api('/api/upload-pose-builtin',{project_id:pid,id});if(Q.project.id===pid)Q.assets.push(a);}return a.id;};
-Q.poseModeChanged=async()=>{const mode=Q.$('pose-mode').value;Q.syncPoseModeButtons();if(Q.$('pose-analysis-restore'))Q.$('pose-analysis-restore').hidden=mode!=='ai';if(Q.$('pose-analysis-history'))Q.$('pose-analysis-history').hidden=mode!=='ai';if(mode==='ai'){Q.$('pose-analysis-controls').querySelector('p').textContent=(document.documentElement.dataset.edition==='standalone'?'由已配置的多模态模型读取图片并回填草稿，只花识图费用，不调用Lovart生图。':Q.meta.connection.executor==='external'?'由已配置的多模态模型读取图片并回填动作草稿，只消耗识图额度，不调用Lovart生图。':'由本机Codex视觉工具读取图片并回填草稿，不调用Lovart生图。');try{await Q.loadPoseAnalysisResults();}catch(e){Q.$('pose-analysis-status').textContent='本次结果读取暂未成功，可点击找回结果重试。';}}Q.$('save-pose').disabled=Q.$('save-pose-apply').disabled=mode==='generate';Q.$('pose-analysis-controls').hidden=mode!=='ai';Q.$('pose-generation-controls').hidden=mode!=='generate';if(mode==='generate'){Q.rebuildPosePrompt();Q.fillModels('pose-model',Q.d().model);Q.$('pose-ratio').dataset.desired='3:4';Q.$('pose-resolution').dataset.desired='2K';Q.$('pose-resolution').dataset.size='';await Q.modelSettings('pose-');Q.syncPoseRatio();}};
+Q.setupPoseStyle=()=>{
+ const select=Q.$('pose-style-source'),samples=Q.assets.filter(a=>a.role==='pose'&&!a.trashed);
+ const workbench=Q.step==='workbench'||!!document.querySelector('#workbench-reference-dialog[open][data-role=pose]');
+ const preferred=samples.find(a=>/姿态示意/.test(a.name||''))||samples.find(a=>a.gallery_id||a.gallery_meta)||samples[0];
+ const fixed=workbench?[new Option(Q.i18n?.get?.()==='en'?'Workbench format sample':'工作台固定样板','workbench-standard')]:[];
+ select.replaceChildren(...fixed,...samples.map(a=>new Option((Q.i18n?.text?.('project.currentLabel')||'本项目')+' · '+Q.name(a),'asset:'+a.id)),new Option(Q.i18n?.text?.('pose.noStyle')||'不使用样板，仅用文字','none'));
+ select.value=workbench?'workbench-standard':preferred?'asset:'+preferred.id:'none';
+ Q.$('pose-action-reference').checked=!!Q.poseAssetId;Q.updatePoseStylePreview();
+};
+Q.updatePoseStylePreview=()=>{
+ const value=Q.$('pose-style-source').value,[kind,id]=value.split(':');
+ const root=Q.$('pose-style-preview');
+ if(kind==='workbench-standard'){
+  root.innerHTML='<figure class="workbench-pose-format"><img src="/reference-standards/pose.webp" alt=""><figcaption><a href="https://ai-pose-gallery.pages.dev/img/full_single_P001_side.png" target="_blank" rel="noopener noreferrer">POSE-DB-01 · full_single_P001_side ↗</a></figcaption></figure>';
+  return;
+ }
+ root.innerHTML=kind==='builtin'?`<img src="${Q.images[id]}" alt="统一姿态样板">`:kind==='asset'?Q.img(Q.asset(id)):'';
+};
+Q.rebuildPosePrompt=()=>{
+ const style=Q.$('pose-style-source').value;
+ Q.$('pose-generation-prompt').value=Q.poseImagePrompt(Q.$('pose-prompt').value,style!=='none',Q.$('pose-action-reference').checked);
+};
+Q.poseStyleAsset=async(pid,value)=>{
+ if(value==='none')return '';
+ if(value==='workbench-standard'){
+  const fixed=await Q.api('/api/workbench/reference-standard',{project_id:pid,role:'pose'});
+  if(!fixed?.id)throw Error(Q.i18n?.get?.()==='en'?'The fixed pose sample is unavailable.':'固定姿态样板暂不可用');
+  return fixed.id;
+ }
+ const [kind,id]=value.split(':');if(kind==='asset')return id;
+ let a=Q.assets.find(a=>a.builtin_pose_id===id&&!a.trashed);if(!a){a=await Q.api('/api/upload-pose-builtin',{project_id:pid,id});if(Q.project.id===pid)Q.assets.push(a);}return a.id;
+};
+Q.poseModeChanged=async()=>{const mode=Q.$('pose-mode').value;Q.syncPoseModeButtons();if(Q.$('pose-analysis-restore'))Q.$('pose-analysis-restore').hidden=mode!=='ai';if(Q.$('pose-analysis-history'))Q.$('pose-analysis-history').hidden=mode!=='ai';if(mode==='ai'){Q.$('pose-analysis-controls').querySelector('p').textContent=(document.documentElement.dataset.edition==='standalone'?'由已配置的多模态模型读取图片并回填草稿，只花识图费用，不调用Lovart生图。':Q.meta.connection.executor==='external'?'由已配置的多模态模型读取图片并回填动作草稿，只消耗识图额度，不调用Lovart生图。':'由本机Codex视觉工具读取图片并回填草稿，不调用Lovart生图。');try{await Q.loadPoseAnalysisResults();}catch(e){Q.$('pose-analysis-status').textContent='本次结果读取暂未成功，可点击找回结果重试。';}}Q.$('save-pose').disabled=Q.$('save-pose-apply').disabled=mode==='generate';Q.$('pose-analysis-controls').hidden=mode!=='ai';Q.$('pose-generation-controls').hidden=mode!=='generate';if(mode==='generate'){Q.rebuildPosePrompt();Q.fillModels('pose-model',Q.d().model);Q.$('pose-ratio').dataset.desired='3:4';Q.$('pose-resolution').dataset.desired='2K';Q.$('pose-resolution').dataset.size='';await Q.modelSettings('pose-');}};
 Q.renderPoseCandidates=()=>{const list=Q.assets.filter(a=>a.role==='pose'&&a.source==='generated'&&!a.trashed).sort((a,b)=>((Q.assetTime?Q.assetTime(b):0)-(Q.assetTime?Q.assetTime(a):0)));Q.$('pose-candidates').innerHTML=list.length?'<h3>本项目已生成的姿态图 · 点击选用后保存</h3><div class="pose-candidates">'+list.map(a=>`<button data-pose-candidate="${a.id}" aria-pressed="${Q.poseAssetId===a.id}">${Q.img(a)}<small>${Q.esc(a.pose_spec?.name||Q.name(a))}</small></button>`).join('')+'</div>':'';Q.$('pose-candidates').querySelectorAll('[data-pose-candidate]').forEach(b=>b.onclick=()=>Q.usePoseCandidate(b.dataset.poseCandidate));};
 Q.usePoseCandidate=id=>{const a=Q.asset(id);if(!a||a.trashed)return;Q.renderPoseObservation?.(null);Q.poseAnalysisTask=null;Q.poseAnalysisResults=[];Q.$('pose-analysis-history')?.replaceChildren();Q.poseAssetId=id;Q.$('pose-action-reference').checked=true;Q.$('save-pose').disabled=Q.$('save-pose-apply').disabled=false;Q.poseFileToken=crypto.randomUUID();Q.$('pose-file').value='';Q.$('pose-source-preview').innerHTML=Q.img(a);if(a.pose_spec){Q.$('pose-name').value=a.pose_spec.name;Q.$('pose-prompt').value=a.pose_spec.prompt;Q.$('pose-category').value=a.pose_spec.category;}
  else{const job=a.job_id?Q.jobs.find(j=>j.id===a.job_id):null;const fromPrompt=job?.payload?.prompt?PromptEngine.get(job.payload.prompt,'pose'):'';const usable=/^(无|未设定|不设定)?$/.test(String(fromPrompt||'').trim())?'':String(fromPrompt).trim();const stamp=new Date().toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).replace(/\//g,'-');Q.$('pose-name').value='姿态 '+stamp;Q.$('pose-prompt').value=usable||('姿态 '+stamp);Q.$('pose-category').value=Q.poseCategory({name:'姿态',prompt:usable||''});}Q.renderPoseCandidates();};
 Q.openGeneratedPose=id=>{Q.openPose();Q.usePoseCandidate(id);};
 Q.generatePose=async()=>{const button=Q.$('pose-generate');button.disabled=true;try{const name=Q.$('pose-name').value.trim(),prompt=Q.$('pose-prompt').value.trim();if(!name)throw Error('请先填写姿态名称');if(!prompt&&!Q.$('pose-action-reference').checked)throw Error('请填写动作描述，或勾选动作参考图');if(Q.project.id!==Q.poseProject)throw Error('项目已切换，请重新打开姿态');const generation=Q.$('pose-generation-prompt').value.trim(),pid=Q.poseProject,token=Q.poseFileToken,refs=[];if(Q.$('pose-action-reference').checked&&!Q.poseAssetId&&!Q.$('pose-file').files[0])throw Error('请先上传动作参考图，或取消使用动作参考');const style=await Q.poseStyleAsset(pid,Q.$('pose-style-source').value);if(style)refs.push(style);if(Q.$('pose-action-reference').checked)refs.push(await Q.ensurePoseAsset());if(Q.project.id!==pid||Q.poseFileToken!==token)throw Error('项目或参考图片已变更，请重新核对后生成');if(!generation)throw Error('请填写姿态图制作提示词');await Q.submit({prompt:generation,mode:'generate',resultRole:'pose',refs,title:'姿态示意 · '+name,pose_spec:{name,prompt,category:Q.$('pose-category').value},...Q.optionPayload('pose-')});Q.$('pose-dialog').close();}catch(e){Q.$('pose-generation-status').textContent=e.message;}finally{button.disabled=false;}};
-Q.choosePose=async p=>{const value=p.builtin?p.prompt.split('神情：')[0]:p.prompt,current=PromptEngine.get(Q.d().draft,'pose');let existingId=p.assetId||Q.assets.find(a=>a.builtin_pose_id===p.id&&!a.trashed)?.id||'';if(current===value){if(existingId&&Q.d().refs.pose!==existingId)Q.changeField('pose',value,'姿态与接触关系',{poseAsset:existingId});else Q.toast('已是当前姿态');return;}const pid=Q.project.id;let assetId=p.assetId||'';if(p.builtin&&Q.images[p.id]){let asset=Q.assets.find(a=>a.builtin_pose_id===p.id&&!a.trashed);if(!asset){asset=await Q.api('/api/upload-pose-builtin',{project_id:pid,id:p.id});if(Q.project.id!==pid)return;Q.assets.push(asset);}assetId=asset.id;}if(Q.project.id!==pid)return;
- if(!assetId&&p.image){const response=await fetch(p.image);if(!response.ok)throw Error('个人姿态库图片读取失败');const blob=await response.blob();const file=new File([blob],'姿态库-'+p.name+'.jpg',{type:blob.type||'image/jpeg'});const imported=await Q.uploadFile(file,'pose',pid);if(Q.project?.id!==pid)return;assetId=imported.id;Q.assets.push(imported);}
- Q.changeField('pose',value,'姿态与接触关系',{poseAsset:assetId});};
+const poseSelectionSequences=new WeakMap();
+Q.capturePoseTarget=()=>{
+ const data=Q.d(),shotId=data.promptSpec?.activeShot||data.activeShot||Q.activeShot?.()?.id||'';
+ const shots=data.promptSpec?.shots||data.shots;
+ return {projectId:Q.project.id,data,switchToken:Q.switchToken,shotId,shot:shots?.find(s=>s.id===shotId),sequence:poseSelectionSequences.get(data)?.get(shotId)||0};
+};
+Q.beginPoseSelection=()=>{
+ const target=Q.capturePoseTarget();
+ let sequences=poseSelectionSequences.get(target.data);
+ if(!sequences){sequences=new Map();poseSelectionSequences.set(target.data,sequences);}
+ target.sequence++;sequences.set(target.shotId,target.sequence);
+ return target;
+};
+Q.poseTargetProjectIsCurrent=target=>Q.project?.id===target.projectId&&Q.project.data===target.data&&Q.switchToken===target.switchToken;
+Q.poseTargetIsCurrent=target=>{
+ if(!Q.poseTargetProjectIsCurrent(target)||!Q.active())return false;
+ const data=Q.d(),shotId=data.promptSpec?.activeShot||data.activeShot||Q.activeShot?.()?.id||'';
+ const shots=data.promptSpec?.shots||data.shots;
+ return shotId===target.shotId&&(!target.shot||shots?.includes(target.shot))&&(poseSelectionSequences.get(data)?.get(shotId)||0)===target.sequence;
+};
+Q.choosePose=async(p,target)=>{
+ if(!Q.active())return;
+ target??=Q.beginPoseSelection();
+ const pid=target.projectId;
+ const value=p.builtin?p.prompt.split('神情：')[0]:p.prompt,current=PromptEngine.get(Q.d().draft,'pose');
+ const remember=asset=>{if(Q.poseTargetProjectIsCurrent(target)&&!Q.assets.some(a=>a.id===asset.id))Q.assets.push(asset);};
+ let existingId=p.assetId||Q.assets.find(a=>a.builtin_pose_id===p.id&&!a.trashed)?.id||'';
+ if(current===value){
+  if(existingId&&Q.d().refs.pose!==existingId)Q.changeField('pose',value,'姿态与接触关系',{poseAsset:existingId});
+  else Q.toast('已是当前姿态');
+  return;
+ }
+ let assetId=p.assetId||'';
+ if(p.builtin&&Q.images[p.id]){
+  let asset=Q.assets.find(a=>a.builtin_pose_id===p.id&&!a.trashed);
+  if(!asset){asset=await Q.api('/api/upload-pose-builtin',{project_id:pid,id:p.id});remember(asset);}
+  if(!Q.poseTargetProjectIsCurrent(target))return;
+  assetId=asset.id;
+ }
+ if(!assetId&&p.image){
+  const response=await fetch(p.image);
+  if(!Q.poseTargetIsCurrent(target))return;
+  if(!response.ok)throw Error('个人姿态库图片读取失败');
+  const blob=await response.blob();
+  if(!Q.poseTargetIsCurrent(target))return;
+  const file=new File([blob],'姿态库-'+p.name+'.jpg',{type:blob.type||'image/jpeg'});
+  const imported=await Q.uploadFile(file,'pose',pid);remember(imported);assetId=imported.id;
+ }
+ if(!Q.poseTargetIsCurrent(target))return;
+ Q.changeField('pose',value,'姿态与接触关系',{poseAsset:assetId});
+};
 
-Q.syncPoseRatio=()=>{const r=Q.$('pose-ratio').value;if(!r||r==='default')return;const [w,h]=r.split(':').map(Number);Q.$('pose-generation-prompt').value=Q.$('pose-generation-prompt').value.replace(/制作一张\d+:\d+(?:竖幅|横幅)?/,`制作一张${r}${w<h?'竖幅':w>h?'横幅':''}`);};
 
 Q.archivePose=async(id,archived)=>{if(!Q.active())throw Error('请先恢复项目');const p=Q.d().customPoses.find(p=>p.id===id);if(!p)return;if(archived&&!await Q.action({title:'将姿态卡片移入回收站？',text:'图片与已带入的拍摄设定保留。可在“设置 · 我的预设”中恢复。',confirm:'移入姿态回收站'}))return;p.archived=archived;Q.changed();await Q.save();if(['lens','photo'].includes(Q.step))Q.renderPoses();if(Q.$('settings-dialog').open)Q.renderPresetSettings();};
 

@@ -1,0 +1,28 @@
+// Design06 catalog: stable identities with restored locations and verified scene capabilities.
+import * as B from './creative-base.mjs';
+import {EXTRA_SPACES,EXTRA_PLANS,EXTRA_MOODS,EXTRA_FRAMINGS,EXTRA_EXPRESSIONS} from './catalog-expansion.mjs';
+import {RESTORED_SPACES,ORIGINAL_SPACE_ALIASES} from './restored-spaces.mjs';
+import {ENVIRONMENT_BRIEFS} from './environment-briefs.mjs';
+import {withEnvironmentCapabilities} from './environment-capabilities.mjs';
+import {withVerifiedLocationDetails} from './verified-location-details.mjs';
+import {DETAIL_GROUPS as BASE_DETAIL_GROUPS} from './detail-presets.mjs';
+import {RESTORED_DETAIL_OPTIONS} from './restored-presets.mjs';
+export const DETAIL_GROUPS=BASE_DETAIL_GROUPS.map(group=>({...group,options:[...group.options,...(RESTORED_DETAIL_OPTIONS[group.id]||[])]}));
+export const SPACE_CATEGORIES=[{id:'studio',name:'影棚与简洁背景'},{id:'home',name:'居家生活'},{id:'leisure',name:'探店与住宿'},{id:'city',name:'城市与建筑'},{id:'nature',name:'自然与四季'},{id:'water',name:'海岸与水边'},{id:'work',name:'职场与公共空间'},{id:'sport',name:'运动与户外'},{id:'night',name:'夜景与节日'}];
+export const PLAN_CATEGORIES=[{id:'everyday',name:'日常分享'},{id:'travel',name:'旅行探店'},{id:'profile',name:'头像与职业'},{id:'portrait',name:'人物写真'},{id:'outfit',name:'穿搭展示'},{id:'product',name:'商品上新'},{id:'campaign',name:'品牌与封面'}];
+export const MOOD_CATEGORIES=[{id:'natural',name:'自然清楚'},{id:'warm',name:'生活氛围'},{id:'graphic',name:'造型光影'},{id:'night',name:'夜间拍摄'}];
+export const FRAMING_CATEGORIES=[{id:'person',name:'人物取景'},{id:'context',name:'人物与环境'},{id:'product',name:'穿搭与细节'},{id:'layout',name:'封面与留白'}];
+export const EXPRESSION_CATEGORIES=[{id:'friendly',name:'轻松亲近'},{id:'calm',name:'安静放松'},{id:'confident',name:'干练有主见'},{id:'candid',name:'自然瞬间'}];
+const cats=(categories,id)=>categories.find(x=>x.id===id)?.name||id;
+const readableTags=row=>({...row,tags:[...new Set((row.tags||[]).filter(t=>t!==row.name&&t!==row.category).map(t=>B.GOAL_NAMES[t]||t))]});
+const baseSpaces={studio:['studio','studio'],window:['home','window'],street:['city','street'],arcade:['city','corridor'],home:['home','living'],green:['nature','park'],shore:['water','coast'],dark:['night','dark']};
+export const SPACES=[...B.SPACES.map(s=>({...s,category:baseSpaces[s.id][0],diagram:baseSpaces[s.id][1],featured:true})),...EXTRA_SPACES,...RESTORED_SPACES].map(s=>({...s,variants:s.variants.map(v=>({...v,scene:ENVIRONMENT_BRIEFS[`${s.id}.${v.id}`]||v.scene})),keywords:[...(s.keywords||[]),...(ORIGINAL_SPACE_ALIASES[s.id]||[])],sourceNote:s.sourceNote||(ORIGINAL_SPACE_ALIASES[s.id]?`原有环境「${ORIGINAL_SPACE_ALIASES[s.id].join('、')}」归入这一类；具体场景以所选背景描述为准。`:''),categoryLabel:cats(SPACE_CATEGORIES,s.category),imageStatus:'photo'})).map(withEnvironmentCapabilities).map(withVerifiedLocationDetails).map(readableTags);
+const planCats={daily:'everyday',portrait:'profile',outfit:'outfit',walking:'outfit',catalog:'product',detail:'product'};
+export const PLANS=[...B.PLANS.map(p=>({...p,category:planCats[p.id],featured:true,tags:[B.GOAL_NAMES[p.goal],p.name]})),...EXTRA_PLANS].map(p=>({...p,categoryLabel:cats(PLAN_CATEGORIES,p.category)})).map(readableTags).sort((a,b)=>({profile:0,portrait:1,product:2,outfit:3,campaign:4,everyday:5,travel:6}[a.category]-{profile:0,portrait:1,product:2,outfit:3,campaign:4,everyday:5,travel:6}[b.category]));
+const moodCats={soft:'natural',clean:'natural',warm:'warm',graphic:'graphic',evening:'night',flash:'graphic'};
+export const MOODS=[...B.MOODS.map(m=>({...m,category:moodCats[m.id],featured:true,tags:[m.name]})),...EXTRA_MOODS].map(m=>({...m,categoryLabel:cats(MOOD_CATEGORIES,m.category)})).map(readableTags);
+const framingCats={full:'product',person:'person',place:'context',detail:'product',cover:'layout'};
+export const FRAMINGS=[...B.FRAMINGS.map(f=>({...f,category:framingCats[f.id],featured:true,tags:[f.name]})),...EXTRA_FRAMINGS].map(f=>({...f,categoryLabel:cats(FRAMING_CATEGORIES,f.category)})).map(readableTags);
+const expressionCats={smile:'friendly',calm:'calm',away:'calm',focus:'candid',candid:'candid'};
+export const EXPRESSIONS=[...B.EXPRESSIONS.map(e=>({...e,summary:e.options.expression,category:expressionCats[e.id],featured:true,tags:[e.name]})),...EXTRA_EXPRESSIONS].map(e=>({...e,categoryLabel:cats(EXPRESSION_CATEGORIES,e.category)})).map(readableTags);
+export const {GOAL_NAMES,ACTION_NAMES,RELATIONS}=B;

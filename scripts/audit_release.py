@@ -1,21 +1,71 @@
 """Check the public source boundary without printing any matching secret values."""
-import json,re,subprocess,sys
+import json
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1]
-IGNORE={'.git','.venv','node_modules','outputs','work','data','__pycache__'}
+
+ROOT = Path(__file__).resolve().parents[1]
+PRIVATE_DIRECTORIES = {
+    'work', 'data', 'outputs', 'tokens', 'node_modules', '.venv', '__pycache__',
+    '验证截图', 'costume-thumbs', 'costume-full',
+}
+PUBLIC_CATALOGS = {
+    Path('design/muse-frame-04/data/costumes.json'),
+    Path('design/muse-frame-04/data/library.json'),
+    Path('design/muse-frame-04/data/scenes.json'),
+}
+LEGACY_LINK = Path('design/muse-frame-04/legacy')
+LEGACY_TARGET = Path('design/muse-frame-next')
+
+
 def source_files():
-    git=subprocess.run(['git','ls-files','-z'],cwd=ROOT,capture_output=True)
-    if git.returncode==0 and git.stdout:
-        return [ROOT/p for p in git.stdout.decode().split('\0') if p]
-    return [p for p in ROOT.rglob('*') if p.is_file() and not IGNORE.intersection(p.relative_to(ROOT).parts)]
+    try:
+        git = subprocess.run(['git', 'ls-files', '-z'], cwd=ROOT, capture_output=True)
+    except FileNotFoundError:
+        git = None
+    if git and git.returncode == 0 and git.stdout:
+        return [ROOT / os.fsdecode(name) for name in git.stdout.split(b'\0') if name]
+
+    # An extracted release archive has no Git index. Inspect every included
+    # file and symlink, including anything under a normally ignored directory.
+    files = []
+    for directory, children, names in os.walk(ROOT):
+        folder = Path(directory)
+        for name in list(children):
+            child = folder / name
+            if name == '.git' or child.is_symlink():
+                children.remove(name)
+                if name != '.git':
+                    files.append(child)
+        files.extend(folder / name for name in names if name != '.git')
+    return sorted(files)
+
+
+def reviewed_legacy_link(path, relative):
+    target = ROOT / LEGACY_TARGET
+    return (
+        relative == LEGACY_LINK
+        and os.readlink(path) == '../muse-frame-next'
+        and target.is_dir()
+        and target.resolve() == target
+    )
+
+
 def audit():
     problems=[];files=source_files()
     private_path=re.compile('/'+'Users/'+r'[^/\s]+/|/'+'home/'+r'[^/\s]+/')
     secret=re.compile(r'sk-'+'proj-'+r'[A-Za-z0-9_-]{20,}|AKIA[A-Z0-9]{16}|-----BEGIN '+r'(?:RSA |EC |OPENSSH )?PRIVATE KEY-----')
     for p in files:
         rel=p.relative_to(ROOT);parts=rel.parts
-        if any(t in {'work','data','outputs','tokens','node_modules','.venv','__pycache__','验证截图','costume-thumbs','costume-full'} for t in parts):problems.append({'path':str(rel),'reason':'private/build directory in source'});continue
-        if p.is_symlink():problems.append({'path':str(rel),'reason':'source symlink needs explicit review'});continue
+        if PRIVATE_DIRECTORIES.intersection(parts) and rel not in PUBLIC_CATALOGS:
+            problems.append({'path':str(rel),'reason':'private/build directory in source'})
+            continue
+        if p.is_symlink():
+            if not reviewed_legacy_link(p, rel):
+                problems.append({'path':str(rel),'reason':'source symlink needs explicit review'})
+            continue
         if p.suffix.lower() in {'.db','.sqlite','.sqlite3','.wal','.shm','.log','.key','.pyc','.pkg','.zip','.dmg','.dylib','.so'} or p.name in {'sample.json','.env'}:problems.append({'path':str(rel),'reason':'private/generated artifact in source'});continue
         if p.suffix.lower() in {'.png','.jpg','.webp','.ico','.icns'}:continue
         try:text=p.read_text()

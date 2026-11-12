@@ -69,6 +69,23 @@ class RetouchTests(unittest.TestCase):
   for key in ['clarity','texture']:
    positive=render(self.file,{key:40},2);negative=render(self.file,{key:-40},2)
    self.assertGreater(positive.getpixel((50,50))[0],negative.getpixel((50,50))[0]);self.assertEqual(positive.getpixel((0,0)),(80,80,80,123))
+ def test_tint_moves_neutral_colors_towards_green_or_magenta(self):
+  Image.new('RGBA',(8,8),(128,128,128,123)).save(self.file)
+  magenta=render(self.file,{'tint':70},2).getpixel((0,0))
+  green=render(self.file,{'tint':-70},2).getpixel((0,0))
+  self.assertGreater(magenta[0],magenta[1]);self.assertGreater(magenta[2],magenta[1])
+  self.assertLess(green[0],green[1]);self.assertLess(green[2],green[1])
+  self.assertEqual(magenta[3],123);self.assertEqual(green[3],123)
+ def test_sharpening_enhances_edges_without_changing_flat_tones_or_alpha(self):
+  image=Image.new('RGBA',(96,96),(80,80,80,123));image.paste((160,160,160,123),(48,0,96,96));image.save(self.file)
+  result=render(self.file,{'sharpness':70},2)
+  self.assertLess(result.getpixel((47,48))[0],80);self.assertGreater(result.getpixel((48,48))[0],160)
+  self.assertEqual(result.getpixel((10,10)),(80,80,80,123));self.assertEqual(result.getchannel('A').tobytes(),image.getchannel('A').tobytes())
+ def test_extended_neutral_values_keep_the_existing_v2_recipe_shape(self):
+  self.assertEqual(settings({'tint':0,'sharpness':0},2),settings({},2))
+  for value in [{'tint':101},{'tint':-101},{'sharpness':-1},{'sharpness':101}]:
+   with self.subTest(value=value),self.assertRaises(ValueError):settings(value,2)
+  with self.assertRaises(ValueError):settings({'tint':10},1)
  def test_v2_fast_proxy_cache_is_immutable_and_save_remains_full_size(self):
   from retouch import PROXIES
   Image.linear_gradient('L').resize((1800,1200)).convert('RGBA').save(self.file);p={'highlights':-20,'shadows':20,'texture':10}

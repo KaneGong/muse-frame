@@ -91,7 +91,7 @@ test('style micro-adjustment preserves its button, keyboard focus and unrelated 
 });
 test('asset more menu floats outside the card and retains the existing actions',opts,()=>{
  const {dom,q}=studio();try{
-  q.assets=[{id:'menu-a',role:'output',name:'Test work',job_id:'j'}];q.$('stage').innerHTML=q.assetCard(q.assets[0]);q.bindCards(q.$('stage'));
+  q.jobs=[{id:'j',state:'completed'}];q.assets=[{id:'menu-a',role:'output',name:'Test work',job_id:'j'}];q.$('stage').innerHTML=q.assetCard(q.assets[0]);q.bindCards(q.$('stage'));
   const trigger=q.$('stage').querySelector('[data-asset-menu]');assert.ok(trigger,'accessible menu trigger');trigger.click();const menu=q.$('asset-action-menu');
   assert.equal(menu.hidden,false);assert.equal(menu.parentElement,dom.window.document.body);assert.equal(trigger.getAttribute('aria-expanded'),'true');assert.equal(menu.getAttribute('role'),'menu');
   assert.deepEqual(Array.from(menu.querySelectorAll('[data-asset-op]'),b=>b.dataset.assetOp),['save-pose','adopt','regenerate','rename','trash']);
@@ -353,8 +353,8 @@ test('lens position and subject scale edit independently and only the active sho
  const {dom,q,w}=studio();try{
   q.changed=()=>{};q.step='lens';q.view.lens={sections:{camera:true}};q.renderLens();q.addShot();q.renderLens();
   const first=q.d().shots[0].prompt,hand='\n手写备注：保留衣领。';q.d().draft+=hand;q.d().shots[1].prompt=q.d().draft;
-  const scale=q.$('stage').querySelector('[data-field="scale"][data-value*="40%"]');assert.ok(scale,'subject scale has its own control');scale.click();
-  assert.match(w.PromptEngine.get(q.d().draft,'scale'),/40%/);const value=w.PromptEngine.get(q.d().draft,'scale');
+  const scale=q.$('stage').querySelector('[data-field="scale"][data-value*="以周围空间为主要画面"]');assert.ok(scale,'subject scale has its own control');scale.click();
+  assert.match(w.PromptEngine.get(q.d().draft,'scale'),/自然余量/);assert.doesNotMatch(w.PromptEngine.get(q.d().draft,'scale'),/\d+%/);const value=w.PromptEngine.get(q.d().draft,'scale');
   q.$('stage').querySelector('[data-field="placement"][data-value="人物居中，构图稳定"]').click();
   assert.equal(w.PromptEngine.get(q.d().draft,'scale'),value);assert.equal(w.PromptEngine.get(q.d().draft,'placement'),'人物居中，构图稳定');
   assert.equal(q.d().shots[0].prompt,first);assert.match(q.d().shots[1].prompt,/手写备注：保留衣领/);assert.ok(q.shotChips(q.d().shots[1].prompt).includes('环境占比大'));

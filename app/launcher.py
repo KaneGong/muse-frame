@@ -1,12 +1,13 @@
 """Single-instance local WebUI launcher; source and frozen builds share this entry."""
 import argparse,json,logging,os,socket,sys,threading,time,urllib.request,webbrowser,html
 from pathlib import Path
+from mmap import ACCESS_READ, mmap
 from http.server import ThreadingHTTPServer
 from socketserver import TCPServer
 from runtime import APP_ID,APP_NAME,VERSION,DEFAULT_PORT,data_dir,diagnostics
 
 class InstanceLock:
-    def __init__(self,root):self.path=root/'instance.json';self.file=None
+    def __init__(self,root,filename='instance.json'):self.path=root/filename;self.file=None
     def acquire(self):
         self.file=self.path.open('a+',encoding='utf-8')
         try:
@@ -23,18 +24,34 @@ class InstanceLock:
     def release(self):
         if self.file:self.file.close();self.file=None
 
-def existing_instance(root,timeout=5):
+def read_instance_record(path):
+    if os.name == 'nt':
+        # A mapped read can see the readiness JSON while the owner holds a
+        # Windows byte-range lock on the first byte of the same file.
+        with path.open('rb') as file, mmap(file.fileno(), 0, access=ACCESS_READ) as record:
+            return json.loads(record[:])
+    return json.loads(path.read_text(encoding='utf-8'))
+
+
+def existing_instance_info(root,timeout=5,surface=None):
     # A second click may arrive between acquiring the lock and writing readiness.
     end=time.monotonic()+timeout
     while time.monotonic()<end:
         try:
-            record=json.loads((root/'instance.json').read_text());port=record['port']
+            record=read_instance_record(root/'instance.json');port=record['port']
             if type(port)!=int or not 1024<=port<=65535:raise ValueError('invalid port')
             with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(f'http://127.0.0.1:{port}/api/health',timeout=.4) as r:health=json.load(r)
-            if health.get('app_id')==APP_ID and health.get('pid')==record['pid']:return port
+            if (health.get('app_id')==APP_ID and health.get('pid')==record['pid']
+                    and (surface is None or health.get('surface')==surface)):
+                return {**health, 'port': port}
         except (OSError,ValueError,KeyError):pass
         time.sleep(.1)
     return None
+
+
+def existing_instance(root,timeout=5,surface=None):
+    info=existing_instance_info(root,timeout,surface)
+    return info['port'] if info else None
 
 class LoopbackHTTPServer(ThreadingHTTPServer):
     def server_bind(self):

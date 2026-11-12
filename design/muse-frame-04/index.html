@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Muse Frame</title>
+  <link rel="icon" href="assets/muse-frame-mark.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="photo-tools.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">跳到创作工作区</a>
+  <div id="save-warning" role="alert" hidden></div>
+  <div id="app"><div class="loading-page">正在打开创作工作区…</div></div>
+  <dialog id="sheet" aria-labelledby="sheet-title"></dialog>
+  <dialog id="photo-tools" aria-labelledby="photo-tool-title"></dialog>
+  <input id="file-upload" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.mjs"></script>
+</body>
+</html>

@@ -7,16 +7,18 @@ Q.costumeGallery={items:null,cats:null,source:'',author:'',cat:'',q:'',limit:120
 Q.openCostumeGallery=async()=>{
  if(Q.costumeGallery.importing)return;
  if(!Q.active())throw Error('请先恢复项目');
- const st=Q.costumeGallery;
+ const st=Q.costumeGallery,pid=Q.project.id,dialog=Q.$('costume-gallery-dialog'),token=st.loadToken=(st.loadToken||0)+1;
  st.selected=new Set();
- st.projectId=Q.project.id;
+ st.projectId=pid;
  Q.$('costume-gallery-import').disabled=true;
  Q.$('costume-gallery-selected').textContent=Q.costumeText('gallery.costume.notSelected','未选择');
  Q.$('costume-gallery-status').textContent=Q.costumeText('gallery.costume.loading','正在读取服装库…');
  Q.$('costume-gallery-grid').innerHTML='';
  Q.$('costume-gallery-dialog').showModal();
+ const current=()=>st.loadToken===token&&dialog.open&&Q.project?.id===pid;
  try{
   const data=st.items?{items:st.items,categories:st.cats,source:st.source,author:st.author,count:st.count}:await Q.api('/api/costume-gallery');
+  if(!current())return;
   st.items=data.items||[];
   st.cats=data.categories||[];
   st.source=data.source;st.author=data.author;st.count=data.count||st.items.length;
@@ -24,7 +26,7 @@ Q.openCostumeGallery=async()=>{
   Q.$('costume-gallery-note').textContent=Q.costumeText('gallery.costume.sourceNote','来源 '+st.author+' · '+st.count+' 套无人物服装参考。先放大查看，可复选最多 10 张导入，再自行选择用于本次拍摄。',{author:st.author,count:st.count});
   Q.$('costume-gallery-search').value='';
   Q.renderCostumeGallery();
- }catch(e){Q.$('costume-gallery-status').textContent=e.message||'服装库读取失败';}
+ }catch(e){if(current())Q.$('costume-gallery-status').textContent=e.message||'服装库读取失败';}
 };
 
 Q.costumeMatch=g=>{
@@ -54,7 +56,7 @@ Q.renderCostumeGallery=()=>{
   if(st.importing)return;
   const id=b.dataset.costume,g=st.items.find(item=>item.id===id);if(!g)return;
   Q.openGalleryPreview({src:st.source+'/png/'+encodeURIComponent(id)+'.png',title:(Q.i18n?.get?.()==='en'&&g.kw?g.kw:g.zh)+' · '+id,selected:st.selected.has(id),onSelect:()=>{
-   if(st.importing)return;
+   if(st.importing||st.projectId&&st.projectId!==Q.project?.id)return;
    if(st.selected.has(id))st.selected.delete(id);else if(st.selected.size>=10){Q.$('costume-gallery-status').textContent=Q.galleryBatchText?.('limit','每次最多选择 10 张')||'每次最多选择 10 张';return;}else st.selected.add(id);
    Q.updateCostumeGallerySelection();
   }});

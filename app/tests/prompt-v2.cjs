@@ -10,7 +10,7 @@ test('light change preserves manually edited color',()=>{const p=PE.patch(T.port
 test('unsetting a field removes requirement, not an empty heading',()=>{const q=PE.patch(T.portrait,'expression','');assert.equal(PE.get(q,'expression'),'');assert.equal(q.includes('表情：'),false);assert.equal(PE.get(q,'gaze'),PE.get(T.portrait,'gaze'));});
 test('removing a camera clause does not shift the remaining roles',()=>{const q=PE.patch(T.portrait,'shot','');assert.equal(PE.get(q,'shot'),'');assert.equal(PE.get(q,'angle'),PE.get(T.portrait,'angle'));assert.equal(PE.get(q,'placement'),PE.get(T.portrait,'placement'));assert.equal(PE.get(PE.patch(q,'lens','长焦压缩'),'angle'),PE.get(q,'angle'));});
 test('unsetting light preserves tone and other photographic clauses',()=>{const q=PE.patch(T.portrait,'light','');assert.equal(PE.get(q,'light'),'');assert.equal(q.includes('光线：'),false);assert.equal(PE.get(q,'color'),PE.get(T.portrait,'color'));});
-test('compact removes empty field headings but preserves intentional blank lines',()=>{const q=PE.compact('场景：\n\n摄影处理：光线：柔和；色调：中性\n\n手写要求');assert.equal(q,'\n摄影处理：光线：柔和；色调：中性\n\n手写要求');});
+test('compact removes empty fields but preserves blank lines and list introductions',()=>{const q=PE.compact('场景：\n\n摄影处理：光线：柔和；色调：中性\n\n六个机位分别承担以下用途：\n1. 主全景');assert.equal(q,'\n摄影处理：光线：柔和；色调：中性\n\n六个机位分别承担以下用途：\n1. 主全景');});
 test('pose is image4 without scene, image5 with scene; other references keep order',()=>{const assets=['f','o','s','p'].map(id=>({id}));let m=PE.bindings({face:'f',outfit:'o',pose:'p'},true,assets);assert.deepEqual(m.refs,['f','f','o','p']);assert.equal(m.numbers.pose,4);let t=PE.environment(T.portrait,false);t=PE.poseReference(t,m.numbers.pose);assert.equal(PE.validation(t,m,'3:4').length,0);m=PE.bindings({face:'f',outfit:'o',scene:'s',pose:'p'},true,assets);assert.deepEqual(m.refs,['f','f','o','s','p']);t=PE.poseReference(PE.environment(t,true),m.numbers.pose);assert.match(PE.get(t,'poseReference'),/图5/);assert.equal(PE.validation(t,m,'3:4').length,0);});
 test('removing pose reference leaves original user prompt untouched',()=>{assert.equal(PE.poseReference(PE.poseReference(T.portrait,5),null),T.portrait);});
 test('trashed pose cannot remain a usable reference; stale numbered text blocks submission',()=>{const m=PE.bindings({face:'f',outfit:'o',pose:'p'},true,[{id:'f'},{id:'o'},{id:'p',trashed:true}]);assert.equal(m.roles.pose,'');assert.ok(PE.validation(PE.poseReference(T.portrait,5),m,'3:4').length>0);});
@@ -71,4 +71,22 @@ test('pose reference excludes source framing and preserves camera and handwritte
  const before=T.portrait+'\n手写备注：保留衣领。',p=PE.poseReference(before,5),binding=PE.get(p,'poseReference');
  assert.match(binding,/不.*人物.*占比/);assert.match(binding,/取景范围/);assert.match(binding,/拍摄距离/);assert.match(binding,/构图.*优先/);
  assert.equal(PE.get(p,'shot'),PE.get(before,'shot'));assert.equal(PE.poseReference(p,null),before);assert.equal(PE.poseReference(p,5),p);
+});
+
+test('natural environmental framing promotes layout without changing reference or handwritten clauses',()=>{
+ const scale=require('../static/library.json').groups.find(g=>g.id==='scale').options[0].prompt;
+ const before=PE.poseReference(T.portrait+'\n手写备注：保留衣领与特殊体型。',5);
+ const after=PE.patch(before,'scale',scale);
+ assert.ok(after.startsWith('构图与取景：'));
+ assert.ok(after.indexOf('场景：')<after.indexOf('姿态参考：'));
+ for(const key of ['poseReference','environment','scene','pose','expression','gaze','skin','style','shot','angle','placement'])assert.equal(PE.get(after,key),PE.get(before,key));
+ assert.equal(after.split('\n').at(-1),'手写备注：保留衣领与特殊体型。');
+ assert.doesNotMatch(PE.get(after,'scale'),/\d+%/);
+ assert.equal(PE.framingPriority(after),after);
+ const numbered=PE.poseReference(after,4);assert.ok(numbered.startsWith('构图与取景：'));assert.match(PE.get(numbered,'poseReference'),/图4/);assert.doesNotMatch(PE.get(numbered,'poseReference'),/图5/);
+});
+test('existing numeric drafts and close-ups are not automatically rewritten or promoted',()=>{
+ const legacy=require('../static/library.json').groups.find(g=>g.id==='scale').options[0].legacyPrompts.find(p=>p.includes('40%'));
+ const old=PE.patch(T.portrait,'scale',legacy);assert.equal(PE.framingPriority(old),old);
+ const close=PE.patch(T.portrait,'shot','以面部为主的近景特写');assert.equal(PE.framingPriority(close),close);assert.doesNotMatch(close,/头顶上方、脚下及左右/);
 });

@@ -142,10 +142,10 @@ class Features:
             data.update(category_id=category,archived=bool(p.get('archived',False)));now=time.time()
             self.store.db.execute('insert into user_presets values(?,?,?) on conflict(id) do update set data=excluded.data,updated=excluded.updated',(pid,json.dumps(data,ensure_ascii=False),now));self.store.db.commit()
         return {**data,'id':pid,'revision':now}
-    def original(self,pid,aid):
+    def original(self,pid,aid,retry=False):
         a=self.store.asset(aid,pid)
         if a.get('original_local') or (a.get('local') and a.get('source')=='uploaded' and not a.get('preview_only')):return a
-        if a.get('original_error') and a.get('original_client')==ORIGINAL_CLIENT and time.time()-a.get('original_attempt',0)<300:raise ValueError(a['original_error'])
+        if not retry and a.get('original_error') and a.get('original_client')==ORIGINAL_CLIENT and time.time()-a.get('original_attempt',0)<300:raise ValueError(a['original_error'])
         url=a.get('url','')
         import platforms
         if not platforms.allow_image_url(url):raise ValueError('没有可读取的原图地址，请从所连接的绘图平台获取原图')
@@ -162,14 +162,17 @@ class Features:
             expected=a.get('original_size') or [0,0]
             if all(isinstance(x,int) and x>0 for x in expected) and (im.width<expected[0] or im.height<expected[1]):raise ValueError('平台地址返回的尺寸小于任务原图尺寸，未当作原图保存')
             with self.store.lock:
-                self.store.asset(aid,pid) # An original request may finish after a permanent removal.
+                current=self.store.asset(aid,pid)
+                if current.get('original_local'):return current
                 rel='assets/original-'+aid+ext;(self.store.root/rel).write_bytes(raw)
                 data=self.store.asset(aid);data.update(original_local=rel,original_saved=True,original_size=[im.width,im.height],original_error=None);self.store.put_asset(data)
         except Exception as e:
             message=f'平台未允许读取原图（HTTP {e.code}），请在绘图平台下载。' if isinstance(e,urllib.error.HTTPError) else str(e) if isinstance(e,ValueError) else '原图读取未成功，请在绘图平台下载或稍后重试。'
             if isinstance(e,urllib.error.HTTPError):e.close()
             with self.store.lock:
-                self.store.asset(aid,pid);data=self.store.asset(aid);data.update(original_error=message,original_attempt=time.time(),original_client=ORIGINAL_CLIENT);self.store.put_asset(data)
+                current=self.store.asset(aid,pid)
+                if current.get('original_local'):return current
+                data=self.store.asset(aid);data.update(original_error=message,original_attempt=time.time(),original_client=ORIGINAL_CLIENT);self.store.put_asset(data)
             raise ValueError(message)
         return self.store.asset(aid,pid)
     def archive_job(self,pid,jid,archived):

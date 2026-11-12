@@ -3,7 +3,12 @@ import sqlite3,json,uuid,time,threading,urllib.parse,copy
 from pathlib import Path
 from contextlib import contextmanager
 from purge import PurgeStore
+from media_paths import media_url, normalize_asset_media, portable_media_path, resolved_media_path, resolved_workspace_path
 ACTIVE={'queued','preparing','submitting','running','cancelling'}
+
+class MediaAccessError(ValueError):
+    pass
+
 class Store(PurgeStore):
     def __init__(self,root):
         self.root=Path(root);self.root.mkdir(parents=True,exist_ok=True)
@@ -73,20 +78,34 @@ class Store(PurgeStore):
         with self.lock:
             result=[]
             for r in self.db.execute('select id,name,updated,status from projects order by updated desc'):
-                p=dict(r);assets=self.assets(p['id']);p.update(asset_count=len([a for a in assets if not a.get('trashed')]),work_count=len([a for a in assets if a.get('role')=='output' and not a.get('trashed')]),task_count=len(self.jobs(p['id'])))
-                cover=next((a for a in reversed(assets) if a.get('role')=='output' and not a.get('trashed')),None) or next((a for a in assets if not a.get('trashed')),None)
+                p=dict(r)
+                # An overview needs counts and one cover, not every asset's file
+                # stats or every task's event history. Keep project-local metadata
+                # authoritative when the same asset is reused in another project.
+                assets=[{**json.loads(a['data']),**json.loads(a['meta']),'id':a['asset_id']} for a in self.db.execute(
+                    'select a.data,pa.meta,pa.asset_id from project_assets pa join assets a on a.id=pa.asset_id where pa.project_id=? order by pa.created',(p['id'],))]
+                visible=[a for a in assets if not a.get('trashed')]
+                works=[a for a in visible if a.get('role')=='output']
+                p.update(asset_count=len(visible),work_count=len(works),task_count=self.db.execute('select count(*) from jobs where project_id=?',(p['id'],)).fetchone()[0])
+                choice=works[-1] if works else next(iter(visible),None)
+                cover=self.asset(choice['id'],p['id']) if choice else None
                 p['cover']=cover.get('display_url') or cover.get('preview') or cover.get('url') if cover else None;result.append(p)
             return result
     def put_project(self,name,data,pid=None,revision=None):
         if not isinstance(name,str) or not name.strip() or not isinstance(data,dict):raise ValueError('请填写项目名称')
         pid=pid or uuid.uuid4().hex
         with self.lock:
-            exists=self.db.execute('select updated,status from projects where id=?',(pid,)).fetchone()
+            exists=self.db.execute('select updated,status,data from projects where id=?',(pid,)).fetchone()
             if exists:
                 if exists['status']!='active':raise ValueError('请先恢复项目再编辑')
                 if revision is not None and float(revision)!=exists['updated']:raise ValueError('项目已在另一页面更新，请刷新后继续；当前草稿仍保留在页面。')
                 for aid in list(data.get('refs',{}).values())+list(data.get('savedResults',[])):
                     if aid:self.asset(aid,pid)
+                # Platform ids are maintained by completed submission responses,
+                # without advancing the user's draft revision. A page opened
+                # before that response must not erase them on its next save.
+                platform_projects=json.loads(exists['data']).get('platform_projects')
+                if platform_projects is not None:data={**data,'platform_projects':platform_projects}
             else:
                 # New projects cannot inherit another project's IDs through ordinary save.
                 if any(data.get('refs',{}).values()) or data.get('savedResults'):raise ValueError('请先新建空项目，再明确复用素材')
@@ -130,8 +149,8 @@ class Store(PurgeStore):
                 except ValueError:a={}
                 rel=a.get('local') or a.get('original_local')
                 if rel:
-                    source=(self.root/rel)
                     try:
+                        source=resolved_workspace_path(self.root,rel)
                         with Image.open(source) as im:
                             im=ImageOps.exif_transpose(im)
                             if im.mode not in ('RGB','L'):im=im.convert('RGB')
@@ -167,7 +186,7 @@ class Store(PurgeStore):
                     try:self.queue_file_deletion(rel)
                     except ValueError:pass
                 for upload in (self.root/'previews').glob(upload_prefix(aid)+'*'):
-                    try:self.queue_file_deletion(str(upload.relative_to(self.root)))
+                    try:self.queue_file_deletion(upload.relative_to(self.root).as_posix())
                     except ValueError:pass
                 self.db.execute('delete from assets where id=?',(aid,));removed_assets+=1
             job_ids=[r['id'] for r in self.db.execute('select id from jobs where project_id=?',(pid,))]
@@ -198,7 +217,7 @@ class Store(PurgeStore):
         return json.loads(r['data'])
     def asset(self,aid,pid=None):
         with self.lock:
-            a=self._raw_asset(aid)
+            a=normalize_asset_media(self._raw_asset(aid))
             if a.get('job_id'):
                 rowjob=self.db.execute('select payload,created from jobs where id=?',(a['job_id'],)).fetchone()
                 if rowjob:
@@ -208,33 +227,79 @@ class Store(PurgeStore):
             if pid is not None:
                 row=self.db.execute('select * from project_assets where project_id=? and asset_id=?',(pid,aid)).fetchone()
                 if not row:raise ValueError('这张图片不属于当前项目；请先使用“从其他项目复用”')
-                m=json.loads(row['meta']);a={**a,**m,'name':m.get('title',a.get('name')),'project_meta':m,'project_id':pid,'added_at':row['created']}
-                if a.get('original_local'):a['original_url']='/files/'+a['original_local']+'?project_id='+urllib.parse.quote(pid)
-                if a.get('local'):a['preview']='/files/'+a['local']+'?project_id='+urllib.parse.quote(pid)
-                if a.get('photo_adjustment'):a['display_url']='/files/'+a['photo_adjustment']['local']+'?project_id='+urllib.parse.quote(pid);a['adjusted']=any(a['photo_adjustment']['settings'].values())
+                m=normalize_asset_media(json.loads(row['meta']))
+                a={**a,**m,'name':m.get('title',a.get('name')),'project_meta':m,'project_id':pid,'added_at':row['created']}
+                adjustment=a.get('photo_adjustment') or {}
+                if adjustment:a['adjusted']=any(adjustment['settings'].values())
                 # Persisted WebKit image caches outlive an App update. A replaced
                 # original at the same path must get a new URL, without rewriting assets.
-                for key in ['preview','original_url','display_url']:
-                    url=a.get(key,'')
-                    if not url.startswith('/files/'):continue
-                    file=(self.root/url[len('/files/'):].split('?')[0]).resolve()
-                    if not file.is_relative_to(self.root.resolve()):continue
-                    try:stat=file.stat()
-                    except OSError:continue
-                    a[key]=url+'&v='+str(stat.st_mtime_ns)+'-'+str(stat.st_size)
+                for key,relative in (('preview',a.get('local')),('original_url',a.get('original_local')),
+                                     ('display_url',adjustment.get('local'))):
+                    url=a.get(key) or ''
+                    if not relative and url.startswith('/files/'):
+                        relative=urllib.parse.unquote(urllib.parse.urlsplit(url).path[len('/files/'):])
+                    if not relative:continue
+                    try:a[key]=media_url(relative,pid)
+                    except ValueError:continue
+                    try:stat=resolved_workspace_path(self.root,relative).stat()
+                    except (OSError,RuntimeError,ValueError):continue
+                    a[key]+='&v='+str(stat.st_mtime_ns)+'-'+str(stat.st_size)
                 source=a.get('display_url') or a.get('original_url') or a.get('preview') or ''
                 if source.startswith('/files/'):
-                    rel=source[len('/files/'):].split('?')[0]
-                    version=urllib.parse.parse_qs(urllib.parse.urlsplit(source).query).get('v',[''])[0]
-                    base='/thumbs/'+urllib.parse.quote(rel,safe='/')+'?project_id='+urllib.parse.quote(pid)+(('&v='+version) if version else '')+'&w='
+                    base='/thumbs/'+source[len('/files/'):]+'&w='
                     a['thumb']=base+'360';a['medium']=base+'1200'
             return a
+    def project_media_path(self,pid,relative):
+        if not pid:raise ValueError('图片请求缺少项目')
+        try:relative=portable_media_path(relative)
+        except ValueError as error:raise MediaAccessError('路径不允许') from error
+        with self.lock:
+            self.project(pid)
+            rows=self.db.execute('select a.data,pa.meta from project_assets pa join assets a on a.id=pa.asset_id where pa.project_id=?',(pid,))
+            assets=(normalize_asset_media({**json.loads(row['data']),**json.loads(row['meta'])}) for row in rows)
+            if not any(relative in (a.get('local'),a.get('original_local'),*self.adjustment_paths(a)) for a in assets):
+                raise MediaAccessError('图片不属于当前项目')
+            try:return resolved_media_path(self.root,relative)
+            except (OSError,RuntimeError,ValueError) as error:raise MediaAccessError('路径不允许') from error
     def assets(self,pid=None):
         with self.lock:
             if pid is None:raise ValueError('读取图片必须指定项目')
             return [self.asset(r['asset_id'],pid) for r in self.db.execute('select asset_id from project_assets where project_id=? order by created',(pid,))]
+    def workbench_works(self, current):
+        """Read a bounded contact sheet from other active projects."""
+        with self.lock:
+            self.project(current)
+            rows=self.db.execute("""
+                WITH ranked AS (
+                    SELECT p.id AS project_id,p.name,pa.asset_id,p.updated,
+                           COUNT(*) OVER (PARTITION BY p.id) AS total,
+                           ROW_NUMBER() OVER (
+                             PARTITION BY p.id
+                             ORDER BY COALESCE(json_extract(a.data,'$.created_at'),j.created,pa.created) DESC,
+                                      pa.created DESC,pa.asset_id
+                           ) AS position
+                      FROM projects p
+                      JOIN project_assets pa ON pa.project_id=p.id
+                      JOIN assets a ON a.id=pa.asset_id
+                      LEFT JOIN jobs j ON j.id=json_extract(a.data,'$.job_id')
+                     WHERE p.status='active' AND p.id<>?
+                       AND json_extract(a.data,'$.role')='output'
+                       AND NOT COALESCE(json_extract(pa.meta,'$.trashed'),0)
+                )
+                SELECT * FROM ranked WHERE position<=8
+                ORDER BY updated DESC,project_id,position
+            """,(current,)).fetchall()
+            groups={}
+            fields=('id','name','thumb','medium','preview','original_url','display_url',
+                    'url','preview_only','adjusted','adopted','created_at','added_at','source')
+            for row in rows:
+                pid=row['project_id']
+                group=groups.setdefault(pid,{'id':pid,'name':row['name'],'total':row['total'],'works':[]})
+                asset=self.asset(row['asset_id'],pid)
+                group['works'].append({field:asset[field] for field in fields if field in asset})
+            return list(groups.values())
     def put_asset(self,a,pid=None):
-        a=dict(a);a.setdefault('id',uuid.uuid4().hex)
+        a=normalize_asset_media(dict(a));a.setdefault('id',uuid.uuid4().hex)
         for field in ['url','edit_url']:
             if not a.get(field):continue
             import platforms
@@ -342,5 +407,5 @@ class Store(PurgeStore):
                     if j['state'] in ['preparing','submitting','running','cancelling']:self.update(j['id'],state='needs_review',error='执行器连接中断，请查询已有平台任务并回传；不会自动重新生成。')
                     continue
                 if j['state']=='preparing':self.update(j['id'],state='queued')
-                elif j['state']=='submitting' and not j['task_ids']:self.update(j['id'],state='needs_review',error='提交中断，需在Lovart核对；不会自动再次提交。')
-                elif j['task_ids'] and j['state'] not in ['completed','failed','cancelled']:self.update(j['id'],state='running')
+                elif j['state']=='submitting' and not j['task_ids']:self.update(j['id'],state='needs_review',error='提交中断，请在原平台核对已有任务；不会自动再次提交。')
+                elif j['task_ids'] and j['state'] not in ['completed','failed','cancelled'] and not (j.get('result') or {}).get('review_released'):self.update(j['id'],state='running')

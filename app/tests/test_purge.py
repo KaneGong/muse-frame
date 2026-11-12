@@ -29,6 +29,12 @@ class PurgeTests(unittest.TestCase):
   a=self.asset();self.s.reuse(self.pid,self.b['id'],['photo']);self.s.project_action(self.b['id'],'trash');self.trash(['photo']);self.purge(['photo']);self.assertTrue((self.s.root/a['local']).exists());self.assertEqual(self.s.asset('photo',self.b['id'])['id'],'photo')
  def test_shared_path_under_different_asset_id_including_alias_is_retained(self):
   a=self.asset();self.s.put_asset({'id':'alias','name':'alias','local':'assets/./photo.png','role':'output'},self.b['id']);self.trash(['photo']);r=self.purge(['photo']);self.assertEqual(r['freed_bytes'],0);self.assertEqual(r['retained_files'],1);self.assertTrue((self.s.root/a['local']).exists())
+ def test_legacy_windows_alias_protects_shared_file(self):
+  a=self.asset();self.s.put_asset({'id':'alias','name':'alias','role':'output','local':a['local']},self.b['id'])
+  with self.s.db:
+   self.s.db.execute("update assets set data=json_set(data,'$.local',?) where id='alias'",(r'assets\photo.png',))
+  self.trash(['photo']);self.purge(['photo']);self.assertTrue((self.s.root/a['local']).is_file())
+  self.trash(['alias'],self.b['id']);self.purge(['alias'],self.b['id']);self.assertFalse((self.s.root/a['local']).exists())
  def test_local_retouch_base_blocked_until_derivatives_are_in_same_selection(self):
   self.asset('base');self.asset('child',retouch_base_id='base',retouch_version=2);self.trash(['base','child']);p=self.s.purge_plan(self.pid,['base']);self.assertTrue(p['blocked'])
   with self.assertRaises(ValueError):self.s.purge_assets(self.pid,['base'],p['token'])

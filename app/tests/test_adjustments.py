@@ -31,6 +31,18 @@ class AdjustmentTests(unittest.TestCase):
  def test_export_import_bundle_preserve_adjusted_and_baseline(self):
   a=self.confirm({'contrast':-12});raw=(self.s.root/a['photo_adjustment']['local']).read_bytes();project=self.app.import_project(self.app.export_project(self.pid));assets=self.s.assets(project['id']);self.assertEqual(len(assets),1);b=assets[0];self.assertEqual((self.s.root/b['photo_adjustment']['local']).read_bytes(),raw);self.assertEqual((self.s.root/b['photo_adjustment']['base_local']).read_bytes(),self.digest);self.assertEqual(self.app.retouch_context(project['id'],b['id'])['settings']['contrast'],-12)
   with zipfile.ZipFile(io.BytesIO(self.app.bundle(self.pid,['source']))) as z:self.assertEqual(z.read(next(n for n in z.namelist() if n.endswith('.png'))),raw)
+ def test_tint_and_sharpening_survive_confirm_presets_and_project_export(self):
+  recipe={'tint':23,'sharpness':52,'texture':13}
+  a=self.confirm(recipe,'extended-recipe');saved=self.s.root/a['photo_adjustment']['local']
+  with Image.open(saved) as image:self.assertEqual(image.tobytes(),render(self.file,recipe,2).tobytes())
+  preset=self.app.save_preset({'field':'retouch','name':'Detail','settings':recipe})
+  self.assertEqual({key:preset['settings'][key] for key in recipe},recipe)
+  imported=self.app.import_project(self.app.export_project(self.pid))
+  work=self.s.assets(imported['id'])[0]
+  restored=self.app.retouch_context(imported['id'],work['id'])['settings']
+  self.assertEqual({key:restored[key] for key in recipe},recipe)
+  with zipfile.ZipFile(io.BytesIO(self.app.bundle(self.pid,['source']))) as z:
+   self.assertEqual(z.read(next(n for n in z.namelist() if n.endswith('.png'))),saved.read_bytes())
  def test_export_import_rejects_bad_adjustment_without_partial_project(self):
   self.confirm({'texture':12});package=self.app.export_project(self.pid);package['assets'][0]['photo_adjustment']['settings']['bogus']=5;before=len(self.s.projects())
   with self.assertRaises(ValueError):self.app.import_project(package)
@@ -56,6 +68,17 @@ class AdjustmentTests(unittest.TestCase):
   self.app.bridge=Bridge();url=self.app.hosted('source','provider-project',a);self.assertEqual(url,'https://lovart.ai/adjusted.png');self.assertEqual(base64.b64decode(calls[0][1]['data_base64']),old.read_bytes());self.assertNotIn('url',self.s.asset('source'));self.s.update(j['id'],state='completed');self.s.cleanup_deleted_files();self.assertFalse(old.exists())
  def test_legacy_card_reopens_recipe_then_confirms_in_place_and_restores_root(self):
   old=self.app.save_retouch(self.pid,'source','source',{'exposure':.5},'legacy-creation',2);c=self.app.retouch_context(self.pid,old['id']);self.assertEqual(c['settings']['exposure'],.5);self.assertIn('assets/source.png',c['baseline_url']);a=self.app.confirm_retouch(self.pid,old['id'],{'exposure':.7},c['revision'],'legacy-confirm');self.assertEqual(a['id'],old['id']);self.assertEqual(len(self.s.assets(self.pid)),2);c=self.app.retouch_context(self.pid,old['id']);restored=self.app.confirm_retouch(self.pid,old['id'],{},c['revision'],'legacy-restore');self.assertEqual(restored['photo_adjustment']['local'],'assets/source.png');self.assertEqual(len(self.s.assets(self.pid)),2)
+ def test_windows_adjustment_paths_reopen_and_restore_portably(self):
+  a=self.confirm({'warmth':10});old=self.s.root/a['photo_adjustment']['local']
+  meta=a['project_meta'];adjustment=meta['photo_adjustment'];adjustment['base_local']=r'assets\source.png';adjustment['local']=adjustment['local'].replace('/','\\')
+  with self.s.db:
+   self.s.db.execute('update project_assets set meta=? where project_id=? and asset_id=?',(json.dumps(meta),self.pid,'source'))
+  self.assertEqual(self.s.project_media_path(self.pid,adjustment['local']),old.resolve())
+  c=self.app.retouch_context(self.pid,'source');self.assertIn('/files/assets/source.png?',c['baseline_url']);self.assertEqual(c['settings']['warmth'],10)
+  self.app.confirm_retouch(self.pid,'source',{},c['revision'],'restore-windows-path')
+  saved=json.loads(self.s.db.execute('select meta from project_assets where project_id=? and asset_id=?',(self.pid,'source')).fetchone()[0])['photo_adjustment']
+  self.assertEqual((saved['base_local'],saved['local']),('assets/source.png','assets/source.png'))
+  self.assertFalse(old.exists());self.assertEqual(self.file.read_bytes(),self.digest)
  def test_http_scope_and_preview_uses_saved_baseline(self):
   import threading,urllib.request,urllib.error
   from http.server import ThreadingHTTPServer

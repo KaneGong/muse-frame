@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0-beta.5
+
+- Added Apple Silicon and Windows x64 launchers for the bilingual, local browser workspace.
+- Added workspace inspection, migration, backup and rollback. Provider authorization remains in its own profile.
+- Expanded the shooting and reference controls, including gallery filters, favorites and large previews.
+- Fixed the packaged reference review for built-in scene originals and the browser loading stale interface files after an update.
+- Added a version-switch notice when another copy still owns the workspace.
+
+Mac ad-hoc signed, Windows unsigned. Native Windows validation is pending. See [release notes](RELEASE_NOTES.md).
+
 ## 0.4.0-beta.2 — 2026-11-01
 
 - First downloadable preview. Fix startup blocking on reverse DNS; retain the beta.1 candidate tag without publishing its binary release.

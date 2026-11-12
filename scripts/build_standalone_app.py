@@ -48,7 +48,7 @@ def bundle_minimum_macos(app):
     return '.'.join(map(str,minimum))
 
 
-def build(clean=True):
+def build(clean=True, fresh_profile=False):
     if platform.system() != 'Darwin':
         raise SystemExit('The window wrapper is macOS-only for now; build the source on the target OS.')
     OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -86,6 +86,8 @@ def build(clean=True):
     app = OUTPUT / 'AI Portrait Studio.app'
     if not app.is_dir():
         raise SystemExit('PyInstaller did not produce the app bundle')
+    if fresh_profile:
+        (app/'Contents/Resources/local-data-profile').write_text('prompt-v2\n')
     info_path = app / 'Contents' / 'Info.plist'
     with info_path.open('rb') as handle:
         info = plistlib.load(handle)
@@ -95,7 +97,7 @@ def build(clean=True):
         'CFBundleName': 'MUSE FRAME',
         'CFBundleIdentifier': BUNDLE_ID,
         'CFBundleShortVersionString': version.split('-')[0],
-        'CFBundleVersion': '0.4.1002' if version=='0.4.0-beta.2' else version.split('-')[0],
+        'CFBundleVersion': {'0.4.0-beta.2': '0.4.1002', '0.4.0-beta.2-local.1': '0.4.1003', '0.4.0-beta.2-local.2': '0.4.1004', '0.4.0-beta.2-local.3':'0.4.1005', '0.4.0-beta.2-local.4':'0.4.1006', '0.4.0-beta.2-local.5':'0.4.1007'}.get(version, version.split('-')[0]),
         'CFBundleGetInfoString': version,
         'LSApplicationCategoryType': 'public.app-category.photography',
         'LSMinimumSystemVersion': bundle_minimum_macos(app),
@@ -114,7 +116,7 @@ def build(clean=True):
         'architecture': platform.machine(),
         'python': platform.python_version(),
         'signed': 'ad-hoc',
-        'data_directory': '~/Library/Application Support/AI Portrait Studio Standalone',
+        'data_directory': '~/Library/Application Support/AI Portrait Studio Standalone'+(' Prompt V2' if fresh_profile else ''),
         'note': 'Developer ID signing and notarization are still pending for public distribution.',
     }
     (OUTPUT / 'BUILD-INFO.json').write_text(json.dumps(metadata, ensure_ascii=False, indent=2) + '\n')
@@ -163,10 +165,11 @@ def install(source=None, target=None, migrate=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Build the standalone macOS app')
     parser.add_argument('--no-clean', action='store_true')
+    parser.add_argument('--fresh-profile', action='store_true',help='local opt-in empty profile; existing data is retained')
     parser.add_argument('--install', action='store_true', help='copy the app to ~/Applications')
     parser.add_argument('--migrate-data', type=Path, default=None,
                         help='copy this data directory into the app data directory on first install')
     args = parser.parse_args()
-    app = build(clean=not args.no_clean)
+    app = build(clean=not args.no_clean, fresh_profile=args.fresh_profile)
     if args.install:
         install(app, migrate=args.migrate_data)

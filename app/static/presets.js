@@ -5,7 +5,7 @@ Q.fieldNames={style:'摄影风格',pose:'人物姿态',scene:'场景',expression
 Q.presetTypes={retouch:'调色预设',...Q.fieldNames};
 Q.retouchControls={exposure:['曝光',-2,2,.1],contrast:['对比度',-50,50,1],highlights:['高光',-50,50,1],shadows:['阴影',-50,50,1],whites:['白色阶',-50,50,1],blacks:['黑色阶',-50,50,1],warmth:['冷暖',-50,50,1],saturation:['饱和度',-50,50,1],clarity:['清晰度',-50,50,1],texture:['纹理',-50,50,1]};
 Q.presetCategories=[];
-Q.loadPresets=async()=>{const r=await Q.api('/api/presets');Q.userPresets=r.presets||[];Q.presetCategories=r.categories||[];};
+Q.loadPresets=async()=>{const token=Q.presetLoadToken=(Q.presetLoadToken||0)+1,r=await Q.api('/api/presets');if(Q.presetLoadToken!==token)return;Q.userPresets=r.presets||[];Q.presetCategories=r.categories||[];};
 Q.customOptions=field=>Q.userPresets.filter(p=>p.field===field&&!p.archived);
 Q.presetCategoryName=id=>Q.presetCategories.find(c=>c.id===id)?.name||Q.presetText('uncategorized','未分类');
 Q.fillPresetCategories=(id,filter=false)=>{const el=Q.$(id),value=el.value;el.replaceChildren(...(filter?[new Option(Q.presetText('allCategories','全部分类'),''),new Option(Q.presetText('uncategorized','未分类'),'none')]:[new Option(Q.presetText('uncategorized','未分类'),'')]),...Q.presetCategories.map(c=>new Option(c.name,c.id)));if([...el.options].some(o=>o.value===value))el.value=value;};
@@ -50,7 +50,7 @@ Q.wirePresets=()=>{
  Q.$('settings-open').onclick=Q.run(()=>Q.openPresetManager());for(const id of ['preset-filter-field','preset-filter-category','preset-filter-status'])Q.$(id).onchange=Q.renderPresetSettings;Q.$('preset-search').oninput=Q.renderPresetSettings;
  Q.$('settings-add-preset').onclick=()=>Q.openPresetEditor(null,null,false);
  Q.$('preset-apply').onclick=Q.run(()=>{try{const field=Q.$('preset-field').value,p=field==='retouch'?{field,settings:Q.editorPresetSettings(),name:Q.$('preset-name').value||'当前参数'}:{field,prompt:Q.$('preset-prompt').value.trim().replace(/\s*\n+\s*/g,' ')};if(field!=='retouch'&&!p.prompt)throw Error('请先填写描述');Q.applyEditedPreset(p);}catch(e){Q.$('preset-error').textContent=e.message;}});
- Q.$('preset-save').onclick=Q.run(()=>Q.persistPreset());Q.$('preset-save-apply').onclick=Q.run(async()=>{const pid=Q.project?.id,context=Q.retouch,token=Q.presetEditorToken;const p=await Q.persistPreset();if(p&&Q.project?.id===pid&&Q.presetEditorToken===token&&(p.field!=='retouch'||Q.retouch===context))Q.applyEditedPreset(p);});
+ Q.$('preset-save').onclick=Q.run(()=>Q.persistPreset());Q.$('preset-save-apply').onclick=Q.run(async()=>{const pid=Q.project?.id,context=Q.retouch,token=Q.presetEditorToken;const p=await Q.persistPreset();if(p&&Q.$('preset-editor').open&&Q.project?.id===pid&&Q.presetEditorToken===token&&(p.field!=='retouch'||Q.retouch===context))Q.applyEditedPreset(p);});
  Q.$('preset-manage-categories').onclick=Q.run(()=>Q.openPresetCategories());Q.$('preset-edit-categories').onclick=Q.run(()=>Q.openPresetCategories());Q.$('preset-category-add').onclick=Q.run(()=>Q.editPresetCategory());
 };
 Q.persistPreset=async()=>{
