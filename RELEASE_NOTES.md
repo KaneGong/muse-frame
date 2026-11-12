@@ -9,7 +9,7 @@ MUSE FRAME now opens the local workspace in your default browser from an Apple S
 | File | Use |
 | --- | --- |
 | `Muse-Frame-0.5.0-beta.5-macOS-arm64.dmg` | Apple Silicon Mac. Drag the app into Applications. It is ad-hoc signed and lacks Apple notarization. The DMG's `BUILD-INFO.txt` lists the minimum macOS target. |
-| `Muse-Frame-0.5.0-beta.5-Windows-x64-Setup.exe` | Windows x64, for the current user. The installer and launcher are unsigned. Open MUSE FRAME from Start after setup. Native Windows validation is pending. |
+| `Muse-Frame-0.5.0-beta.5-Windows-x64-Setup.exe` | Windows x64, for the current user. The installer and launcher are unsigned. Open MUSE FRAME from Start after setup. |
 | `Muse-Frame-0.5.0-beta.5-source.zip`, `SOURCE-MANIFEST.json`, `SHA256SUMS.txt` | Download alongside the packages to inspect the corresponding source and check file integrity. |
 
 The earlier [0.4.0-beta.2 Mac release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) remains available.
@@ -26,7 +26,7 @@ The earlier [0.4.0-beta.2 Mac release](https://github.com/KaneGong/muse-frame/re
 
 Wait for active jobs to finish. In **Your shoots → Workspace migration and backup**, use **Quit Muse Frame** before opening the new version. To bring over older data, close the source app and inspect its workspace before migrating. Keep the old app and its data. Migration and workspace backup exclude provider credentials. Connect your own Lovart or LibTV account when needed. Generation uses your provider credits.
 
-The workspace runs locally in your browser. CrossOver compatibility checks are separate from native Windows validation. This release makes no new claim about live provider authorization, paid generation or output quality.
+The Windows installer build passed automated checks for installation, startup, image access and workspace migration on Windows Server 2025 x64. Desktop first-launch prompts and the system folder picker remain unverified. [Windows validation](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361)
 
 [Quick start](docs/en/quick-start.md) · [Compatibility](docs/en/compatibility.md) · [Privacy](docs/en/privacy.md) · [Report an issue](https://github.com/KaneGong/muse-frame/issues/new/choose)
 
@@ -39,7 +39,7 @@ The workspace runs locally in your browser. CrossOver compatibility checks are s
 | 文件 | 用途 |
 | --- | --- |
 | `Muse-Frame-0.5.0-beta.5-macOS-arm64.dmg` | Apple 芯片 Mac。将 App 拖入“应用程序”。App 采用临时签名，尚未经过 Apple 公证。最低系统版本见 DMG 内的 `BUILD-INFO.txt`。 |
-| `Muse-Frame-0.5.0-beta.5-Windows-x64-Setup.exe` | Windows x64，安装到当前用户。安装程序和启动器均未签名。安装后也可从开始菜单打开映象所。待 Windows 实机验证。 |
+| `Muse-Frame-0.5.0-beta.5-Windows-x64-Setup.exe` | Windows x64，安装到当前用户。安装程序和启动器均未签名。安装后也可从开始菜单打开映象所。|
 | `Muse-Frame-0.5.0-beta.5-source.zip`、`SOURCE-MANIFEST.json`、`SHA256SUMS.txt` | 与安装包一同提供，可查阅对应源码并核对文件完整性。 |
 
 此前的 [0.4.0-beta.2 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 仍可下载。
@@ -56,7 +56,7 @@ The workspace runs locally in your browser. CrossOver compatibility checks are s
 
 等活动任务结束后，在**拍摄列表 → 工作区迁移与备份**中点**退出本机工作台**，再打开新版。迁移旧资料前，请退出旧程序并检查旧工作区，保留旧程序和原资料。迁移及工作区备份会排除平台凭据。需要时请自行连接 Lovart 或 LibTV，生图使用你的平台额度。
 
-工作台在本机运行，并在浏览器中显示。CrossOver 兼容验证与 Windows 实机验证各自独立。本次发布说明不新增真实平台授权、付费生图或成片质量的验证结论。
+Windows 安装包构建已在 Windows Server 2025 x64 通过安装、启动、图片读取及迁移的自动检查。尚未人工核对桌面首次启动提示和系统文件夹选择窗口。[Windows 验证](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361)
 
 [快速开始](docs/zh-CN/quick-start.md) · [兼容性](docs/zh-CN/compatibility.md) · [隐私](docs/zh-CN/privacy.md) · [问题反馈](https://github.com/KaneGong/muse-frame/issues/new/choose)
 

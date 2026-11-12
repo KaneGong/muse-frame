@@ -3,7 +3,7 @@
 | Surface | Status |
 | --- | --- |
 | Mac package | Apple Silicon arm64. The DMG includes the minimum macOS target in `BUILD-INFO.txt`. The app is ad-hoc signed and lacks Apple notarization. Intel Mac binaries are unavailable. |
-| Windows package | x64 Setup installs for the current user. The installer and launcher are unsigned. CrossOver is a compatibility environment. Native Windows validation remains pending. |
+| Windows package | x64 Setup installs for the current user. The installer and launcher are unsigned. [Automated checks on Windows Server 2025 x64](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361) covered installation, launch, image access and migration. Desktop first-launch prompts and the system folder picker remain unverified. |
 | Browser workspace | The packaged launchers open the default browser. The server runs on loopback for a single user. Browser layout and gallery behavior can vary. |
 | Source WebUI | Use Python 3.14 to match the packaged runtime. See the [source setup](quick-start.md#source-browser-ui). |
 

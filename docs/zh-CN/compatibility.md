@@ -3,7 +3,7 @@
 | 使用方式 | 状态 |
 | --- | --- |
 | Mac 安装包 | Apple 芯片 arm64。最低 macOS 版本见 DMG 中的 `BUILD-INFO.txt`。App 采用临时签名，尚未经过 Apple 公证。暂未提供 Intel Mac 安装包。 |
-| Windows 安装包 | x64，安装到当前用户。安装程序和启动器均未签名。CrossOver 属于兼容环境，Windows 实机验证待完成。 |
+| Windows 安装包 | x64，安装到当前用户。安装程序和启动器均未签名。[Windows Server 2025 x64 自动检查](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361)覆盖安装、启动、图片读取与迁移。尚未人工核对桌面首次启动提示和系统文件夹选择窗口。 |
 | 浏览器工作区 | 安装版启动器打开系统默认浏览器，本机服务通过回环地址供单用户使用。布局和图库交互可能随浏览器而异。 |
 | 源码 WebUI | 使用与安装包运行环境一致的 Python 3.14。见[源码启动说明](quick-start.md#本地-webui-源码版)。 |
 

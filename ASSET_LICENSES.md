@@ -34,10 +34,10 @@ The maintainer authorizes displaying these selected works and the banner as part
 
 ## WebUI examples and catalogs / WebUI 示例与目录
 
-- `design/muse-frame-04/assets/generated/` contains AI examples and their thumbnails for shooting plans, locations and framing. The [Design 06 asset record](design/muse-frame-04/ASSETS.md) documents their creation and the gallery references used. Redistribution rights for these generated examples are not established by the source notices. Check the applicable rights with the maintainer before redistributing those images.
+- `design/muse-frame-04/assets/generated/` contains AI examples and their thumbnails for shooting plans, locations and framing. The [Design 06 asset record](design/muse-frame-04/ASSETS.md) documents their creation and the gallery references used. The maintainer approved including these examples with the 0.5.0-beta.5 software distribution. Contact the maintainer for other uses and follow the relevant source terms.
 - `design/muse-frame-04/data/` contains three curated JSON files for built-in photography choices, scenes and the outfit catalog. Catalog entries refer to online sources. Original gallery downloads and caches stay outside the distribution. Follow the applicable source terms when using selected images.
 
-- `design/muse-frame-04/assets/generated/` 包含拍法、场景和取景的 AI 示例及缩略图。[Design 06 素材记录](design/muse-frame-04/ASSETS.md)列明制作来源及使用的图库参考。图库说明未明确这些生成示例的再分发权利。再分发这些示例前，请向维护者核实适用权利。
+- `design/muse-frame-04/assets/generated/` 包含拍法、场景和取景的 AI 示例及缩略图。[Design 06 素材记录](design/muse-frame-04/ASSETS.md)列明制作来源及使用的图库参考。维护者已确认这些示例可随 0.5.0-beta.5 软件分发。其他用途请向维护者核实，并遵循适用的来源条款。
 - `design/muse-frame-04/data/` 中的三份 JSON 分别记录内置摄影选项、场景和服装目录。目录项可指向在线来源。分发包排除图库原图下载和缓存。使用选中的图片时遵循来源条款。
 
 ## User content

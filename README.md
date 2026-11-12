@@ -4,7 +4,7 @@
 
 MUSE FRAME is a local photography workspace for planning a shoot, arranging references, preparing prompts and reviewing AI portraits. Projects and downloaded images stay on your computer. When you submit a task, MUSE FRAME sends the prompt and selected references to Lovart or LibTV using your own account and credits.
 
-**[Releases](https://github.com/KaneGong/muse-frame/releases) · [Quick start](docs/en/quick-start.md) · [Release notes](RELEASE_NOTES.md) · [简体中文](README.zh-CN.md)**
+**[Download 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [Quick start](docs/en/quick-start.md) · [Release notes](RELEASE_NOTES.md) · [简体中文](README.zh-CN.md)**
 
 ## Community prerelease 0.5.0-beta.5
 
@@ -13,7 +13,7 @@ The Mac and Windows launchers open the same workspace in your default browser. B
 | Option | Package and validation |
 | --- | --- |
 | Mac | Apple Silicon DMG. The app is ad-hoc signed and lacks Apple notarization. See the DMG's `BUILD-INFO.txt` for its minimum macOS target. |
-| Windows | x64 Setup executable for the current Windows user. The installer and launcher are unsigned. Native Windows validation is pending. |
+| Windows | x64 Setup executable for the current Windows user. The installer and launcher are unsigned. [Windows x64 automated checks](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361) passed. |
 | Source | Run the same local WebUI from a source checkout using Python. [Source quick start](docs/en/quick-start.md#source-browser-ui) |
 
 The earlier [0.4.0-beta.2 Mac release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) remains available. Its embedded app window and [illustrated guide](docs/en/user-guide.md) belong to that version.

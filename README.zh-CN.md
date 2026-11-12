@@ -4,7 +4,7 @@
 
 映象所是一个本地 AI 人像摄影工作台，用来整理参考图、规划镜头、核对提示词和选片。项目与下载的图片保存在电脑上。确认提交后，工作台会通过你自己的 Lovart 或 LibTV 账号发送提示词和所选参考图，并使用对应的平台额度。
 
-**[下载页面](https://github.com/KaneGong/muse-frame/releases) · [快速开始](docs/zh-CN/quick-start.md) · [发布说明](RELEASE_NOTES.md) · [English](README.md)**
+**[下载 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [快速开始](docs/zh-CN/quick-start.md) · [发布说明](RELEASE_NOTES.md) · [English](README.md)**
 
 ## 社区预发布版 0.5.0-beta.5
 
@@ -13,7 +13,7 @@ Mac 和 Windows 启动器会在系统默认浏览器中打开同一套界面，�
 | 使用方式 | 安装包与验证状态 |
 | --- | --- |
 | Mac | Apple 芯片 DMG。App 采用临时签名，尚未经过 Apple 公证。最低系统版本见 DMG 内的 `BUILD-INFO.txt`。 |
-| Windows | 面向当前 Windows 用户的 x64 安装程序。安装程序和启动器均未签名，待 Windows 实机验证。 |
+| Windows | 面向当前 Windows 用户的 x64 安装程序。安装程序和启动器均未签名。[Windows x64 自动检查](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361)已通过。 |
 | 源码 | 安装 Python 后，可从源码目录启动同一套本地 WebUI。[源码启动说明](docs/zh-CN/quick-start.md#本地-webui-源码版) |
 
 此前的 [0.4.0-beta.2 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 仍可下载。该版使用内嵌窗口，[图文教程](docs/zh-CN/user-guide.md)对应旧版界面。
