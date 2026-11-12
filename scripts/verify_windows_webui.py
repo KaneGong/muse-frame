@@ -3,6 +3,8 @@
 import argparse
 import base64
 from contextlib import closing, contextmanager, suppress
+import ctypes
+from ctypes import wintypes
 from http.client import HTTPConnection, HTTPException
 import json
 import os
@@ -92,16 +94,25 @@ class WebUI:
 
     def quit(self):
         self.health = self.api("/api/health")
-        require(self.api(MANAGEMENT, {"operation": "quit"})["ok"], "WebUI did not acknowledge quit")
-
-        def stopped():
-            try:
-                with socket.create_connection(("127.0.0.1", self.port), timeout=1):
-                    return False
-            except ConnectionRefusedError:
-                return True
-
-        wait_for("the WebUI listener to close", stopped)
+        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+        kernel.OpenProcess.restype = wintypes.HANDLE
+        kernel.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+        kernel.WaitForSingleObject.restype = wintypes.DWORD
+        kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+        kernel.CloseHandle.restype = wintypes.BOOL
+        # Watch the installed process itself. A closed loopback port can time
+        # out instead of immediately refusing a connection on Windows.
+        synchronize = 0x00100000
+        process = kernel.OpenProcess(synchronize, False, self.health["pid"])
+        if not process:
+            raise ctypes.WinError(ctypes.get_last_error())
+        try:
+            require(self.api(MANAGEMENT, {"operation": "quit"})["ok"], "WebUI did not acknowledge quit")
+            exited = kernel.WaitForSingleObject(process, 30_000)
+            require(exited == 0, f"The installed WebUI did not exit cleanly (wait result {exited})")
+        finally:
+            kernel.CloseHandle(process)
         self.health = None
 
     @contextmanager
