@@ -3,10 +3,10 @@
 ## Install the local WebUI
 
 1. On an **Apple Silicon Mac**, open the DMG, drag `Muse Frame.app` into Applications and double-click it. The app is ad-hoc signed and lacks Apple notarization. The DMG's `BUILD-INFO.txt` lists the minimum macOS target. [Apple's guidance for opening an app](https://support.apple.com/en-us/102445).
-2. On **Windows x64**, open the Setup executable and confirm installation for your Windows user. It launches Muse Frame after setup and adds a Start menu entry. The installer and launcher are unsigned. Native Windows validation is pending.
+2. On **Windows x64**, open the Setup executable and confirm installation for your Windows user. It launches Muse Frame after setup and adds a Start menu entry. The installer and launcher are unsigned. [Windows x64 automated checks](https://github.com/KaneGong/muse-frame/actions/runs/43157854909/job/130981864740) passed.
 3. Muse Frame opens in your default browser. Closing the tab leaves the local service running. Double-click the launcher to reopen it. To stop the service, finish active jobs and use **Your shoots → Workspace migration and backup → Quit Muse Frame**.
 
-Choose the interface language in Settings. To generate, connect your own Lovart or LibTV account, create a shoot and choose your references. Start with one shot. In the generation review, check the model, parameters, reference images and order, and prompt. Submitting sends that material to your provider and uses your provider credits.
+Choose the interface language in the upper right. To generate, connect your own Lovart or LibTV account, create a shoot and choose your references. Start with one shot. In the generation review, check the model, parameters, reference images and order, and prompt. Submitting sends that material to your provider and uses your provider credits. [Walk through your first shoot](webui-guide.md).
 
 ## Source browser UI
 

@@ -2,9 +2,9 @@
 
 # MUSE FRAME · 映象所
 
-MUSE FRAME is a local photography workspace for planning a shoot, arranging references, preparing prompts and reviewing AI portraits. Projects and downloaded images stay on your computer. When you submit a task, MUSE FRAME sends the prompt and selected references to Lovart or LibTV using your own account and credits.
+MUSE FRAME is a local AI portrait workspace for Mac and Windows. Choose a person, outfit, scene and pose, then set the framing and tone for your first photo. Advanced controls let you refine lighting, body reference and shot settings. Projects, saved images and task history stay on your computer. Confirming a task sends its selected references and prompt to your connected Lovart or LibTV account.
 
-**[Download 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [Quick start](docs/en/quick-start.md) · [Release notes](RELEASE_NOTES.md) · [简体中文](README.zh-CN.md)**
+**[Download 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [First shoot guide](docs/en/webui-guide.md) · [Install and migrate](docs/en/quick-start.md) · [Release notes](RELEASE_NOTES.md) · [简体中文](README.zh-CN.md)**
 
 ## Community prerelease 0.5.0-beta.5
 
@@ -18,14 +18,14 @@ The Mac and Windows launchers open the same workspace in your default browser. B
 
 The earlier [0.4.0-beta.2 Mac release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) remains available. Its embedded app window and [illustrated guide](docs/en/user-guide.md) belong to that version.
 
-## Plan and review a shoot
+## From references to finished work
 
 - Start a shoot and assign separate roles to the person, outfit, scene and pose references. In advanced controls, add a separate body reference when needed.
 - Choose a shooting plan or adjust the framing, subject position, expression, color and light for an individual shot. Browse the person, outfit and pose catalogs and choose which images to use.
 - Connect your own provider from Settings. Check the selected model, the prompt and the actual reference images in generation review before submitting.
 - Open the resulting photos at full size where available, save originals, make local adjustments or submit a text-guided edit as a new task.
 
-[See the maintainer's selected AI work and earlier Mac App screenshots](docs/showcase.md).
+[Walk through your first shoot](docs/en/webui-guide.md) · [Selected work and earlier Mac App screenshots](docs/showcase.md)
 
 ## Update and bring a workspace forward
 

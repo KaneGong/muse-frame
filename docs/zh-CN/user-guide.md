@@ -1,6 +1,6 @@
 # 映象所使用指南
 
-0.5.0-beta.5 浏览器工作台请看 [WebUI 快速开始](quick-start.md)。本图文教程对应 0.4.0-beta.2。
+0.5.0-beta.5 浏览器工作台请看 [WebUI 第一次拍摄教程](webui-guide.md)。本图文教程对应 0.4.0-beta.2。
 
 [返回产品首页](../../README.zh-CN.md) · [English](../en/user-guide.md) · [作品与界面](../showcase.md)
 

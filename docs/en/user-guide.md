@@ -1,6 +1,6 @@
 # MUSE FRAME user guide
 
-For the 0.5.0-beta.5 browser workspace, use the [WebUI quick start](quick-start.md). This illustrated guide covers 0.4.0-beta.2.
+For the 0.5.0-beta.5 browser workspace, use the [WebUI first shoot guide](webui-guide.md). This illustrated guide covers 0.4.0-beta.2.
 
 [Product page](../../README.md) · [简体中文](../zh-CN/user-guide.md) · [Gallery and screenshots](../showcase.md)
 

@@ -2,9 +2,9 @@
 
 # 映象所 · MUSE FRAME
 
-映象所是一个本地 AI 人像摄影工作台，用来整理参考图、规划镜头、核对提示词和选片。项目与下载的图片保存在电脑上。确认提交后，工作台会通过你自己的 Lovart 或 LibTV 账号发送提示词和所选参考图，并使用对应的平台额度。
+映象所是一个适用于 Mac 和 Windows 的本地 AI 人像摄影工作台。选好人物、服装、场景和姿态，配好取景和色调，就能准备第一张照片。需要细调时，可按镜头调整光影、身形参考和拍摄要求。作品、项目和任务记录保存在电脑上，确认提交时才会把所选参考图和提示词发送至你连接的 Lovart 或 LibTV 账号。
 
-**[下载 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [快速开始](docs/zh-CN/quick-start.md) · [发布说明](RELEASE_NOTES.md) · [English](README.md)**
+**[下载 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [第一次拍摄教程](docs/zh-CN/webui-guide.md) · [安装与迁移](docs/zh-CN/quick-start.md) · [发布说明](RELEASE_NOTES.md) · [English](README.md)**
 
 ## 社区预发布版 0.5.0-beta.5
 
@@ -18,14 +18,14 @@ Mac 和 Windows 启动器会在系统默认浏览器中打开同一套界面，�
 
 此前的 [0.4.0-beta.2 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 仍可下载。该版使用内嵌窗口，[图文教程](docs/zh-CN/user-guide.md)对应旧版界面。
 
-## 规划拍摄，核对后提交
+## 从参考图到作品
 
 - 新建拍摄，为人物、服装、场景和姿态分配各自的参考图。需要单独设置身形时，可在进阶选项中添加。
 - 选择拍法，也可以单独调整镜头的取景、人物位置、神态、色调和光线。浏览人物、服装、姿态图库并选择本次要用的图片。
 - 在设置里自行连接平台。在生成确认页核对所选模型、实际提示词和参考图，再决定是否提交。
 - 打开作品查看可用原图，下载、做本地调色，或通过新任务提交文字修改。
 
-[查看维护者的 AI 作品选集和旧版 Mac App 截图](docs/showcase.md)。
+[按步骤完成第一次拍摄](docs/zh-CN/webui-guide.md) · [作品选集和旧版 Mac App 截图](docs/showcase.md)
 
 ## 升级与接续旧工作区
 
