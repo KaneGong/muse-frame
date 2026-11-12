@@ -145,7 +145,11 @@ def verify(installer, version, directory):
 
     with WebUI(version).launch([installer, "--quiet"], env, log, installer=True) as app:
         status = app.api(MANAGEMENT)
-        require(Path(status["workspace"]) == profile, "Setup did not use the isolated default profile")
+        workspace = Path(status["workspace"])
+        require(profile.exists() and workspace.exists() and workspace.samefile(profile),
+                f"Setup used workspace {workspace!s}; expected {profile!s}")
+        if workspace != profile:
+            print("Resolved Windows path aliases:", ascii(str(profile)), ascii(str(workspace)))
         page = app.request("/", content_type="text/html")
         require(b'data-packaged="true"' in page and f'/ui/{version}/app.mjs'.encode() in page,
                 "The installed service did not serve the packaged WebUI")
