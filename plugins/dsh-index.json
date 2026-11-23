@@ -21,13 +21,14 @@
       "versions": [
         {
           "version": "0.6.0",
-          "publishTimestamp": 1795400594,
+          "publishTimestamp": 1795404062,
           "source": {
             "type": "git",
             "url": "https://github.com/KaneGong/muse-frame",
-            "commit": "511f5d3e616f2ae2d41e417ba8bab7519bbc93bc",
+            "commit": "7a19047e8c968ada024ff8c8ddc1bbf85ad1ea88",
             "path": "plugins/muse-frame"
-          }
+          },
+          "engines": {}
         }
       ]
     }
