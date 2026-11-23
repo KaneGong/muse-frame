@@ -2,6 +2,12 @@
   "name": "muse-frame-shot-planner",
   "description": "Prepare an importable Muse Frame portrait shot plan in DeepSeek Harness",
   "version": "0.6.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/KaneGong/muse-frame.git",
+    "directory": "plugins/muse-frame"
+  },
+  "homepage": "https://github.com/KaneGong/muse-frame/blob/main/docs/agent-plugins.md",
   "license": "AGPL-3.0-only",
   "type": "module",
   "main": "./dsh.mjs",
