@@ -15,8 +15,15 @@
     "node": ">=20"
   },
   "dsh": {
-    "bundles": [
-      "./plugins/muse-frame"
-    ]
-  }
+    "bundle": {
+      "patch": "./dsh.patch.yml",
+      "profile": "web"
+    }
+  },
+  "main": "./plugins/muse-frame/dsh.mjs",
+  "files": [
+    "dsh.patch.yml",
+    "plugins/muse-frame/dsh.mjs",
+    "plugins/muse-frame/skills/shot-planner/SKILL.md"
+  ]
 }

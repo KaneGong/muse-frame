@@ -13,7 +13,7 @@ codex plugin add muse-frame@muse-frame-studio
 
 ## DeepSeek Harness
 
-桌面 0.6.1 随附的 DSH 插件版本为 0.6.0。从[发行页下载插件压缩包](https://github.com/KaneGong/muse-frame/releases/download/v0.6.1/muse-frame-shot-planner-0.6.0.tgz)，在文件所在目录运行下列命令。以 web 为例，使用其他 profile 时替换其名称。重新打开该 profile，在具备技能加载能力的 Agent 中请求 Muse Frame 镜头计划。
+仓库根包 `muse-frame` 和独立发行包 `muse-frame-shot-planner` 提供同一个技能，任选一种安装。桌面 0.6.1 随附的独立 DSH 插件版本为 0.6.0。从[发行页下载插件压缩包](https://github.com/KaneGong/muse-frame/releases/download/v0.6.1/muse-frame-shot-planner-0.6.0.tgz)，在文件所在目录运行下列命令。以 web 为例，使用其他 profile 时替换其名称。重新打开该 profile，在具备技能加载能力的 Agent 中请求 Muse Frame 镜头计划。
 
 ```sh
 dsh plugin --profile web add ./muse-frame-shot-planner-0.6.0.tgz
@@ -27,4 +27,4 @@ dsh plugin --profile web add ./muse-frame-shot-planner-0.6.0.tgz
 
 ## English
 
-Use the Muse Frame plugin to draft a portrait series. Download the JSON or copy the JSON block. In Muse Frame 0.6+, choose **Import agent shot plan → Review plan → Create separate shoot**. Add your reference images locally and review provider costs before submitting. The Codex repo marketplace and DSH profile commands above install the skills-only planner. ChatGPT public directory distribution requires OpenAI review. Desktop 0.6.1 ships the DSH planner 0.6.0. In DSH, enable Custom plugin indexes, open Discover, add the [project index](https://raw.githubusercontent.com/KaneGong/muse-frame/main/plugins/dsh-index.json), then search for Muse Frame. [Community registry submission](https://github.com/majiayu000/dsh-plugin-registry/issues/137).
+Use the Muse Frame plugin to draft a portrait series. Download the JSON or copy the JSON block. In Muse Frame 0.6+, choose **Import agent shot plan → Review plan → Create separate shoot**. Add your reference images locally and review provider costs before submitting. The Codex repo marketplace and DSH profile commands above install the skills-only planner. ChatGPT public directory distribution requires OpenAI review. Choose one installation source. The GitHub root package (`muse-frame`) and the standalone archive (`muse-frame-shot-planner` 0.6.0) load the same skill. In DSH, enable Custom plugin indexes, open Discover, add the [project index](https://raw.githubusercontent.com/KaneGong/muse-frame/main/plugins/dsh-index.json), then search for Muse Frame. [Community registry submission](https://github.com/majiayu000/dsh-plugin-registry/issues/137).
