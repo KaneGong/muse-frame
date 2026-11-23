@@ -15,6 +15,18 @@ codex plugin add muse-frame@muse-frame-studio
 
 DSH 社区目录已将 Muse Frame 收入精选，审核固定在 `7a19047`。[维护者确认](https://github.com/majiayu000/dsh-plugin-registry/issues/138#issuecomment-7090968404) · [社区插件市场](https://plugin.dshdesk.com/)
 
+### 从 npm 安装独立插件
+
+在 DSH 桌面端打开「插件 → 添加插件 → 安装第三方插件」，输入 `muse-frame-shot-planner@0.6.0`，安装后点「立即启用」。DSH Web 用户也可以运行下列命令。[npm 发布包](https://www.npmjs.com/package/muse-frame-shot-planner)
+
+```sh
+dsh plugin --profile web add muse-frame-shot-planner@0.6.0
+```
+
+Awesome DSH Plugin 有独立的审核和索引发布流程。[查看该市场的收录进度](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/18057)
+
+### 安装社区审核的 GitHub 归档
+
 在 DeepSeek Harness 桌面端，打开「插件」，从「添加插件」下拉菜单选择「安装第三方插件」。把下面的地址粘贴到「包名或地址」，点击「安装」，完成后选「立即启用」。
 
 ```text
@@ -48,6 +60,8 @@ https://raw.githubusercontent.com/KaneGong/muse-frame/main/plugins/dsh-index.jso
 ## English
 
 Use the Muse Frame plugin to draft a portrait series. Download the JSON or copy the JSON block. In Muse Frame 0.6+, choose **Import agent shot plan → Review plan → Create separate shoot**. Add your reference images locally and review provider costs before submitting. The [DSH community registry](https://plugin.dshdesk.com/) accepted the planner as a curated entry at commit `7a19047`. In DSH Desktop, choose **Plugins → Add plugin → Install third-party plugin**, paste the archive URL above, install it, then choose **Enable now**. In DSH Web, use the command above. The standalone release archive and the curated root package load the same skill. [Reviewer confirmation](https://github.com/majiayu000/dsh-plugin-registry/issues/138#issuecomment-7090968404).
+
+For an npm install, enter `muse-frame-shot-planner@0.6.0` in **Install third-party plugin** or run `dsh plugin --profile web add muse-frame-shot-planner@0.6.0`. [npm package](https://www.npmjs.com/package/muse-frame-shot-planner) · [Awesome DSH Plugin submission](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/18057)
 
 To install from search, go to **Plugins → Discover**. If the tab is missing, open **Plugins → Experimental plugins → More**, turn on **Custom plugin markets**, and return to Plugins. Choose **Add index source**, paste the project index URL shown above, and search for **Muse Frame**. Choose **Install**, check the author (KaneGong), commit (`7a19047`) and directory (`plugins/muse-frame`), then select **Enable now**. This search uses the Muse Frame project index. The community directory publishes its own search data. [Community listing status](https://github.com/majiayu000/dsh-plugin-registry/issues/138)
 
