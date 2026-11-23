@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "title": {
+    "en": "Muse Frame",
+    "zh": "Muse Frame 映象所"
+  },
+  "plugins": [
+    {
+      "name": "muse-frame-shot-planner",
+      "title": "Muse Frame",
+      "description": {
+        "en": "Plan portrait shots for the Muse Frame studio.",
+        "zh": "编排人像镜头，导入映象所工作台。"
+      },
+      "author": "KaneGong",
+      "homepage": "https://github.com/KaneGong/muse-frame/blob/main/docs/agent-plugins.md",
+      "repository": {
+        "url": "https://github.com/KaneGong/muse-frame",
+        "directory": "plugins/muse-frame"
+      },
+      "versions": [
+        {
+          "version": "0.6.0",
+          "publishTimestamp": 1795400594,
+          "source": {
+            "type": "git",
+            "url": "https://github.com/KaneGong/muse-frame",
+            "commit": "511f5d3e616f2ae2d41e417ba8bab7519bbc93bc",
+            "path": "plugins/muse-frame"
+          }
+        }
+      ]
+    }
+  ]
+}

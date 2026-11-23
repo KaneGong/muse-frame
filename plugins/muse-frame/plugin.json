@@ -1,6 +1,58 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "muse-frame",
-  "version": "0.6.0",
-  "description": "Prepare a portrait shot list to review and import in the Muse Frame desktop studio."
+  "version": "0.6.1",
+  "description": "Prepare a portrait shot list to review and import in the Muse Frame desktop studio.",
+  "author": {
+    "name": "KaneGong",
+    "url": "https://github.com/KaneGong"
+  },
+  "homepage": "https://github.com/KaneGong/muse-frame",
+  "repository": "https://github.com/KaneGong/muse-frame",
+  "license": "AGPL-3.0-only",
+  "keywords": [
+    "photography",
+    "portrait",
+    "shot list",
+    "Muse Frame"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Muse Frame",
+        "shortDescription": "Plan a portrait shoot",
+        "longDescription": "Plan a portrait series from a brief. Choose framing, lighting and wardrobe continuity, then revise individual shots in the conversation. Get an ordered shot list and a plan you can import into the Muse Frame desktop studio. The planner works with text in your chat. Photos, project storage and optional image generation are handled separately in the desktop studio.",
+        "developerName": "KaneGong",
+        "category": "Productivity",
+        "capabilities": [
+          "Draft a shot list",
+          "Revise individual shots",
+          "Export a studio plan"
+        ],
+        "websiteURL": "https://github.com/KaneGong/muse-frame",
+        "supportURL": "https://github.com/KaneGong/muse-frame/issues",
+        "privacyPolicyURL": "https://github.com/KaneGong/muse-frame/blob/main/docs/en/privacy.md",
+        "defaultPrompt": [
+          "Plan three rainy street portraits for Muse Frame.",
+          "Turn my brief into a five-shot studio portrait series.",
+          "Revise the second shot to use window light."
+        ],
+        "brandColor": "#324C3A",
+        "logo": "./assets/mark.png",
+        "composerIcon": "./assets/mark.png"
+      },
+      "review": {
+        "commerce": false
+      },
+      "publication": {
+        "release_notes": "First directory submission of the Muse Frame portrait shot planner.",
+        "translations": {
+          "zh-CN": {
+            "subtitle": "编排可导入工作台的人像镜头",
+            "description": "从一句拍摄需求开始，规划 1 至 12 个镜头。在对话中调整构图、光线与服装连贯性，获得可读镜头清单和可导入 Muse Frame 的拍摄计划。参考照片、项目保存与可选的平台生图在桌面工作台完成。"
+          }
+        }
+      }
+    }
+  }
 }

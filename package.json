@@ -13,5 +13,10 @@
   "license": "AGPL-3.0-only",
   "engines": {
     "node": ">=20"
+  },
+  "dsh": {
+    "bundles": [
+      "./plugins/muse-frame"
+    ]
   }
 }

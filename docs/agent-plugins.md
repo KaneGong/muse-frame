@@ -19,6 +19,8 @@ codex plugin add muse-frame@muse-frame-studio
 dsh plugin --profile web add ./muse-frame-shot-planner-0.6.0.tgz
 ```
 
+若想在客户端内搜索，可在「插件」启用「自定义插件索引」，打开「发现」→「添加索引源」，添加 [Muse Frame 索引](https://raw.githubusercontent.com/KaneGong/muse-frame/main/plugins/dsh-index.json)，再搜索 Muse Frame 并核对安装来源。该索引由项目维护。
+
 ## 示例
 
 对 Agent 说「用 Muse Frame 做一组三张的雨后街拍。保持人物和服装一致，第一张全身，第二张半身，第三张拍肩包细节」。在桌面预览页可查看每个镜头的文字，再确认创建。支持同一技能格式的其他 Agent 可使用 [shot-planner](../plugins/muse-frame/skills/shot-planner/SKILL.md)。当前插件通过计划文件与桌面交换创作文字。
