@@ -45,19 +45,29 @@ export function createWorkflows(context) {
     const draft = state();
     const products = draft.products.filter(p=>p.evidence);
     const batches = draft.batches.slice().reverse();
-    open('merchant-home',tr("商品与批次"),`
-      <div class="row between"><h3>${tr("商品款色")}</h3>${button(tr("添加商品资料"),'workflow-product')}</div>
-      <div class="sheet-list">${products.map(p=>`<div class="sheet-list-row">
-        ${p.evidence.front?`<img src="${escape(p.evidence.front)}" alt="">`:''}
-        <div class="grow"><strong>${escape(productName(p))}</strong><p>${tr("依据 v{0} · {1}", p.version, Object.keys(p.evidence).map(k=>tr(angles[k])).join('、')||tr("待补资料"))}</p></div>
-        ${button(tr("编辑资料"),'workflow-product',attribute(p.id))}
-      </div>`).join('')||`<p>${tr("先为每个款色添加对应的正面、背面和细节资料。")}</p>`}</div>
-      <div class="spacer"></div><div class="row between"><h3>${tr("拍摄批次")}</h3>${button(tr("新建批次"),'workflow-new-batch','','btn primary')}</div>
-      <div class="sheet-list">${batches.map(b=>`<div class="sheet-list-row"><div class="grow">
-        <strong>${escape(b.title)}</strong><p>${tr("{0} 个款色", b.shootIds.length)}</p></div>
-        ${button(tr("打开批次"),'workflow-batch',attribute(b.id))}
-      </div>`).join('')||`<p>${tr("选择商品和拍法后，将为各款色分别建立拍摄。")}</p>`}</div>`,
-      button(tr("返回拍摄"),'close'));
+    const hasProducts = products.length > 0;
+    const productRows = products.map(p => `<div class="sheet-list-row">
+      ${p.evidence.front ? `<img src="${escape(p.evidence.front)}" alt="">` : ''}
+      <div class="grow"><strong>${escape(productName(p))}</strong><p>${tr("依据 v{0} · {1}", p.version,
+        Object.keys(p.evidence).map(k => tr(angles[k])).join('、') || tr("待补资料"))}</p></div>
+      ${button(tr("编辑资料"), 'workflow-product', attribute(p.id))}</div>`).join('');
+    const batchRows = batches.map(b => `<div class="sheet-list-row"><div class="grow">
+      <strong>${escape(b.title)}</strong><p>${tr("{0} 个款色", b.shootIds.length)}</p></div>
+      ${button(tr("打开批次"), 'workflow-batch', attribute(b.id))}</div>`).join('');
+    const firstProduct = `<div class="merchant-start">
+      <img src="assets/generated/plan-catalog.webp" alt="">
+      <div><h3>${tr('为第一个款色建档')}</h3><p>${tr('先记录商品名、颜色和要保留的细节，再添加同款色的实拍参考。')}</p>
+      ${button(tr('添加商品资料'), 'workflow-product', '', 'btn primary')}</div></div>`;
+    open('merchant-home', tr('商品与批次'), `<div class="merchant-board">
+      <section><div class="row between"><h3>${tr('商品款色')}</h3>
+        ${hasProducts ? button(tr('添加商品资料'),'workflow-product') : ''}</div>
+        ${hasProducts ? '<div class="sheet-list">'+productRows+'</div>' : firstProduct}</section>
+      <section><div class="row between"><h3>${tr('拍摄批次')}</h3>
+        ${button(tr('新建批次'),'workflow-new-batch',hasProducts ? '' : 'disabled aria-describedby="batch-help"','btn primary')}</div>
+        ${batches.length ? '<div class="sheet-list">'+batchRows+'</div>' : ''}
+        ${!hasProducts || !batches.length ? '<p id="batch-help" class="compact-note">'+tr(hasProducts ?
+          '选择商品和拍法后，将为各款色分别建立拍摄。' : '添加第一个商品款色后即可建批。')+'</p>' : ''}</section></div>`,
+      button(tr('关闭'), 'close'));
   }
 
   const pendingImages=new Map();
@@ -67,12 +77,12 @@ export function createWorkflows(context) {
     const product=draft?{...existing,...draft,evidence:{...existing?.evidence,...draft.evidence}}:existing;
     open('merchant-product',existing?tr("编辑商品资料"):tr("添加商品资料"),`
       <div class="info-grid">
-        <label class="form-label">${tr("商品名称")}<input id="product-name" maxlength="80" value="${escape(product?.name||'')}"></label>
-        <label class="form-label">${tr("颜色／款色")}<input id="product-color" maxlength="50" value="${escape(product?.color||'')}"></label>
+        <label class="form-label">${tr("商品名称")}<input id="product-name" required maxlength="80" value="${escape(product?.name||'')}"></label>
+        <label class="form-label">${tr("颜色／款色")}<input id="product-color" required maxlength="50" value="${escape(product?.color||'')}"></label>
         <label class="form-label">${tr("资料类型")}<select id="product-input"><option value="flat">${tr("平铺／人台")}</option><option value="worn" ${product?.input==='worn'?'selected':''}>${tr("真人上身")}</option></select></label>
         <label class="form-label">${tr("人物安排")}<select id="product-person"><option value="replace">${tr("用选定的目标模特")}</option><option value="retain" ${product?.modelMode==='retain'?'selected':''}>${tr("保留上身图中的人物")}</option></select></label>
       </div>
-      <label class="form-label">${tr("必须保留的商品细节")}<textarea id="product-keep" maxlength="1600" placeholder="${tr("例如：短款、翻领、三粒扣、灰色细条纹")}">${escape(product?.keep||'')}</textarea></label>
+      <label class="form-label">${tr("必须保留的商品细节")}<textarea id="product-keep" required maxlength="1600" placeholder="${tr("例如：短款、翻领、三粒扣、灰色细条纹")}">${escape(product?.keep||'')}</textarea></label>
       <div class="info-grid">${Object.entries(angles).map(([key,label])=>`<div class="info-card">
         ${product?.evidence?.[key]?`<img src="${escape(product.evidence[key])}" alt="${tr("{0}依据",tr(label))}" style="max-width:100%;max-height:125px;object-fit:contain">`:''}
         <label class="form-label">${tr("{0}照片",tr(label))}<input id="product-${key}" type="file" accept="image/jpeg,image/png,image/webp"></label>
@@ -160,9 +170,14 @@ export function createWorkflows(context) {
     const list=items=>items.map(text=>'<li>'+escape(text)+'</li>').join('');
     const ready=manifest.images.map(item=>item.file);
     const missing=manifest.missing.map(item=>[item.shoot,item.title,item.issue||tr('待核对并采用')].filter(Boolean).join(' · '));
-    open('merchant-delivery',tr('批次交付预览'),'<h3>'+tr('可交付 {0} 张',ready.length)+'</h3><ul>'+list(ready)+'</ul><h3>'+
-      tr('尚欠 {0} 个镜头',missing.length)+'</h3><ul>'+list(missing)+'</ul>',
-      button(tr('返回批次'),'workflow-batch',attribute(batch.id))+button(tr('保存交付包'),'workflow-confirm-export',attribute(batch.id,ready.length?'':'disabled'),'btn primary'));
+    const summary = !ready.length ? tr('暂无可交付作品') : missing.length ? tr('可部分交付') : tr('全部镜头已齐备');
+    open('merchant-delivery',tr('批次交付预览'),`<div class="delivery-summary"><h3>${summary}</h3>
+      <p>${tr('可交付 {0} 张',ready.length)} · ${tr('尚欠 {0} 个镜头',missing.length)}</p></div>
+      <div class="delivery-columns">
+        ${ready.length ? '<section><h3>'+tr('将打包的文件')+'</h3><ul>'+list(ready)+'</ul></section>' : ''}
+        ${missing.length ? '<section><h3>'+tr('需要补齐的镜头')+'</h3><ul>'+list(missing)+'</ul></section>' : ''}
+      </div>`, button(tr('返回批次'),'workflow-batch',attribute(batch.id))+
+      button(tr(ready.length && missing.length ? '保存部分交付包' : '保存交付包'),'workflow-confirm-export',attribute(batch.id,ready.length?'':'disabled'),'btn primary'));
   }
 
   function showBatch(id,preserveSelection=false) {

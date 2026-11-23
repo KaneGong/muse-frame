@@ -1,13 +1,12 @@
-# Muse Frame 0.6.0 · 摄影工作台
+# Muse Frame 0.6.1
 
-首页按人像、商品套图和修图分流，原正式工作区在升级后可继续使用。独立拍摄、样例预检、圈选修图、版本对比、商品逐项审核、部分交付和取景选项整合进入正式启动器。画布保留动作参考说明，计划导入会先显示镜头和拍摄要求。
-
-- Apple Silicon Mac 开 DMG 后，将 Muse Frame 拖入「应用程序」。Mac App 采用临时签名，尚未经过 Apple 公证。
-- Windows x64 请下载 Setup.exe，为当前用户安装，双击开始菜单图标启动。Windows 安装器未签名。系统信任策略可能提示或阻止首次启动。两端均含运行依赖。
-- Agent 附件包含 Muse-Frame-0.6.0-agent-plugin.zip 及 muse-frame-shot-planner-0.6.0.tgz。安装说明见仓库 docs/agent-plugins.md。范围为拍摄计划与桌面导入。OpenAI 公共目录上架须单独审核。
-- 软件的本机功能随开源版提供。实际图片生成按用户所选平台账户结算。本版未启用软件订阅收款。
-- 升级前等任务结束，从「工作区迁移与备份」退出旧服务；资料位置继续沿用 MUSE FRAME。Studio Preview 继续使用独立目录。源码、依赖许可、素材说明和校验和随版本提供。
+- 商品套图先建款色，再开放建批。商品资料与批次分栏，窄屏顺序排列。
+- 上传照片后可选本机基础修图或 AI 局部修图。两条路径均保留原图，平台任务在确认后才提交。
+- 交付预览显示可以打包的文件和欠缺镜头，部分交付有独立提示。
+- Agent 计划接受完整 JSON 或带 Markdown 代码围栏的 JSON，英文近期作品计数支持单复数。
+- DSH 可从项目索引发现插件。[安装指南](https://github.com/KaneGong/muse-frame/blob/main/docs/agent-plugins.md)
+- Mac Apple Silicon 需 macOS 12+，为临时签名且未经 Apple 公证。Windows x64 安装器未签名。系统管理策略可能限制启动。安装包均包含运行依赖。
 
 ## English
 
-The stable app opens a new photography home, with independent portrait shoots, product batches, image retouching, version comparison and portable agent shot plans. Download the Apple Silicon DMG or Windows x64 Setup.exe. Both include the runtime. macOS uses an ad-hoc signature without notarization. Windows is unsigned. Your device policy may limit installation. The stable workspace remains separate from Studio Preview. The planning plugin exchanges creative text through JSON. Paid image generation is billed by the provider you connect. Details are available in docs/agent-plugins.md.
+This update improves product setup, retouching choices and delivery review. Start from a product variant, choose local or AI editing for an uploaded photo, and see exactly which files are ready for partial delivery. Pasted shot plans can include Markdown code fences. The Apple Silicon DMG is ad-hoc signed and not notarized. The Windows x64 installer is unsigned.

@@ -17,3 +17,12 @@ test('an agent plan creates independent local shots with no attached identities 
     {...raw,shots:[{title:'X',direction:false}]},{...raw,title:'x'.repeat(101)}])
     assert.throws(()=>readAgentPlan(JSON.stringify(value)));
 });
+
+test('paste accepts one complete fenced JSON plan and rejects surrounding prose', () => {
+  const body = JSON.stringify({format:'muse-frame.plan/v1',title:'Studio',shots:[{title:'Close-up',direction:'Soft window light'}]});
+  const fence = '`'.repeat(3);
+  const pasted = [fence+'json',body,fence].join('\r\n');
+  assert.deepEqual(readAgentPlan(pasted),readAgentPlan(body));
+  assert.throws(() => readAgentPlan('my note\n'+pasted));
+  assert.throws(() => readAgentPlan(pasted+'\n'+pasted));
+});

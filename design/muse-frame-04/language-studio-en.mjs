@@ -1,4 +1,18 @@
 export const studioEnglish = {
+  "为第一个款色建档": "Add your first product variant",
+  "先记录商品名、颜色和要保留的细节，再添加同款色的实拍参考。": "Record the product name, color and details to preserve, then add reference photos of that variant.",
+  "添加第一个商品款色后即可建批。": "Add your first product variant to start a batch.",
+  "暂无可交付作品": "No images are ready to deliver",
+  "可部分交付": "Partial delivery available",
+  "全部镜头已齐备": "All shots are ready",
+  "将打包的文件": "Files in this delivery",
+  "需要补齐的镜头": "Shots to finish",
+  "保存部分交付包": "Save partial delivery",
+  "选择修图方式": "Choose how to edit",
+  "在本机调整亮度、色温和细节，另存为新版本。": "Adjust exposure, white balance and detail locally. Save a new version.",
+  "圈出要改的位置，提交前核对平台和用量。": "Mark the area to change. Review the provider and usage before submitting.",
+  "请粘贴一份完整的 JSON 计划，或选择 Agent 导出的文件。": "Paste a complete JSON plan or select the file exported by your agent.",
+
   "查看计划格式示例": "View example plan",
   "侧面近景": "Profile close-up",
   "利用窗边柔光，拍摄自然的侧脸。": "Photograph a relaxed profile in soft window light.",

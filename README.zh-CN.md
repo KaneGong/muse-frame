@@ -4,7 +4,7 @@
 
 映象所是一个适用于 Mac 和 Windows 的本地 AI 人像摄影工作台。选好人物、服装、场景和姿态，配好取景和色调，就能准备第一张照片。需要细调时，可按镜头调整光影、身形参考和拍摄要求。作品、项目和任务记录保存在电脑上，确认提交时才会把所选参考图和提示词发送至你连接的 Lovart、LibTV 或方舟 账号。
 
-**[下载 0.6.0](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.0) · [Agent 插件安装](docs/agent-plugins.md) · [安装与迁移](docs/zh-CN/quick-start.md) · [English](README.md)**
+**[下载 0.6.1](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.1) · [Agent 插件安装](docs/agent-plugins.md) · [安装与迁移](docs/zh-CN/quick-start.md) · [English](README.md)**
 
 ## 摄影工作台 0.6
 
@@ -41,4 +41,4 @@
 
 反馈可复现问题时，请附映象所版本、操作系统、芯片架构及步骤。公开前移除私人图片、提示词和账号凭据。[问题反馈](https://github.com/KaneGong/muse-frame/issues/new/choose) · [构建](docs/zh-CN/build.md) · [更新记录](CHANGELOG.zh-CN.md) · [安全反馈](SECURITY.md)。
 
-软件采用 [AGPL-3.0-only](LICENSE)。0.6.0 对应的源码归档、文件清单和 SHA-256 校验文件与安装包分别提供。展示作品和示例素材适用各自的使用条款。[素材说明](ASSET_LICENSES.md) · [依赖许可](THIRD_PARTY_NOTICES.md) · [品牌说明](TRADEMARKS.md)。
+软件采用 [AGPL-3.0-only](LICENSE)。0.6.1 对应的源码归档、文件清单和 SHA-256 校验文件与安装包分别提供。展示作品和示例素材适用各自的使用条款。[素材说明](ASSET_LICENSES.md) · [依赖许可](THIRD_PARTY_NOTICES.md) · [品牌说明](TRADEMARKS.md)。

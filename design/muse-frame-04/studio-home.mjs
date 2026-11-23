@@ -1,5 +1,5 @@
 import {describedEnvironment,blocksStudioShot} from './model.mjs';
-import {tr,shootTitle} from './language.mjs';
+import {getLanguage,tr,shootTitle} from './language.mjs';
 
 export function studioHome({state,current,esc,btn,languagePicker}) {
   const batch = state.batches.at(-1);
@@ -15,10 +15,13 @@ export function studioHome({state,current,esc,btn,languagePicker}) {
     const works = state.outputs.filter(o => o.shootId === sh.id && !o.trashed);
     const selected = works.filter(o => o.picked).length;
     const count = sh.shots.filter(shot => !shot.removed).length;
+    const summary = getLanguage()==='en'
+      ? `${count} ${count===1?'shot':'shots'} · ${works.length} ${works.length===1?'image':'images'} · ${selected} selected`
+      : tr('{0} 个镜头 · {1} 个作品 · 已采用 {2}',count,works.length,selected);
     const sample = works.length && works.every(o => o.sampleOnly || o.source === 'demo');
     return `<button class="studio-recent" data-action="open-shoot" data-id="${esc(sh.id)}">
       <strong>${esc(shootTitle(sh))}</strong>
-      <span>${tr('{0} 个镜头 · {1} 个作品 · 已采用 {2}',count,works.length,selected)}</span>
+      <span>${summary}</span>
       ${sample ? '<small>'+tr('演示样例')+'</small>' : ''}<b aria-hidden="true">→</b></button>`;
   }).join('');
   const batchLink = batch ? btn(esc(tr('继续批次 · {0}',batch.title)),'workflow-batch',

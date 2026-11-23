@@ -71,3 +71,31 @@ body[data-studio] .agent-shot-list p { margin:3px 0 8px; white-space:pre-line; o
 .plan-example { white-space:pre-wrap; overflow-wrap:anywhere; }
 body[data-studio] .plan-empty:not(.with-reference) { padding:8px 18px; }
 body[data-studio] .plan-empty:not(.with-reference) .plan-visual { width:52px; height:52px; margin:0 auto 8px; }
+
+/* Product preparation and delivery share the same two-column reading order. */
+.merchant-board,.delivery-columns { display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr); gap:clamp(16px,3vw,32px); }
+.merchant-board > section,.delivery-columns > section { min-width:0; }
+.merchant-board > section > .row { border-bottom:1px solid #caced0; padding-bottom:10px; margin-bottom:12px; }
+.merchant-board .row h3,.delivery-summary h3 { margin:0; }
+.merchant-board .btn:disabled { opacity:.55; cursor:default; }
+.merchant-start { display:grid; grid-template-columns:minmax(96px,34%) minmax(0,1fr); overflow:hidden; min-height:170px; border-radius:8px; background:#f0f1e9; }
+.merchant-start img { width:100%; height:100%; max-height:220px; object-fit:cover; object-position:50% 35%; }
+.merchant-start > div { padding:18px; align-self:center; }
+.merchant-start h3,.edit-method-list p { margin:0; }
+.merchant-start p,.edit-method-list p { line-height:1.55; color:#4d584e; }
+.delivery-summary { padding:18px 22px; background:#e9eee4; border-left:3px solid #446349; margin-bottom:20px; }
+.delivery-summary h3 { font-size:21px; }
+.delivery-summary p { margin:6px 0 0; }
+.delivery-columns ul { padding-inline-start:22px; overflow-wrap:anywhere; }
+.delivery-columns li { margin-block:8px; }
+.edit-method-list { display:grid; gap:12px; margin-top:14px; }
+.edit-method-list section { padding:14px; background:#f0f2eb; border-radius:6px; }
+.edit-method-list .btn { min-height:38px; margin-bottom:6px; }
+.agent-shot-list { padding:0; list-style-position:inside; }
+body[data-studio] .agent-shot-list li { border-top:1px solid #d7dacf; padding:10px 0; }
+.agent-shot-list li::marker { color:#526652; font-variant-numeric:tabular-nums; }
+@media(max-width:760px) {
+  .merchant-board,.delivery-columns { grid-template-columns:minmax(0,1fr); }
+  .merchant-start { min-height:132px; }
+  .merchant-start > div { padding:12px; }
+}

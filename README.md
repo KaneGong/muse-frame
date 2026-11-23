@@ -4,7 +4,7 @@
 
 MUSE FRAME is a local AI portrait workspace for Mac and Windows. Choose a person, outfit, scene and pose, then set the framing and tone for your first photo. Advanced controls let you refine lighting, body reference and shot settings. Projects, saved images and task history stay on your computer. Confirming a task sends its selected references and prompt to your connected Lovart, LibTV or Ark account.
 
-**[Download 0.6.0](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.0) · [Agent plugins](docs/agent-plugins.md) · [Install and migrate](docs/en/quick-start.md) · [简体中文](README.zh-CN.md)**
+**[Download 0.6.1](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.1) · [Agent plugins](docs/agent-plugins.md) · [Install and migrate](docs/en/quick-start.md) · [简体中文](README.zh-CN.md)**
 
 ## Photography studio 0.6
 
@@ -41,4 +41,4 @@ Online galleries load from their source hosts. Provider availability, model para
 
 For reproducible issues, include the MUSE FRAME version, operating system, architecture and steps. Remove private images, prompts and credentials from reports. [Issues](https://github.com/KaneGong/muse-frame/issues/new/choose) · [Build](docs/en/build.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md).
 
-Software is [AGPL-3.0-only](LICENSE). The corresponding source archive, file manifest and SHA-256 checksums accompany the 0.6.0 binaries as separate files. Showcase artwork and example assets have separate terms. [Asset notices](ASSET_LICENSES.md) · [Dependency notices](THIRD_PARTY_NOTICES.md) · [Brand guidelines](TRADEMARKS.md).
+Software is [AGPL-3.0-only](LICENSE). The corresponding source archive, file manifest and SHA-256 checksums accompany the 0.6.1 binaries as separate files. Showcase artwork and example assets have separate terms. [Asset notices](ASSET_LICENSES.md) · [Dependency notices](THIRD_PARTY_NOTICES.md) · [Brand guidelines](TRADEMARKS.md).
