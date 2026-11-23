@@ -46,7 +46,7 @@ async function click(action,attrs=''){const selector=`[data-action="${action}"]$
 async function input(selector,value){const el=query(selector);el.value=value;el.dispatchEvent(new window.Event('input',{bubbles:true}));el.dispatchEvent(new window.Event('change',{bubbles:true}));await settle();}
 async function check(selector,value=true){const el=query(selector);el.checked=value;el.dispatchEvent(new window.Event('change',{bubbles:true}));await settle();}
 async function close(){if(query('#sheet').open)await click('close');}
-async function chooseFraming(id){await click('creative-more','[data-kind="framing"]');await click('creative-framing-tab','[data-view="all"]');await click('creative-filter-clear','[data-kind="framing"]');await click('creative-picker-select',`[data-id="${id}"]`);await click('creative-picker-apply');}
+async function chooseFraming(id){await click('creative-more','[data-kind="framing"]');await click('creative-filter-clear','[data-kind="framing"]');await click('creative-picker-select',`[data-id="${id}"]`);await click('creative-picker-apply');}
 async function openOption(field,scope,mode){
   await click('creative-detail',`[data-id="${field}"][data-scope="${scope}"]`);
   if(mode)await click('creative-picker-mode',`[data-mode="${mode}"]`);
@@ -123,7 +123,7 @@ test('more lighting, framing and expression choices stay compact and apply only 
   await click('scope','[data-scope="frame"]');assert.ok(document.querySelectorAll('.framing-card').length<=5);assert.ok(document.querySelectorAll('.performance-options>.option').length<=5);
   for(const [kind,items,field]of [['framing',FRAMINGS,'framingId'],['expression',EXPRESSIONS,'expressionId']]){
     const target=items.find(item=>!item.featured);assert.ok(target);const other=active().find(item=>item.id!==frame().id),beforeOther=other[field];
-    await click('creative-more',`[data-kind="${kind}"]`);if(kind==='framing')await click('creative-framing-tab','[data-view="all"]');await input(`[data-creative-search="${kind}"]`,target.name);await click('creative-picker-select',`[data-id="${target.id}"]`);await click('creative-picker-apply');assert.equal(frame()[field],target.id);assert.equal(other[field],beforeOther);
+    await click('creative-more',`[data-kind="${kind}"]`);if(kind==='framing')await input(`[data-creative-search="${kind}"]`,target.name);await click('creative-picker-select',`[data-id="${target.id}"]`);await click('creative-picker-apply');assert.equal(frame()[field],target.id);assert.equal(other[field],beforeOther);
   }
 });
 test('appearance presets and custom drafts are optional, searchable, and preserve scope',async()=>{
@@ -194,6 +194,21 @@ test('saved recipes retain creative environment and reuse a separate identity sc
 test('gallery error remains actionable and retry restores results',async()=>{
   failGallery=true;await click('gallery','[data-kind="person"]');assert.match(query('#gallery-results').textContent,/连接超时/);assert.ok(document.querySelector('a[href="https://ai-portrait-gallery.pages.dev/"]'));
   await click('gallery-retry');assert.match(query('#gallery-results').textContent,/连接超时/);failGallery=false;await click('gallery-retry');assert.equal(document.querySelectorAll('.gallery-card').length,24);await close();
+});
+test('manual gallery update retains visible catalog and search when the network fails',async()=>{
+  await click('gallery','[data-kind="person"]');
+  await input('#gallery-search','参考 2');
+  const count=document.querySelectorAll('.gallery-card').length;
+  assert.ok(count>0);
+  failGallery=true;await click('gallery-refresh');
+  assert.equal(query('#gallery-search').value,'参考 2');
+  assert.equal(document.querySelectorAll('.gallery-card').length,count);
+  assert.match(query('.gallery-update-row').textContent,/继续使用本机目录/);
+  assert.equal(query('[data-action="gallery-refresh"]').disabled,false);
+  failGallery=false;await click('gallery-refresh');
+  assert.equal(query('#gallery-search').value,'参考 2');
+  assert.doesNotMatch(query('.gallery-update-row').textContent,/更新暂不可用/);
+  await close();
 });
 test('removed frames remain viewable and explicit restore enables generation',async()=>{
   const original=state().shoots[0],result=state().outputs.find(o=>o.shootId===original.id),target=original.shots.find(x=>x.id===result.shotId);await click('projects');await click('open-shoot',`[data-id="${original.id}"]`);await click('select-shot',`[data-id="${target.id}"]`);
@@ -330,12 +345,12 @@ async function withFramingVisuals(run){
   try{await run();}finally{for(const key of Object.keys(FRAMING_VISUALS))delete FRAMING_VISUALS[key];for(const [key,value]of saved)FRAMING_VISUALS[key]=value;}
 }
 
-test('framing stays a selected summary and opens five common choices with read-only preview',async()=>withFramingVisuals(async()=>{
+test('framing stays a selected summary and opens all twelve choices with read-only preview',async()=>withFramingVisuals(async()=>{
   await click('scope','[data-scope="frame"]');
   assert.equal(document.querySelectorAll('.creative-framing .framing-grid').length,0);assert.equal(document.querySelectorAll('.creative-framing .framing-current').length,1);
   const before=JSON.stringify(state()),drafts=JSON.stringify(ui().customDrafts),selected=[...ui().selected];
-  await click('creative-more','[data-kind="framing"]');await click('creative-framing-tab','[data-view="common"]');
-  const cards=[...document.querySelectorAll('.framing-catalog-option')];assert.equal(cards.length,5);
+  await click('creative-more','[data-kind="framing"]');
+  const cards=[...document.querySelectorAll('.framing-catalog-option')];assert.equal(cards.length,12);
   for(const card of cards){
     const select=card.querySelector('[data-action="creative-picker-select"]'),preview=card.querySelector('[data-action="creative-framing-preview"]');
     assert.equal(select.querySelector('img').getAttribute('src'),FRAMING_VISUALS[select.dataset.id].thumb);assert.equal(select.querySelector('svg'),null);
@@ -345,12 +360,12 @@ test('framing stays a selected summary and opens five common choices with read-o
   await click('creative-framing-preview','[data-id="full"][data-origin="picker"]');
   assert.equal(query('.framing-lightbox img').getAttribute('src'),FRAMING_VISUALS.full.src);assert.match(query('#sheet').textContent,/AI取景示例/);
   assert.equal(query('#sheet').querySelector('[data-action="creative-picker-apply"]'),null);assert.equal(JSON.stringify(state()),before);
-  await click('creative-framing-back');assert.equal(document.querySelectorAll('.framing-catalog-option').length,5);assert.equal(query('#creative-picker-choice-label').textContent,FRAMINGS.find(x=>x.id==='person').name);
+  await click('creative-framing-back');assert.equal(document.querySelectorAll('.framing-catalog-option').length,12);assert.equal(query('#creative-picker-choice-label').textContent,FRAMINGS.find(x=>x.id==='person').name);
   await click('close');assert.equal(query('#sheet').open,false);assert.equal(JSON.stringify(state()),before);assert.equal(JSON.stringify(ui().customDrafts),drafts);assert.deepEqual(ui().selected,selected);
 }));
 
 test('framing enlargement preserves pending choice filters and scroll; applying stays on the current frame',async()=>withFramingVisuals(async()=>{
-  await click('scope','[data-scope="frame"]');await click('creative-more','[data-kind="framing"]');await click('creative-framing-tab','[data-view="all"]');await click('creative-filter-clear','[data-kind="framing"]');
+  await click('scope','[data-scope="frame"]');await click('creative-more','[data-kind="framing"]');await click('creative-filter-clear','[data-kind="framing"]');
   assert.equal(document.querySelectorAll('.framing-catalog-option').length,12);
   for(const card of document.querySelectorAll('.framing-catalog-option')){const select=card.querySelector('[data-action="creative-picker-select"]');assert.equal(select.querySelector('img').getAttribute('src'),FRAMING_VISUALS[select.dataset.id].thumb);assert.equal(card.querySelector('[data-action="creative-framing-preview"]').closest('.preset-catalog-card'),null);}
   await click('creative-picker-select','[data-id="full"]');
@@ -401,7 +416,7 @@ test('project name is fully readable on demand and renaming requires an explicit
   const original=current().title,beforeShots=JSON.stringify(current().shots),beforeOutputs=JSON.stringify(state().outputs);
   await click('shoot-name');assert.equal(query('.shoot-name-full').textContent,original);await input('#shoot-name-input','取消不会改名称');await close();assert.equal(current().title,original);
   await click('shoot-name');await input('#shoot-name-input','  ');await click('save-shoot-name');assert.equal(current().title,original);assert.equal(query('#sheet').open,true);assert.match(query('#dialog-error').textContent,/填写拍摄名称/);
-  const longName='人物与服装的春季街头拍摄项目 · 长名称应能完整查看 & 保留 <测试>';await input('#shoot-name-input',longName);await click('save-shoot-name');assert.equal(current().title,longName);assert.equal(query('.project-name').textContent,longName);assert.equal(query('.project-name').title,longName);assert.equal(query('[aria-label="修改拍摄名称"]').textContent,'改名');assert.equal(JSON.stringify(current().shots),beforeShots);assert.equal(JSON.stringify(state().outputs),beforeOutputs);
+  const longName='人物与服装的春季街头拍摄项目 · 长名称应能完整查看 & 保留 <测试>';await input('#shoot-name-input',longName);await click('save-shoot-name');assert.equal(current().title,longName);assert.equal(query('.project-name').textContent,longName);assert.equal(query('.project-name').title,longName);assert.ok(query('[aria-label="修改拍摄名称"] img.icon'));assert.equal(JSON.stringify(current().shots),beforeShots);assert.equal(JSON.stringify(state().outputs),beforeOutputs);
   await click('shoot-name');assert.equal(query('.shoot-name-full').textContent,longName);assert.equal(query('#shoot-name-input').value,longName);await close();
   assert.equal(decodeState(localStorage.getItem('muse-frame-design-06-v1')).shoots.find(sh=>sh.id===current().id).title,longName);
 });
@@ -454,4 +469,27 @@ test('work type filters default to all and preserve shoot and trash scope withou
   await click('works-trash');assert.equal(ui().worksType,'ai-edit');assert.match(query('#sheet-title').textContent,/本次拍摄/);assert.equal(document.querySelectorAll('#sheet .work-gallery-item').length,0);assert.match(query('#sheet').textContent,/还没有这类作品/);await click('works-return');assert.equal(document.querySelectorAll('#sheet .work-gallery-item').length,2);
   await click('works-type','[data-type="local-edit"]');assert.equal(document.querySelectorAll('#sheet .work-gallery-item').length,1);await close();assert.equal(document.querySelectorAll('.output-version').length,6);
   await click('shoot-works');assert.equal(ui().worksType,'all');assert.equal(document.querySelectorAll('#sheet .work-gallery-item').length,6);await click('works-type','[data-type="unknown"]');assert.equal(document.querySelectorAll('#sheet .work-gallery-item').length,1);await click('works-type','[data-type="all"]');assert.equal(document.querySelectorAll('#sheet .work-gallery-item').length,6);await close();
+});
+
+
+test('composition tabs preserve settings and camera selection survives framing changes',async()=>{
+  await click('scope','[data-scope="frame"]');
+  const before=JSON.stringify(state());
+  await click('creative-composition-tab','[data-id="angle"]');
+  assert.equal(query('#composition-panel-angle').hidden,false);
+  assert.equal(query('#composition-panel-frame').hidden,true);
+  assert.equal(JSON.stringify(state()),before);
+  const camera=DETAIL_GROUPS.find(g=>g.id==='angle').options[1];
+  await click('creative-camera',`[data-id="${camera.id}"]`);
+  assert.equal(frame().options.angle.value,camera.prompt);
+  const selected=JSON.stringify(state());
+  query('#composition-tab-angle').dispatchEvent(new window.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));await settle();
+  assert.equal(query('#composition-tab-frame').getAttribute('aria-selected'),'true');
+  assert.equal(JSON.stringify(state()),selected);
+  await chooseFraming('full');
+  assert.equal(frame().options.angle.value,camera.prompt);
+  await click('creative-composition-tab','[data-id="angle"]');
+  await click('creative-camera-clear');
+  assert.equal(frame().options.angle.source,'cleared');
+  assert.equal(frame().framingId,'full');
 });

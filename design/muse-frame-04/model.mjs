@@ -1,3 +1,21 @@
+import {bagPrompt} from './bag-options.mjs';
+let studioPromptDefaults=false;
+let studioOptionText={};
+let studioCoverage={};
+let legacyOptionText={};
+function studioValue(key,entry){
+  if(!entry || entry.source==='cleared' || (key==='angle' && entry.source==='pose'))return '';
+  if(entry.source==='custom')return entry.value;
+  const value=legacyOptionText[key]?.[entry.value]??entry.value;
+  return studioOptionText[key]?.[value]??value;
+}
+export const isStudioPrompt = variant => variant === 'studio-v1' || variant === 'studio-v2';
+export function setStudioPromptDefaults(enabled, optionText={}, coverage={}, legacy={}){
+  studioPromptDefaults=enabled===true;
+  studioOptionText=optionText;
+  studioCoverage=coverage;
+  legacyOptionText=legacy;
+}
 export const clone = value => structuredClone(value);
 export const uid = prefix => `${prefix}-${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`;
 export const now = () => new Date().toISOString();
@@ -18,11 +36,33 @@ const builtins = () => [
   {id:'ref-1',type:'reference',name:'纱帘窗光',image:'assets/generated/space-window-sheer.webp',source:'AI 环境示例',role:'光影'},
   {id:'ref-2',type:'reference',name:'城市街角',image:'assets/generated/space-street-plain-corner.webp',source:'AI 环境示例',role:'环境'}
 ];
-export function freshState() {
-  const s={schema:1,assets:builtins(),shoots:[],outputs:[],tasks:[],experiments:[],batches:[],products:[],recipes:[],currentShoot:null,provider:'Lovart',fault:'normal',providers:{Lovart:{status:'ready',model:'参考生图 A · 演示',maxRefs:6},LibTV:{status:'ready',model:'参考生图 B · 演示',maxRefs:4}}};
+export function ensureStudioAsset(state,type,file){
+  const image='assets/generated/'+file+'.webp';
+  const found=state.assets.find(a=>a.type===type&&a.image===image);
+  if(found)return found.id;
+  const asset=builtins().find(a=>a.type===type&&a.image===image);
+  if(!asset)return null;
+  if(state.assets.some(a=>a.id===asset.id)){asset.id=uid(type);if(type==='person')asset.identity=asset.id;}
+  state.assets.push(asset);
+  return asset.id;
+}
+function defaultRecipes(){
+  const recipes=[];
   for(const [id,title,tag,style,img] of [['recipe-city','街角，慢一点','社媒人像','自然光、低饱和、真实肤质','generated/plan-walking'],['recipe-day','窗边的日常','社媒人像','柔和窗光、舒展、轻盈','generated/plan-window-portrait'],['recipe-shop','清楚展示每一处','商品展示','中性光线、清楚呈现商品结构','generated/plan-catalog']]) {
-    s.recipes.push({id,title,tag,image:`assets/${img}.webp`,defaultVersion:1,versions:[{number:1,style,environment:id==='recipe-shop'?'简洁展示空间':'按参考环境',status:'演示拍法',required:'清楚的人物与服装资料',scope:'仅供原型操作；真实适用性尚未验证',shots:presetShots(id==='recipe-shop'?'merchant':'social'),savedAt:now(),personal:false,source:null}]});
+    recipes.push({id,title,tag,image:`assets/${img}.webp`,defaultVersion:1,versions:[{number:1,style,environment:id==='recipe-shop'?'简洁展示空间':'按参考环境',status:'演示拍法',required:'清楚的人物与服装资料',scope:'仅供原型操作；真实适用性尚未验证',shots:presetShots(id==='recipe-shop'?'merchant':'social'),savedAt:now(),personal:false,source:null}]});
   }
+  return recipes;
+}
+export function ensureMerchantRecipes(state){
+  const existing=state.recipes.filter(r=>recipePurpose(r)==='merchant'&&r.versions?.length);
+  if(existing.length)return existing;
+  const recipe=defaultRecipes().find(r=>recipePurpose(r)==='merchant');
+  if(state.recipes.some(row=>row.id===recipe.id))recipe.id=uid('recipe');
+  state.recipes.push(recipe);
+  return [recipe];
+}
+export function freshState() {
+  const s={schema:1,assets:builtins(),shoots:[],outputs:[],tasks:[],experiments:[],batches:[],products:[],recipes:defaultRecipes(),currentShoot:null,provider:'Lovart',fault:'normal',providers:{Lovart:{status:'ready',model:'参考生图 A · 演示',maxRefs:6},LibTV:{status:'ready',model:'参考生图 B · 演示',maxRefs:4}}};
   const sh=createShoot(s,{title:'午后街角',model:'person-1',outfit:'outfit-1'});
   for(let i=0;i<2;i++){const t=queueShots(s,sh.id,[sh.shots[i].id])[0];submitTask(s,t.id);const sample=completeTask(s,t.id);sample.image=`assets/generated/plan-${i?'portrait':'walking'}.webp`;sample.sampleOnly=true;}
   s.outputs[0].picked=true;
@@ -38,13 +78,25 @@ export function createShoot(s,options={}) {
   const recipe=s.recipes.find(r=>r.id===(options.recipeId||(purpose==='merchant'?'recipe-shop':'recipe-city')));
   const version=recipe?.versions.find(v=>v.number===recipe.defaultVersion);
   const shoot={id:uid('shoot'),title:options.title|| (free?'自由拍摄':purpose==='merchant'?'商品展示':'新的拍摄'),purpose,model:options.model||null,outfit:options.outfit||null,productId:options.productId||null,productVersion:options.productVersion||null,modelMode:options.modelMode||'replace',recipeId:free?null:recipe?.id,recipeVersion:free?null:version?.number,style:free?'':version?.style||'',environment:free?'':version?.environment||'',globalManual:false,brief:'',supplement:'',customPrompt:'',promptMode:'guided',ratio:'3:4',size:'标准',refs:[],shots:free?[{...presetShots()[0],title:'镜头 01',description:''}]:clone(options.shots||version?.shots||presetShots(purpose)).map(x=>({...x,id:uid('shot')})),revision:1,created:now(),free,validationOf:null};
+  if(studioPromptDefaults)shoot.promptVariant='studio-v2';
+  if(!options.independent&&s.defaultBodyAssetId&&s.assets.some(a=>a.id===s.defaultBodyAssetId))shoot.refs.push({assetId:s.defaultBodyAssetId,role:'身形'});
   s.shoots.push(shoot);s.currentShoot=shoot.id;return shoot;
 }
 export const findShoot = (s,id) => s.shoots.find(x=>x.id===id);
 export const activeShots = shoot => shoot.shots.filter(x=>!x.removed);
+export function describedEnvironment(shoot) {
+  if (shoot.referenceMode !== 'photo' || shoot.purpose === 'merchant' || shoot.environmentMode !== 'text') return '';
+  return typeof shoot.environment === 'string' ? shoot.environment.trim() : '';
+}
+
 export function adoptAsset(s,shootId,assetId,role) {
   const sh=findShoot(s,shootId),asset=s.assets.find(a=>a.id===assetId);if(!sh||!asset)throw Error('找不到对应拍摄或素材');
   if(role==='person')sh.model=assetId;else if(role==='outfit'){if(sh.purpose==='merchant')throw Error('商品拍摄请更换对应商品资料，不能用创意服装替代依据');sh.outfit=assetId;}else{
+    if(role==='环境' && sh.environmentMode==='text'){
+      delete sh.environmentMode;
+      sh.environment='';
+      sh.environmentName='';
+    }
     const existing=sh.refs.find(x=>x.assetId===assetId);if(existing)existing.role=role;else sh.refs.push({assetId,role});
   }sh.revision++;
 }
@@ -78,18 +130,44 @@ export function optionSelection(sh,shot,key){
 
 export function effectivePrompt(sh,shot) {
   if(sh.promptMode==='custom')return sh.customPrompt===sh.legacy?.initialCustomPrompt?(shot.legacyPrompt??sh.customPrompt):sh.customPrompt;
+  const studio=isStudioPrompt(sh.promptVariant);
+  const poseImage=shot.poseAsset && shot.poseMode!=='text';
   const keys=new Set([...Object.keys(sh.options||{}),...Object.keys(shot.options||{}),...LEGACY_SHOT_FIELDS]);
+  const shotEntry=optionSelection(sh,shot,'shot').entry;
+  const crop=studioValue('shot',shotEntry);
+  const profiles=studio?studioCoverage.profiles??{}:{};
+  const profile=Object.values(profiles).find(p=>p.shots.includes(crop));
+  const accessory=optionSelection(sh,shot,'accessory').entry;
+  const activeAccessory=accessory && !['custom','cleared'].includes(accessory.source)?accessory.value:'';
+  const faceAccessoryOutside=Boolean(profile) && [profiles.lower,profiles.upper,profiles.garment].includes(profile) && studioCoverage.faceAccessories.includes(activeAccessory) && (profile===profiles.lower || !activeAccessory.includes('项饰'));
   const values=[...keys].map(key=>{
     const {entry}=optionSelection(sh,shot,key);
-    return entry?.source==='cleared'?'':entry?.value;
+    if(!entry || entry.source==='cleared' || profile?.hidden.includes(key))return '';
+    if(studio && key==='accessory' && faceAccessoryOutside)return '';
+    if(studio && key==='gaze' && !faceAccessoryOutside && studioCoverage.sunglasses?.includes(activeAccessory))return '';
+    if(studio && key==='prop' && shot.bagMode && shot.bagMode!=='auto' && entry.source!=='custom' && studioCoverage.bagProps?.includes(entry.value))return '';
+    const original=entry.value||'';
+    if(!studio)return original;
+    let value=studioValue(key,entry);
+    if(!value)return '';
+    if(entry.source==='custom')return profile && profile===profiles.accessory && ['expression','gaze','makeup','hair'].includes(key)?'相关部位随配饰自然入画时：'+value:value;
+    for(const [selected,overrides] of Object.entries(studioCoverage.overrides??{})){
+      const active=optionSelection(sh,shot,selected).entry;
+      if(active?.value && active.source!=='cleared')value=overrides[key]?.[value]??value;
+    }
+    if(profile?.local)for(const [from,to] of Object.entries(studioCoverage.detailWords[key]??{}))value=value.replaceAll(from,to);
+    if(profile && profile===profiles.accessory && ['expression','gaze','makeup','hair'].includes(key))value='相关部位随配饰自然入画时：'+value;
+    return value;
   });
   const structured=[sh,shot].some(target=>FRAMING_FIELDS.some(key=>
-    target.options?.[key]&&target.options[key].source!=='pose'));
-  const legacyFraming=structured?'':(shot.composition||shot.description);
+    key!=='angle'&&target.options?.[key]&&target.options[key].source!=='pose'));
+  const legacyFraming=structured?'':(shot.composition || (studio && shot.framingId ? '' : shot.description));
   const style=sh.moodId||sh.styleName==='已细调的光影'?'':sh.style;
-  return [sh.brief,style,sh.environment,sh.creativeCheck,legacyFraming,shot.pose,...values,
+  const sceneImage=sh.refs?.some(ref=>ref.role==='环境');
+  const action=studio && poseImage && !shot.poseTextCustom ? '' : shot.pose;
+  return [sh.brief,style,studio && sceneImage ? '' : sh.environment,studio && sh.creativePlan ? '' : sh.creativeCheck,legacyFraming,action,...values,
     shot.poseAsset?'姿态参考只用于动作与接触关系，不借用其中人物身份、服装或背景；'+(shot.poseMode==='strict'?'尽量按参考姿态复刻，模型未必完全遵守':shot.poseMode==='text'?'仅使用动作文字，不发送姿态图片':'主要动作保持一致，允许自然调整'):'',
-    sh.supplement,shot.note,...(sh.directionRefs||[]).filter(r=>r.shotIds.includes(shot.id)).map(r=>'延续所选试拍的'+r.aspects.join('、')+'，人物与服装仍按原始资料')].filter(Boolean).join('；');
+    bagPrompt(shot),sh.supplement,shot.note,...(sh.directionRefs||[]).filter(r=>r.shotIds.includes(shot.id)).map(r=>'延续所选试拍的'+r.aspects.join('、')+'，人物与服装仍按原始资料')].filter(Boolean).join('；');
 }
 export function snapshot(s,sh,shot) {return {shootId:sh.id,shotId:shot.id,shootRevision:sh.revision,purpose:sh.purpose,model:sh.model,outfit:sh.outfit,modelAsset:clone(s.assets.find(a=>a.id===sh.model)||null),outfitAsset:clone(s.assets.find(a=>a.id===sh.outfit)||null),productSnapshot:clone(s.products.find(p=>p.id===sh.productId)||null),planSnapshot:clone(sh),productId:sh.productId,productVersion:sh.productVersion,modelMode:sh.modelMode,refs:clone(sh.refs),poseAsset:shot.poseMode==='text'?null:clone(s.assets.find(a=>a.id===shot.poseAsset)||null),poseMode:shot.poseMode||'adaptive',provider:s.provider,modelName:s.providers[s.provider].model,recipeId:sh.recipeId,recipeVersion:sh.recipeVersion,ratio:sh.ratio,size:sh.size,promptMode:sh.promptMode,prompt:effectivePrompt(sh,shot),shot:clone(shot),time:now(),demo:true,providerActual:'未连接真实平台；实际模型版本／种子未知'};}
 export function queueShots(s,shootId,ids,extra={}) {
@@ -141,10 +219,16 @@ export function createBatch(s,productIds,options={}) {
 }
 export function createExperiment(s,shootId,outputId) {const sh=findShoot(s,shootId);const o=s.outputs.find(x=>x.id===outputId);const baseline=o?clone(s.tasks.find(t=>t.id===o.taskId).snapshot):snapshot(s,sh,activeShots(sh)[0]);const ex={id:uid('experiment'),shootId,baseline,conditions:[{id:uid('condition'),label:'A · 保持基线',change:''},{id:uid('condition'),label:'B · 仅调整光影',change:'柔和窗光，其他内容保持'}],repeats:2,taskIds:[],conclusions:{身份:'',服装:'',自然质感:'',目标表达:''},savedAt:now()};s.experiments.push(ex);return ex;}
 export function runExperiment(s,id) {const ex=s.experiments.find(x=>x.id===id);if(!ex.baseline.model||(!ex.baseline.outfit&&!ex.baseline.productId))throw Error('基线缺少人物或服装，请先完成素材，再从有效方案或结果建立研究');if(s.providers[ex.baseline.provider].status!=='ready')throw Error('基线平台尚未就绪，请先恢复演示连接');if(ex.taskIds.some(id=>['queued','running','recovering','unknown'].includes(s.tasks.find(t=>t.id===id)?.state)))throw Error('本实验仍有进行中或待核对的任务');if(ex.conditions.length*ex.repeats>24)throw Error('本原型每轮最多 24 个演示任务，请缩小范围');const sh=findShoot(s,ex.shootId),tasks=[];for(const c of ex.conditions){for(let n=1;n<=ex.repeats;n++){const base=clone(ex.baseline);base.prompt=[base.prompt,c.change].filter(Boolean).join('；');const task={id:uid('task'),shootId:sh.id,shotId:base.shotId,provider:base.provider,state:'queued',remoteId:null,snapshot:base,outputId:null,created:now(),fault:s.fault,experimentId:ex.id,conditionId:c.id,conditionLabel:c.label,repeat:n};s.tasks.push(task);ex.taskIds.push(task.id);tasks.push(task);}}return tasks;}
-export function saveRecipe(s,shootId,options={}) {const current=findShoot(s,shootId),ex=s.experiments.find(e=>e.id===options.experimentId),sh=ex?.baseline.planSnapshot||current,condition=ex?.conditions.find(c=>c.id===options.conditionId)||ex?.conditions[0];const r={id:uid('recipe'),title:options.title||sh.title+' · 我的拍法',tag:'我的拍法',purpose:sh.purpose,image:s.assets.find(a=>a.id===sh.model)?.image||'assets/street.webp',defaultVersion:1,versions:[{number:1,style:sh.style,environment:sh.environment,status:'试验中',scope:options.scope||'仅当前输入，其他条件尚未验证',required:'同身份人物参考与清楚服装资料',shots:clone(ex?[ex.baseline.shot]:activeShots(sh)),options:clone(sh.options||{}),referenceMode:sh.referenceMode,styleId:sh.styleId||null,styleName:sh.styleName||'',scenePreset:sh.scenePreset||null,creativePlan:clone(sh.creativePlan||null),creativeGoal:sh.creativeGoal||null,creativeCheck:sh.creativeCheck||'',environmentChoice:clone(sh.environmentChoice||null),environmentName:sh.environmentName||'',moodId:sh.moodId||null,creativeManual:clone(sh.creativeManual||{}),supplement:sh.supplement,customPrompt:ex?[ex.baseline.prompt,condition?.change].filter(Boolean).join('；'):sh.customPrompt,promptMode:ex?'custom':sh.promptMode,ratio:sh.ratio,size:sh.size,refs:clone(sh.refs),personal:!!options.personal,model:options.personal?sh.model:null,outfit:options.personal?sh.outfit:null,source:ex?{...clone(ex),selectedCondition:clone(condition)}:{shootId:sh.id},validations:[],savedAt:now()}]};s.recipes.push(r);return r;}
+export function saveRecipe(s,shootId,options={}) {const current=findShoot(s,shootId),ex=s.experiments.find(e=>e.id===options.experimentId),sh=ex?.baseline.planSnapshot||current,condition=ex?.conditions.find(c=>c.id===options.conditionId)||ex?.conditions[0];const r={id:uid('recipe'),title:options.title||sh.title+' · 我的拍法',tag:'我的拍法',purpose:sh.purpose,image:s.assets.find(a=>a.id===sh.model)?.image||'assets/street.webp',defaultVersion:1,versions:[{number:1,style:sh.style,environment:sh.environment,environmentMode:sh.environmentMode,status:'试验中',scope:options.scope||'仅当前输入，其他条件尚未验证',required:'同身份人物参考与清楚服装资料',shots:clone(ex?[ex.baseline.shot]:activeShots(sh)),options:clone(sh.options||{}),referenceMode:sh.referenceMode,styleId:sh.styleId||null,styleName:sh.styleName||'',scenePreset:sh.scenePreset||null,creativePlan:clone(sh.creativePlan||null),creativeGoal:sh.creativeGoal||null,creativeCheck:sh.creativeCheck||'',environmentChoice:clone(sh.environmentChoice||null),environmentName:sh.environmentName||'',moodId:sh.moodId||null,creativeManual:clone(sh.creativeManual||{}),supplement:sh.supplement,customPrompt:ex?[ex.baseline.prompt,condition?.change].filter(Boolean).join('；'):sh.customPrompt,promptMode:ex?'custom':sh.promptMode,ratio:sh.ratio,size:sh.size,refs:clone(sh.refs),personal:!!options.personal,model:options.personal?sh.model:null,outfit:options.personal?sh.outfit:null,source:ex?{...clone(ex),selectedCondition:clone(condition)}:{shootId:sh.id},validations:[],savedAt:now()}]};s.recipes.push(r);return r;}
 export function newRecipeVersion(s,id,note,patch={}) {const r=s.recipes.find(r=>r.id===id),old=r.versions.find(v=>v.number===r.defaultVersion);const allowed={};for(const k of ['style','supplement','customPrompt','promptMode'])if(patch[k]!==undefined)allowed[k]=patch[k];const v={...clone(old),...allowed,number:Math.max(...r.versions.map(v=>v.number))+1,status:'试验中',scope:note||old.scope,validations:[],savedAt:now()};r.versions.push(v);return v;}
 export function recordValidation(s,shootId,result,note){const sh=findShoot(s,shootId);if(!sh.validationOf)throw Error('本拍摄没有关联待验证拍法');if(!note.trim())throw Error('请记录判断依据与仍未知的内容');const r=s.recipes.find(x=>x.id===sh.validationOf.recipeId),v=r.versions.find(x=>x.number===sh.validationOf.version);v.validations||=[];v.validations.push({shootId,model:sh.model,outfit:sh.outfit,provider:s.provider,result,note,outputs:s.outputs.filter(o=>o.shootId===sh.id).map(o=>o.id),date:now(),demo:true});return v;}
-export function useRecipe(s,id,versionNumber) {const r=s.recipes.find(r=>r.id===id),v=r.versions.find(v=>v.number===(versionNumber||r.defaultVersion));const sh=createShoot(s,{purpose:recipePurpose(r),recipeId:id,title:r.title+' · 新拍摄',model:v.personal?v.model:null,outfit:v.personal?v.outfit:null});sh.recipeVersion=v.number;sh.style=v.style;sh.environment=v.environment;sh.shots=clone(v.shots).map(x=>({...x,id:uid('shot')}));for(const key of ['supplement','customPrompt','promptMode','ratio','size','refs','options','referenceMode','styleId','styleName','scenePreset','creativePlan','creativeGoal','creativeCheck','environmentChoice','environmentName','moodId','creativeManual','nativeSettings'])if(v[key]!==undefined)sh[key]=clone(v[key]);return sh;}
+export function useRecipe(s,id,versionNumber,reuse) {const r=s.recipes.find(r=>r.id===id),v=r.versions.find(v=>v.number===(versionNumber||r.defaultVersion));const sh=createShoot(s,{purpose:recipePurpose(r),recipeId:id,title:r.title+' · 新拍摄',model:v.personal?v.model:null,outfit:v.personal?v.outfit:null});sh.recipeVersion=v.number;sh.style=v.style;sh.environment=v.environment;sh.shots=clone(v.shots).map(x=>({...x,id:uid('shot')}));for(const key of ['supplement','customPrompt','promptMode','ratio','size','refs','options','referenceMode','environmentMode','styleId','styleName','scenePreset','creativePlan','creativeGoal','creativeCheck','environmentChoice','environmentName','moodId','creativeManual','nativeSettings'])if(v[key]!==undefined)sh[key]=clone(v[key]);
+  if(reuse){
+    if(!reuse.people){sh.model=null;sh.outfit=null;}
+    if(!reuse.references){sh.refs=[];delete sh.directionRefs;for(const shot of sh.shots){shot.poseAsset=null;shot.poseView='';if(shot.poseMode!=='text')shot.pose='';}}
+    if(!reuse.text){sh.promptMode='guided';sh.customPrompt='';sh.supplement='';for(const shot of sh.shots){shot.note='';if(shot.poseTextCustom){shot.pose='';shot.poseTextCustom=false;}}}
+  }
+  return sh;}
 
 // Design 02: explicit, per-frame pose binding. Group identity/outfit remain independent.
 export function bindPose(s,shootId,shotId,assetId,mode='adaptive') {
@@ -179,8 +263,14 @@ export function setStyle(s,shootId,style) {
 export function saveCurrentRecipeVersion(s,shootId,recipeId,note='') {
   const sh=findShoot(s,shootId),r=s.recipes.find(x=>x.id===recipeId);if(!sh||!r)throw Error('找不到当前拍摄或已保存设置');
   const old=r.versions.find(v=>v.number===r.defaultVersion),number=Math.max(...r.versions.map(v=>v.number))+1;
-  const v={...clone(old),number,style:sh.style,environment:sh.environment,options:clone(sh.options||{}),referenceMode:sh.referenceMode,styleId:sh.styleId||null,styleName:sh.styleName||'',scenePreset:sh.scenePreset||null,creativePlan:clone(sh.creativePlan||null),creativeGoal:sh.creativeGoal||null,creativeCheck:sh.creativeCheck||'',environmentChoice:clone(sh.environmentChoice||null),environmentName:sh.environmentName||'',moodId:sh.moodId||null,creativeManual:clone(sh.creativeManual||{}),shots:clone(activeShots(sh)),supplement:sh.supplement,customPrompt:sh.customPrompt,promptMode:sh.promptMode,ratio:sh.ratio,size:sh.size,refs:clone(sh.refs),status:'试验中',scope:note||'本次调整，尚未在真实模型验证',validations:[],source:{shootId:sh.id,shootRevision:sh.revision},savedAt:now()};
+  const v={...clone(old),number,style:sh.style,environment:sh.environment,environmentMode:sh.environmentMode,options:clone(sh.options||{}),referenceMode:sh.referenceMode,styleId:sh.styleId||null,styleName:sh.styleName||'',scenePreset:sh.scenePreset||null,creativePlan:clone(sh.creativePlan||null),creativeGoal:sh.creativeGoal||null,creativeCheck:sh.creativeCheck||'',environmentChoice:clone(sh.environmentChoice||null),environmentName:sh.environmentName||'',moodId:sh.moodId||null,creativeManual:clone(sh.creativeManual||{}),shots:clone(activeShots(sh)),supplement:sh.supplement,customPrompt:sh.customPrompt,promptMode:sh.promptMode,ratio:sh.ratio,size:sh.size,refs:clone(sh.refs),status:'试验中',scope:note||'本次调整，尚未在真实模型验证',validations:[],source:{shootId:sh.id,shootRevision:sh.revision},savedAt:now()};
   if(sh.nativeSettings)v.nativeSettings=clone(sh.nativeSettings);
   if(v.personal){v.model=sh.model;v.outfit=sh.outfit;}else{v.model=null;v.outfit=null;if(v.nativeSettings)v.refs=v.refs.filter(ref=>ref.role!=='身形');}
   r.versions.push(v);return v;
+}
+
+const blockingStates=new Set(['queued','preparing','submitting','running','recovering','cancelling','unknown','needs_review']);
+export function blocksStudioShot(task){
+  return Boolean(task&&!task.archived&&blockingStates.has(task.state)&&
+    (!['unknown','needs_review'].includes(task.state)||!task.reviewReleased));
 }

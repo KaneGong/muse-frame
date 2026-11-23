@@ -1,6 +1,6 @@
 """Build the local browser edition for macOS arm64 or Windows x64.
 
-Use an arm64 Python environment with PyInstaller, Pillow and certifi for macOS.
+Use Xcode Command Line Tools and arm64 Python with PyInstaller, Pillow and certifi for macOS.
 Windows can be cross-built with Go. The packaged interpreter and wheel are pinned.
 """
 
@@ -138,7 +138,7 @@ def build_windows(scratch, cache, artifact, version, commit, go):
         env=go_env,
     )
     (stage / "BUILD-INFO.txt").write_text(
-        f"Muse Frame {version}\nSource commit {commit}\nWindows x64, unsigned community preview candidate\n"
+        f"Muse Frame {version}\nSource commit {commit}\nWindows x64, unsigned desktop distribution\n"
         f"CPython {WINDOWS_PYTHON} embeddable, Pillow 12.2.0, launcher compiled with {go_version}\n"
         "CPython and Pillow distribution checksums are pinned in scripts/build_webui_candidate.py.\n",
         encoding="utf-8",
@@ -164,6 +164,9 @@ def build_macos(scratch, artifact, version, commit):
         raise RuntimeError("The Mac package must be built on Apple Silicon with native arm64 Python.")
     import certifi
 
+    app_name = APP_NAME
+    bundle_id = BUNDLE_ID
+
     stage = scratch / "resources"
     stage_web_assets(stage)
     stage_notices(stage)
@@ -171,13 +174,17 @@ def build_macos(scratch, artifact, version, commit):
     python_license = Path(sys.base_prefix) / "lib" / f"python{sys.version_info.major}.{sys.version_info.minor}" / "LICENSE.txt"
     if python_license.is_file():
         copy_regular(python_license, stage / "legal/licenses/Python/BUILD-LICENSE.txt")
+    reopen_library = scratch / "libmuse_frame_reopen.dylib"
+    run("xcrun", "clang", "-arch", "arm64", "-mmacosx-version-min=12.0", "-fobjc-arc",
+        "-dynamiclib", "-framework", "AppKit", "-o", str(reopen_library), str(HELPERS / "macos_reopen.m"))
     dist = scratch / "dist"
     command = [
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--windowed", "--target-architecture", "arm64",
         "--distpath", str(dist), "--workpath", str(scratch / "work"), "--specpath", str(scratch),
-        "--name", APP_NAME, "--osx-bundle-identifier", BUNDLE_ID,
+        "--name", app_name, "--osx-bundle-identifier", bundle_id,
         "--icon", str(ROOT / "app/muse-frame.icns"), "--paths", str(ROOT / "app"),
         "--paths", str(ROOT / DESIGN), "--runtime-hook", str(HELPERS / "macos_runtime_hook.py"),
+        "--add-binary", f"{reopen_library}:.",
     ]
     for source, destination in (
         (stage / DESIGN, str(DESIGN)), (stage / "app", "app"), (stage / "app/static", "static"),
@@ -188,17 +195,18 @@ def build_macos(scratch, artifact, version, commit):
         command.extend(("--exclude-module", module))
     run(*command, str(ROOT / DESIGN / "beta.py"))
 
-    app = dist / f"{APP_NAME}.app"
-    executable = app / "Contents/MacOS" / APP_NAME
+    app = dist / f"{app_name}.app"
+    executable = app / "Contents/MacOS" / app_name
     run("lipo", "-verify_arch", "arm64", str(executable))
     minimum = bundle_minimum_macos(app)
     info_path = app / "Contents/Info.plist"
     info = plistlib.loads(info_path.read_bytes())
     info.update({
-        "CFBundleDisplayName": APP_NAME,
+        "CFBundleDisplayName": app_name,
         "CFBundleShortVersionString": version.split("-")[0],
         "CFBundleVersion": version.split("-")[0],
         "CFBundleGetInfoString": version,
+        "MuseFrameSourceCommit": commit,
         "LSMinimumSystemVersion": minimum,
         "LSApplicationCategoryType": "public.app-category.photography",
     })
@@ -215,11 +223,11 @@ def build_macos(scratch, artifact, version, commit):
         f"Muse Frame {version}\nSource commit {commit}\nmacOS arm64, minimum bundle target macOS {minimum}\n"
         f"CPython {platform.python_version()}, Pillow {metadata.version('Pillow')}, "
         f"PyInstaller {metadata.version('PyInstaller')}, certifi {metadata.version('certifi')}\n"
-        "Ad-hoc signed local candidate.\n",
+        "Ad-hoc signed, without Apple notarization.\n",
         encoding="utf-8",
     )
     image = scratch / artifact.name
-    run("hdiutil", "create", "-quiet", "-format", "UDZO", "-volname", f"{APP_NAME} {version}",
+    run("hdiutil", "create", "-quiet", "-format", "UDZO", "-volname", f"{app_name} {version}",
         "-srcfolder", str(image_root), str(image))
     run("hdiutil", "verify", "-quiet", str(image))
     shutil.move(image, artifact)

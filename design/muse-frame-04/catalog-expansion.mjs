@@ -41,15 +41,15 @@ export const EXTRA_MOODS=[
  mood('spot-soft','聚光但不刺眼','graphic','背景安静，人物像被一束柔光照亮',false,'范围可控的柔和主光突出人物，背景逐渐变暗，脸部不出现硬切黑边','中性色彩，服装本色保持','主体明亮、背景偏暗，织物暗部仍可辨','主体清楚，背景简洁'),
  mood('highkey','浅色通透','natural','适合浅色衣服，白色仍有纹理',true,'明亮均匀柔光，白色衣料与浅背景保留细微亮度差','自然中性色，白色不偏蓝或偏黄','低到中等反差，不吹白轮廓','衣服整体清晰，背景不抢眼')
 ];
-const framing=(id,name,category,summary,shot,placement,scale,lens='自然透视，不夸大面部或身体比例')=>({id,name,category,summary,featured:false,tags:[name,category],options:{shot,placement,scale,lens}});
+const framing=(id,name,category,summary,shot,placement,scale,lens='自然透视，不夸大面部或身体比例')=>({id,name,category,summary,featured:false,tags:[name,category],options:{...(shot?{shot}:{}),placement,scale,lens}});
 export const EXTRA_FRAMINGS=[
- framing('headshot','头像近照','person','看清面部与肩膀，适合个人头像','头肩近照，保留完整头顶与自然颈肩关系','眼睛清楚，主体靠近画面中心','脸部占主要画面，头发不被随意裁断'),
- framing('three-quarter','拍到膝盖附近','person','看清上衣和下装搭配，避免正好切在膝关节','三分之二身，裁切避开膝关节','人物主体突出，手部完整','人物占主要画面，衣长和搭配可辨'),
- framing('wide-person','横幅人物照','context','人物配一段环境，适合横幅内容','横向环境人像，保持当前画幅设置；需要横幅时由用户明确调整画幅','人物偏一侧，与环境形成平衡','人物有足够可辨面积，环境提供背景信息'),
- framing('upper-detail','领口与上衣细节','product','看清领口、门襟或肩袖结构','上半身局部，包含参考中真实存在的领口、门襟和肩袖','重点结构居于清楚位置，手和头发不遮挡','结构足够大，仍保留穿着关系'),
- framing('lower-detail','裤裙与鞋履','product','看清下装轮廓和鞋子搭配','腰部以下的穿搭取景，裤裙与鞋履完整、脚部接触自然','下装和鞋履不被道具遮挡','下装主要比例与鞋履关系清楚'),
- framing('accessory-detail','配饰穿戴细节','product','只展示已提供的鞋包或配饰','已提供配饰的局部穿戴特写，不自行添加、替换或复制配饰','配饰和身体接触位置清楚，标识只按真实资料','配饰足够大，又有必要的人体或衣服上下文'),
- framing('top-space','上方留标题','layout','人物放低一些，上方留干净空间','人物半身或全身，保持合理比例','人物位于画面下部，头顶上方保留背景区域','上方留白不挤压人物，不生成文字')
+ framing('headshot','头像近照','person','看清面部与肩膀，适合个人头像','紧凑头肩像，头顶与肩线保留自然边距','眼睛清楚，主体靠近画面中心','脸部与头发轮廓清晰，占据画面主要区域'),
+ framing('three-quarter','拍到膝盖附近','person','看清上衣和下装搭配，避免正好切在膝关节','从头顶取景至膝上或膝下，避开膝关节','人物主体突出，画内手部自然呈现','人物占主要画面，衣长和搭配可辨'),
+ framing('wide-person','横幅人物照','context','人物配一段环境，适合横幅内容','环境人像，人物与场景同时入画','人物偏一侧，与环境形成平衡','保留能辨认地点的空间结构，人物清楚可辨'),
+ framing('upper-detail','领口与上衣细节','product','看清领口、门襟或肩袖结构','上衣局部近摄，突出参考中存在的领口、门襟或肩袖重点','重点结构居于清楚位置，手和头发不遮挡','重点结构清晰，保留相邻衣料和穿着关系'),
+ framing('lower-detail','裤裙与鞋履','product','看清下装轮廓和鞋子搭配','从腰线附近到鞋底完整入画，清楚呈现下装版型和鞋履','下装和鞋履不被道具遮挡','下装与鞋履充实画面，鞋底附近略留边距'),
+ framing('accessory-detail','配饰穿戴细节','product','只展示已提供的鞋包或配饰','近摄已有配饰，保留其与手、肩或支撑面的自然关系','配饰和身体接触位置清楚，标识只按真实资料','配饰与相邻服装局部清晰可辨'),
+ framing('top-space','上方留标题','layout','人物放低一些，上方留干净空间','','人物置于画面下部，上方约四分之一留干净连续背景','保留所选景别内的主体比例')
 ];
 const expression=(id,name,category,summary,expression,gaze)=>({id,name,category,summary,featured:false,tags:[name,category],options:{expression,gaze}});
 export const EXTRA_EXPRESSIONS=[
@@ -58,7 +58,7 @@ export const EXTRA_EXPRESSIONS=[
  expression('confident','从容有主见','confident','适合职业、品牌和利落穿搭','神情从容，嘴部放松，不故意瞪眼或过分抬下巴','稳定看向镜头'),
  expression('quiet','安静沉思','calm','保留轻微情绪，不做夸张忧郁','安静平和，保留自然微表情','视线轻落在画外，不翻白眼或刻意低垂'),
  expression('down-smile','低头轻笑','candid','像看到一件有趣的小事','克制自然浅笑，脸部轻微向下，不大幅改变头部姿态','自然看向斜下方'),
- expression('closed-eyes','轻闭眼放松','calm','适合安静写真，保留本人特征','轻闭眼，面部放松，不揉皱五官、不做痛苦表情','眼睛自然闭合，不改变脸型和眼部轮廓'),
+ expression('closed-eyes','轻闭眼放松','calm','适合安静写真，保留本人特征','面部肌肉与嘴部自然放松，保持本人五官特征','眼睛自然闭合，不改变脸型和眼部轮廓'),
  expression('cool','平静利落','confident','适合造型与干净服装展示','平静清楚，嘴唇自然闭合，不刻意冷酷或过度修饰','直视镜头或略偏镜头方向')
 ];
 const f=(title,framingId,expressionId,pose,angle='front')=>({title,framingId,expressionId,pose,angle});

@@ -1,6 +1,6 @@
 import {tr, sceneReferenceName} from './language.mjs';
 import * as D from './creative-data.mjs';
-import {FRAMING_FIELDS,optionSelection,setOption,setStyle} from './model.mjs';
+import {FRAMING_FIELDS,isStudioPrompt,describedEnvironment,optionSelection,setOption,setStyle} from './model.mjs';
 import {createFilters,findOptions,selectorTools,selectorCount,emptyOptions,showMore,optionCategories,commonOptions} from './ui-selectors.mjs';
 const {PLANS,SPACES,MOODS,FRAMINGS,EXPRESSIONS,GOAL_NAMES,ACTION_NAMES,RELATIONS}=D;
 const DETAIL_GROUPS=D.DETAIL_GROUPS||[];
@@ -164,21 +164,42 @@ export function createCreativeUI(context){
   }
 
   function framingControls(target){
-    const selected=FRAMINGS.find(item=>item.id===target.framingId);
-    const choices=FRAMING_FIELDS.map(field=>optionSelection(current(),target,field));
-    const managed=FRAMING_FIELDS.some(field=>target.options?.[field]||current().options?.[field]);
+    const frameFields=FRAMING_FIELDS.filter(field=>field!=='angle');
+    const choices=frameFields.map(field=>optionSelection(current(),target,field));
+    const managed=frameFields.some(field=>target.options?.[field]||current().options?.[field]);
     const specified=choices.some(({entry})=>entry?.value&&entry.source!=='cleared');
+    const selected=managed&&!specified?null:FRAMINGS.find(item=>item.id===target.framingId);
+    const bundleFields=selected?.category==='layout' && isStudioPrompt(current().promptVariant) ? ['placement'] : Object.keys(selected?.options||{});
+    const bundleEdited=selected&&bundleFields.some(field=>{
+      const entry=optionSelection(current(),target,field).entry;
+      return entry && !['quick','plan'].includes(entry.source) && entry.value!==selected.options[field];
+    });
     const manual=managed&&specified;
-    const selectionName=tr(selected?.name)||(manual?tr("已设取景"):managed?tr("未写入取景"):tr("还未选择取景"));
-    const description=tr(selected?.summary)||(manual?(choices[0].entry?.value||tr("已应用当前镜头的取景设置。")):tr("可选择一套取景。"));
-    return `<section class="control-section creative-framing">
-      <div class="control-title"><h3>${tr("画面怎么取")}</h3><span class="source-label">${tr("仅这张")}</span></div>
-      <div class="framing-current framing-summary">
-        ${selected?`<button type="button" class="framing-summary-image" data-action="creative-framing-preview" data-id="${selected.id}" data-origin="current" aria-label="${tr("放大查看{0}取景示例", escape(tr(selected.name)))}">${framingMedia(selected.id,false)}<span aria-hidden="true">↗</span></button>`:''}
-        <div class="framing-summary-copy"><strong>${escape(selectionName)}</strong><p>${escape(description)}</p>${selected?`<small>${tr("AI取景示例")}</small>`:''}
-          ${button(selected||manual?tr("更换取景"):tr("选择取景"),'creative-more','data-kind="framing"','btn small')}
-          ${localRuntime&&(selected||manual||(!managed&&(target.description||target.composition)))?button(tr("不指定取景"),'creative-clear-framing','','link-btn'):''}
+    const selectionName=tr(bundleEdited?null:selected?.name)||(manual?tr("已细调取景"):tr("还未选择取景"));
+    const effectiveShot=choices[0]?.entry;
+    const description=tr(bundleEdited?null:selected?.summary)||(manual?(effectiveShot?.source!=='cleared'&&effectiveShot?.value)||tr("已应用当前镜头的取景设置。"):tr("安排画面范围与人物位置"));
+    const angle=optionSelection(current(),target,'angle'),angleValue=angle.entry?.source==='cleared'?'':angle.entry?.value;
+    const angles=D.DETAIL_GROUPS.find(g=>g.id==='angle').options;
+    const angleChoice=angles.find(item=>item.prompt===angleValue);
+    const tab=getUI().compositionTab==='angle'?'angle':'frame';
+    return `<section class="control-section creative-framing composition-control">
+      <div class="control-title"><h3>${tr("构图与机位")}</h3><span class="source-label">${tr("仅这张")}</span></div>
+      <div class="composition-tabs" role="tablist" aria-label="${tr("构图与机位")}">${[['frame','取景'],['angle','机位']].map(([key,label])=>button(tr(label),'creative-composition-tab',`data-id="${key}" role="tab" id="composition-tab-${key}" aria-controls="composition-panel-${key}" aria-selected="${tab===key}" tabindex="${tab===key?'0':'-1'}"`,tab===key?'active':'')).join('')}</div>
+      <div id="composition-panel-frame" role="tabpanel" aria-labelledby="composition-tab-frame" ${tab!=='frame'?'hidden':''}>
+        <div class="framing-current framing-summary">
+          ${selected?`<button type="button" class="framing-summary-image" data-action="creative-framing-preview" data-id="${selected.id}" data-origin="current" aria-label="${tr("放大查看{0}取景示例", escape(tr(selected.name)))}">${framingMedia(selected.id,false)}<span aria-hidden="true">↗</span></button>`:''}
+          <div class="framing-summary-copy"><strong>${escape(selectionName)}</strong><p>${escape(description)}</p>
+            <div class="composition-actions">${button(selected||manual?tr("更换取景"):tr("选择取景"),'creative-more','data-kind="framing"','btn small')}
+            ${localRuntime&&(selected||manual||(!managed&&(target.description||target.composition)))?button(tr("不指定取景"),'creative-clear-framing','','link-btn'):''}</div>
+          </div>
         </div>
+        <p class="composition-pair">${tr("机位")} · ${escape(tr(angleChoice?.name)||(angleValue?tr("自定义"):tr("不指定机位")))}</p>
+      </div>
+      <div id="composition-panel-angle" role="tabpanel" aria-labelledby="composition-tab-angle" ${tab!=='angle'?'hidden':''}>
+        <div class="camera-options">${angles.map(item=>button(escape(tr(item.name)),'creative-camera',`data-id="${item.id}" aria-pressed="${angleValue===item.prompt}"`,`option ${angleValue===item.prompt?'active':''}`)).join('')}</div>
+        <p class="camera-description">${escape(tr(angleChoice?.summary)||(angleValue||tr("只改变观察角度，保留主要动作。")))}</p>
+        <div class="composition-actions">${button(tr("不指定机位"),'creative-camera-clear',`aria-pressed="${!angleValue}"`,'link-btn')}${button(tr("更多设置"),'creative-detail','data-id="angle" data-scope="shot" aria-label="'+tr("编辑机位角度")+'"','link-btn')}</div>
+        <p class="composition-pair">${tr("取景")} · ${escape(selectionName)}</p>
       </div>
     </section>`;
   }
@@ -186,10 +207,10 @@ export function createCreativeUI(context){
   function quickControls(){
     const {entry,mode}=optionSelection(current(),shot(),'color');
     const color=entry?.value?(entry.label==='自定义'?entry.value:entry.label||entry.value):
-      mode==='omit'?tr("不指定色调"):tr("自然色彩");
+      mode==='omit'?tr("不指定影调"):tr("自然色彩");
     return `${framingControls(shot())}${performanceControls(shot())}<section class="control-section quick-color">
-      <div class="control-title"><h3>${tr("照片的色调")}</h3><span class="source-label">${tr("仅这张")}</span></div>
-      <div class="detail-preset-row"><div><strong>${escape(entry?.source==='custom'?color:tr(color))}</strong><span>${tr("保留自然肤色和服装本色")}</span></div>${button(tr("选择色调"),'creative-quick-color','','btn small')}</div>
+      <div class="control-title"><h3>${tr("影调")}</h3><span class="source-label">${tr("仅这张")}</span></div>
+      <div class="detail-preset-row"><div><strong>${escape(entry?.source==='custom'?color:tr(color))}</strong><span>${tr("保留自然肤色和服装本色")}</span></div>${button(tr("选择影调"),'creative-quick-color','','btn small')}</div>
       </section>`;
   }
 
@@ -229,8 +250,9 @@ export function createCreativeUI(context){
   function previewPlan(id){
     const preview=C.getPlanPreview(state(),current().id,id),plan=preview.plan;planId=id;markDialog('creative-plan-preview');
     const space=SPACES.find(s=>s.id===plan.spaceId),mood=MOODS.find(m=>m.id===plan.moodId);
-    const kept=newPlan?[tr("当前人物和服装，带入新拍摄"),tr("自写全文和补充草稿，带入新拍摄"),tr("原拍摄的手动设置、照片和记录，留在原拍摄")]:preview.kept;
-    openDialog(escape(tr(plan.name)),`<div class="plan-preview-layout"><section>${planPreviewMedia(plan,space)}<div class="plan-preview-summary">${tag(tr(GOAL_NAMES[plan.goal]))}${tag(plan.frames.length+tr(" 张照片"))}${tag(tr(mood.name))}</div><h3>${escape(tr(plan.summary))}</h3><p class="compact-note">${escape(tr(plan.check))}</p>${plan.inputNote?`<div class="plan-input-note"><h3>${tr("准备哪些参考")}</h3><p>${escape(tr(plan.inputNote))}</p></div>`:''}</section><section><h3>${tr("这组照片的安排")}</h3><div class="plan-frame-list">${plan.frames.map((frame,i)=>`<div><div class="plan-framing-example">${framingMedia(frame.framingId)}${framingPreviewButton(frame.framingId,'plan')}</div><span><small>${tr("第 {0} 张 · {1} · 镜头安排", i+1, escape(tr(FRAMINGS.find(item=>item.id===frame.framingId)?.name)||tr("取景安排")))}</small><strong>${escape(tr(frame.title))}</strong><p>${escape(tr(frame.pose))}</p></span></div>`).join('')}</div></section></div><div class="plan-change-panel"><h3>${newPlan?tr("将带入新拍摄"):tr("采用前，看一下变化")}</h3><div class="plan-change-columns"><div><strong>${tr("将采用")}</strong>${preview.changes.map(change=>`<p>＋ ${escape(change)}</p>`).join('')}</div><div><strong>${tr("继续保留")}</strong>${kept.map(kept=>`<p>✓ ${escape(kept)}</p>`).join('')}</div></div>${newPlan?`<p class="compact-note">${tr("建立独立拍摄，当前人物与服装带入；原拍摄、照片和记录保留。")}</p>`:`<label class="inline-checkbox"><input type="checkbox" id="creative-replace-shots">${tr("用这 {0} 张重新安排镜头（现在有 {1} 张）", preview.plannedCount, preview.currentCount)}</label><p class="compact-note">${tr("不勾选时保留现有镜头数量与顺序，只补齐未手改镜头及未手改的整组选项。勾选后旧镜头移出计划，旧图片仍可查看。")}</p>`}</div>${plan.goal==='product'?`<div class="notice subtle" style="margin-top:14px">${tr("这是商品拍摄安排。完整商品资料核对与合格判定仍在上一版流程，选用方案不会自动标记商品合格。")}</div>`:''}`,button(tr("返回方案"),'creative-plans',`data-new="${newPlan}"`)+button(newPlan?tr("按这套方案新建一组"):tr("采用所选调整"),'creative-apply-plan','','btn primary'),'wide');
+    const studio=document.body.dataset.studio==='1';
+    const kept=newPlan&&studio?[tr('新拍摄使用随包样例人物与服装，可在开拍前替换。'),tr('原项目的商品、人物、身形及自写稿留在原项目。')]:newPlan?[tr("当前人物和服装，带入新拍摄"),tr("自写全文和补充草稿，带入新拍摄"),tr("原拍摄的手动设置、照片和记录，留在原拍摄")]:preview.kept;
+    openDialog(escape(tr(plan.name)),`<div class="plan-preview-layout"><section>${planPreviewMedia(plan,space)}<div class="plan-preview-summary">${tag(tr(GOAL_NAMES[plan.goal]))}${tag(plan.frames.length+tr(" 张照片"))}${tag(tr(mood.name))}</div><h3>${escape(tr(plan.summary))}</h3><p class="compact-note">${escape(tr(plan.check))}</p>${plan.inputNote?`<div class="plan-input-note"><h3>${tr("准备哪些参考")}</h3><p>${escape(tr(plan.inputNote))}</p></div>`:''}</section><section><h3>${tr("这组照片的安排")}</h3><div class="plan-frame-list">${plan.frames.map((frame,i)=>`<div><div class="plan-framing-example">${framingMedia(frame.framingId)}${framingPreviewButton(frame.framingId,'plan')}</div><span><small>${tr("第 {0} 张 · {1} · 镜头安排", i+1, escape(tr(FRAMINGS.find(item=>item.id===frame.framingId)?.name)||tr("取景安排")))}</small><strong>${escape(tr(frame.title))}</strong><p>${escape(tr(frame.pose))}</p></span></div>`).join('')}</div></section></div><div class="plan-change-panel"><h3>${newPlan?tr("将带入新拍摄"):tr("采用前，看一下变化")}</h3><div class="plan-change-columns"><div><strong>${tr("将采用")}</strong>${preview.changes.map(change=>`<p>＋ ${escape(change)}</p>`).join('')}</div><div><strong>${tr("继续保留")}</strong>${kept.map(kept=>`<p>✓ ${escape(kept)}</p>`).join('')}</div></div>${newPlan?`<p class="compact-note">${tr(studio?'需要沿用素材时，请先保存个人拍摄方案，然后从我的方案复用。':"建立独立拍摄，当前人物与服装带入；原拍摄、照片和记录保留。")}</p>`:`<label class="inline-checkbox"><input type="checkbox" id="creative-replace-shots">${tr("用这 {0} 张重新安排镜头（现在有 {1} 张）", preview.plannedCount, preview.currentCount)}</label><p class="compact-note">${tr("不勾选时保留现有镜头数量与顺序，只补齐未手改镜头及未手改的整组选项。勾选后旧镜头移出计划，旧图片仍可查看。")}</p>`}</div>${plan.goal==='product'?`<div class="notice subtle" style="margin-top:14px">${tr("这是商品拍摄安排。完整商品资料核对与合格判定仍在上一版流程，选用方案不会自动标记商品合格。")}</div>`:''}`,button(tr("返回方案"),'creative-plans',`data-new="${newPlan}"`)+button(newPlan?tr("按这套方案新建一组"):tr("采用所选调整"),'creative-apply-plan','','btn primary'),'wide');
   }
 
   function spaceActionSummary(space){
@@ -244,9 +266,12 @@ export function createCreativeUI(context){
 
   function openSpaces(){
     markDialog('creative-spaces');
-    const intro=localRuntime?tr("选一张场景图。采用后会随这组照片发送。人物动作在左侧姿态参考里选择。"):tr("先找适合拍摄用途的空间，再挑具体的背景变化。预设示例用于选景。");
+    const canDescribe=current().purpose!=='merchant'||current().referenceMode!=='photo';
+    const intro=localRuntime?(canDescribe?tr("选择一张场景图，也可以用文字描述这组照片的环境。"):
+      tr("选一张场景图。采用后会随这组照片发送。人物动作在左侧姿态参考里选择。")):
+      tr("先找适合拍摄用途的空间，再挑具体的背景变化。预设示例用于选景。");
     openDialog(tr("选择场景"),`<div class="selector-intro"><p>${intro}</p></div>${selectorTools('spaces',filters.spaces,categoriesFor('spaces'),{placeholder:tr("例如：咖啡店、街角、纯色背景"),categoryLabel:tr("空间分类")})}${purposeTabs('creative-space-goal',filters.spaces.goal)}<div id="creative-spaces-results">${spaceResults()}</div>`,
-      button(tr("上传场景图"),'upload-environment')+(!localRuntime||current().referenceMode!=='photo'?button(tr("自己描述环境"),'creative-custom-space'):'')+button(tr("返回拍摄"),'close'),'wide');
+      button(tr("上传场景图"),'upload-environment')+(!localRuntime||canDescribe?button(tr("自己描述环境"),'creative-custom-space'):'')+button(tr("返回拍摄"),'close'),'wide');
   }
 
   function showPhotoSpace(space,variant){
@@ -300,7 +325,7 @@ export function createCreativeUI(context){
 
   function openPicker(kind,field,scope,presetOnly=false){
     picker=pickerConfig(kind,field,scope);filters[picker.key]||=createFilters();picker.selectedId=pickerCurrent();picker.mode='preset';
-    if(kind==='framing')picker.framingView=!picker.selectedId||commonOptions(FRAMINGS,5).some(item=>item.id===picker.selectedId)?'common':'all';
+    if(kind==='framing'){picker.framingView='all';filters[picker.key]=createFilters();filters[picker.key].limit=FRAMINGS.length;}
     if(kind==='detail'){
       const target=picker.scope==='shot'?shot():current(),chosen=target.options?.[field];
       picker.draft=getUI().customDrafts[detailDraftKey()]??(chosen?.source==='custom'?chosen.value:'');
@@ -327,7 +352,7 @@ export function createCreativeUI(context){
     markDialog('creative-picker');
     const isDetail=picker.kind==='detail';
     const modes=Object.entries(OPTION_MODES).filter(([mode])=>picker.scope==='shot'||mode!=='inherit');
-    const tabs=isDetail&&!picker.presetOnly?`<div class="creative-purpose-tabs option-mode-tabs" role="group" aria-label="${tr("写入方式")}">${modes.map(([mode,label])=>button(tr(label),'creative-picker-mode',`data-mode="${mode}" aria-pressed="${picker.mode===mode}"`,`purpose-tab ${picker.mode===mode?'active':''}`)).join('')}</div>`:picker.kind==='framing'?`<div class="creative-purpose-tabs framing-picker-tabs" aria-label="${tr("取景范围")}">${[['common',tr("常用取景 · 5 种")],['all',tr("全部取景 · ")+FRAMINGS.length+tr(" 种")]].map(([id,label])=>button(label,'creative-framing-tab',`data-view="${id}" aria-pressed="${picker.framingView===id}"`,`purpose-tab ${picker.framingView===id?'active':''}`)).join('')}</div><p class="framing-picker-note">${tr("点卡片选择，确认后采用。放大只查看示例。")}</p>`:'';
+    const tabs=isDetail&&!picker.presetOnly?`<div class="creative-purpose-tabs option-mode-tabs" role="group" aria-label="${tr("写入方式")}">${modes.map(([mode,label])=>button(tr(label),'creative-picker-mode',`data-mode="${mode}" aria-pressed="${picker.mode===mode}"`,`purpose-tab ${picker.mode===mode?'active':''}`)).join('')}</div>`:'';
     let body,choice,disabled=false;
     switch(picker.mode){
       case 'inherit': {
@@ -424,6 +449,9 @@ export function createCreativeUI(context){
       case 'creative-framing-back':returnFromFramingVisual();return true;
       case 'creative-visual':showVisual(el.dataset.kind,id,el.dataset.variant);return true;
       case 'creative-visual-back':returnFromVisual();return true;
+      case 'creative-composition-tab':getUI().compositionTab=id;save();render();document.querySelector(`[data-action="creative-composition-tab"][data-id="${id}"]`)?.focus();return true;
+      case 'creative-camera':C.applyDetail(state(),current().id,shot().id,'angle',id);save();render();document.querySelector(`[data-action="creative-camera"][data-id="${id}"]`)?.focus();return true;
+      case 'creative-camera-clear':setOption(state(),current().id,shot().id,'angle','','不写入','cleared');save();render();return true;
       case 'creative-more':openPicker(el.dataset.kind);return true;
       case 'creative-framing-tab':picker.framingView=el.dataset.view==='all'?'all':'common';showPicker();return true;
       case 'creative-detail':openPicker('detail',id,el.dataset.scope);return true;
@@ -441,7 +469,7 @@ export function createCreativeUI(context){
       case 'creative-plans':openPlans({newShoot:el.dataset.new==='true'});return true;
       case 'creative-plan-goal':filters.plans.goal=el.dataset.goal;filters.plans.limit=12;openPlans();return true;
       case 'creative-plan-preview':previewPlan(id);return true;
-      case 'creative-apply-plan':{const createNew=newPlan,replace=document.querySelector('#creative-replace-shots')?.checked||false;const sh=C.applyPlan(state(),current().id,planId,{newShoot:createNew,replaceShots:replace,photoReferences:localRuntime});newPlan=false;save();if(createNew||replace)enterShoot(sh);else{closeDialog();render();}toast(tr("拍摄安排已采用，人物与服装保持可见"));return true;}
+      case 'creative-apply-plan':{const createNew=newPlan,replace=document.querySelector('#creative-replace-shots')?.checked||false;const sh=C.applyPlan(state(),current().id,planId,{newShoot:createNew,replaceShots:replace,photoReferences:localRuntime,independent:createNew&&document.body.dataset.studio==='1'});newPlan=false;save();if(createNew||replace)enterShoot(sh);else{closeDialog();render();}toast(tr(createNew&&document.body.dataset.studio==='1'?'已建立独立拍摄':"拍摄安排已采用，人物与服装保持可见"));return true;}
       case 'creative-spaces':openSpaces();return true;
       case 'creative-space-goal':filters.spaces.goal=el.dataset.goal;filters.spaces.limit=12;openSpaces();return true;
       case 'creative-space':showSpace(id);return true;
@@ -457,8 +485,32 @@ export function createCreativeUI(context){
         }
         save();closeDialog();render();toast(tr("场景已用于这组照片"));return true;
       }
-      case 'creative-custom-space':markDialog('creative-custom-space');openDialog(tr("描述自己的拍摄环境"),`<label class="form-label">${tr("空间、可用位置与光线")}<textarea id="creative-environment-text" placeholder="${tr("例如：一面浅墙，人物前方有完整地面，左侧窗户提供柔光")}">${escape(current().environment)}</textarea></label><p class="compact-note">${tr("可以说明哪里能站、坐或靠。姿态图里的家具不会自动成为环境。")}</p>`,button(tr("取消"),'close')+button(tr("采用这段环境"),'creative-save-environment','','btn primary'),'narrow');return true;
-      case 'creative-save-environment':{const value=document.querySelector('#creative-environment-text').value.trim();if(!value)throw Error(tr("请先描述环境"));current().refs=current().refs.filter(item=>item.role!=='环境');current().environment=value;current().environmentName='自定义环境';current().environmentChoice=null;current().scenePreset=null;current().creativeManual||={};current().creativeManual.environment=true;current().globalManual=true;save();closeDialog();render();return true;}
+      case 'creative-custom-space':{
+        const sh=current();
+        const description=localRuntime&&sh.referenceMode==='photo'?describedEnvironment(sh):sh.environment;
+        markDialog('creative-custom-space');
+        openDialog(tr("描述自己的拍摄环境"),`<label class="form-label">${tr("空间、可用位置与光线")}<textarea id="creative-environment-text" placeholder="${tr("例如：一面浅墙，人物前方有完整地面，左侧窗户提供柔光")}">${escape(description)}</textarea></label><p class="compact-note">${tr("可以说明哪里能站、坐或靠。姿态图里的家具不会自动成为环境。")}</p>`,
+          button(tr("返回场景列表"),'creative-spaces')+button(tr("采用这段环境"),'creative-save-environment','','btn primary'),'narrow');
+        return true;
+      }
+      case 'creative-save-environment':{
+        const sh=current(),value=document.querySelector('#creative-environment-text').value.trim();
+        if(!value)throw Error(tr("请先描述环境"));
+        if(localRuntime&&sh.referenceMode==='photo'){
+          if(sh.purpose==='merchant')throw Error(tr("请先在左侧选择一张场景图"));
+          sh.environmentMode='text';
+        }
+        sh.refs=sh.refs.filter(item=>item.role!=='环境');
+        sh.environment=value;
+        sh.environmentName='自定义环境';
+        sh.environmentChoice=null;
+        sh.scenePreset=null;
+        sh.creativeManual||={};
+        sh.creativeManual.environment=true;
+        sh.globalManual=true;
+        sh.revision++;
+        save();closeDialog();render();return true;
+      }
       case 'creative-mood':C.applyMood(state(),current().id,id);save();render();return true;
       case 'creative-framing':C.applyFraming(state(),current().id,shot().id,id);save();render();return true;
       case 'creative-expression':C.applyExpression(state(),current().id,shot().id,id);save();render();return true;
@@ -483,5 +535,5 @@ export function createCreativeUI(context){
     if(el.dataset.creativeCategory){const key=el.dataset.creativeCategory;filters[key].category=el.value;filters[key].limit=12;refreshResults(key);return true;}
     return false;
   }
-  return {summary,groupControls,frameControls,quickControls,openPlans,openSpaces,handleAction,handleInput,handleChange};
+  return {summary,groupControls,frameControls,quickControls,openPlans,openPortraitSample(){newPlan=true;previewPlan('portrait');},openSpaces,handleAction,handleInput,handleChange};
 }

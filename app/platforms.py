@@ -5,6 +5,8 @@ import urllib.parse
 from pathlib import Path
 
 PLATFORMS = [
+    {'id': 'ark', 'name': '火山方舟', 'connector': 'ark-direct',
+     'note': 'Seedream 图片模型 API 直连；目录实时读取，参数按官方规格适配。', 'auth': 'api-key'},
     {'id': 'lovart', 'name': 'Lovart', 'connector': 'lovart-direct',
      'note': '海外平台，需要能访问 lovart.ai；模型目录由平台实时返回。',
      'auth': 'oauth-lovart'},
@@ -55,7 +57,7 @@ def listing():
 
 # Image URLs the workbench will store or download must come from one of the
 # configured platforms. Keep this a host suffix list, not a single vendor.
-IMAGE_HOSTS = ('lovart.ai', 'liblib.art', 'liblib.tv', 'liblib.cloud')
+IMAGE_HOSTS = ('lovart.ai', 'liblib.art', 'liblib.tv', 'liblib.cloud', 'volces.com')
 
 
 def allow_image_url(url):

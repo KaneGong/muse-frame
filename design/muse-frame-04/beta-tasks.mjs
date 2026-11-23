@@ -1,13 +1,13 @@
 import {tr, shootTitle, shotTitle, sceneReferenceName} from './language.mjs';
 import {betaApi} from './beta-client.mjs';
 import {outputChoices, outputSummary} from './beta-generation.mjs';
-import {activeShots, effectivePrompt, uid} from './model.mjs';
+import {activeShots, isStudioPrompt, describedEnvironment, effectivePrompt, uid} from './model.mjs';
 
 const labels = {queued:'排队中', preparing:'准备参考图', submitting:'正在提交', running:'等待平台结果',
   completed:'已完成', needs_review:'待核对', failed:'失败', cancelled:'已取消', cancelling:'正在取消'};
 const pending = new Set(['queued','preparing','submitting','running','cancelling']);
 const terminal = new Set(['done','failed','cancelled']);
-const platformName = id => id === 'libtv' ? 'LibTV' : 'Lovart';
+const platformName = id => id === 'ark' ? '火山方舟' : id === 'libtv' ? 'LibTV' : 'Lovart';
 
 function connectionMessage(message, platform) {
   if (/^E_(?:LOGIN_REQUIRED|LIBTV_LOGIN):/.test(message || '')) {
@@ -25,7 +25,7 @@ function connectionMessage(message, platform) {
 
 export function createNativeTasks(context) {
   const {state, current, writer, persistUI, open, close, render, toast, button, escape, getDialog} = context;
-  let connection, prepared, submissionRoute, onSubmitted, busy = false, syncing = null, lastFeed = '';
+  let connection, prepared, submissionRoute, onSubmitted, busy = false, syncing = null, lastFeed = '', feedToken = '', lastSync = 0;
   let dialogSettings, onSettings, editTarget, editNote, connectionTimer, settingsChange, schemaRequest = 0;
   let connectionSequence = 0, connectionView = '', taskTab = 'all', registering = false;
   const schemas = new Map();
@@ -50,6 +50,10 @@ export function createNativeTasks(context) {
     if (sequence!==connectionSequence) return;
     connection=next;
     state().provider=platformName(next.platform.current);
+    if (next.platform.current==='ark') {
+      state().providers ||= {};
+      state().providers[state().provider] ||= {status:'ready',model:'Seedream 5.5',maxRefs:5};
+    }
     context.updateControls();
     monitorConnection();
   }
@@ -72,6 +76,10 @@ export function createNativeTasks(context) {
 
   function connectionBadge() {
     const status=connection?.connection.state;
+    if(status==='connected' && connection.platform.current==='ark'){
+      const fallback=connection.models.every(item=>item.catalog_source==='documented-fallback');
+      return `<i class="dot connection-dot connected"></i> ${escape(state().provider)} <span>${tr(fallback?"目录待验证":"目录可读")}</span>`;
+    }
     const label={connected:tr("已连接"),connecting:tr("连接中"),disconnected:tr("未连接")}[status]||tr("读取中");
     return `<i class="dot connection-dot ${status||''}"></i> ${escape(state().provider)} <span>${label}</span>`;
   }
@@ -100,7 +108,7 @@ export function createNativeTasks(context) {
     const {settings, ratios, clarity, clarityKey, dimensions} = outputChoices(schema,saved || {});
     const modelOptions = [['',tr("选择模型")],...availableModels().map(item=>[item.name,item.display_name || item.name])];
     const param = (label,key,values,preferred,includeDefault) => `<label>${label}
-      <select aria-label="${label}" data-native-setting="${key}" ${values.length?'':'disabled'}>${loading?`<option>${tr("读取中…")}</option>`:options(paramOptions(values,includeDefault),preferred)}</select></label>`;
+      <select aria-label="${label}" data-native-setting="${key}" ${values.length?'':'disabled'}>${loading?`<option>${tr("读取中…")}</option>`:options(paramOptions(values,includeDefault).map(([value,label])=>[value,key==='size'?(schema?.['x-size-labels']?.[value]||label):label]),preferred)}</select></label>`;
     return `<label class="native-model-field">${tr("模型")}
       <select aria-label="${tr("模型")}" data-native-setting="model">${options(modelOptions,saved?.model||'')}</select></label>
       ${param(tr("比例"),'ratio',ratios,settings.ratio,true)}
@@ -124,8 +132,12 @@ export function createNativeTasks(context) {
     if (connection!==observed || (onlyIfOpen && getDialog()!=='native-connections')) return;
     const state=connection.connection.state;
     if (login?.state==='waiting') monitorConnection(true);
-    const signature=JSON.stringify([platform,state,connection.connection.message,login,connection.models]);
+    const credential=observed.ark_credential;
+    const signature=JSON.stringify([platform,state,connection.connection.message,login,connection.models,credential]);
     if (onlyIfOpen && signature===connectionView) return;
+    const draft=document.querySelector('#native-ark-key');
+    if (onlyIfOpen && (draft?.value || (draft && draft===document.activeElement) ||
+        document.activeElement?.id==='native-ark-remember')) return;
     connectionView=signature;
     open('native-connections',tr("绘图平台"),`
       <div class="row">${connection.platform.options.map(item =>
@@ -133,7 +145,13 @@ export function createNativeTasks(context) {
       </div>
       <p class="notice subtle" role="status">${escape(connectionMessage(connection.connection.message,platform))}</p>
       ${login?.message?`<p class="notice ${login.state==='failed'?'warning':'subtle'}" role="status">${escape(connectionMessage(login.message,platform))}</p>`:''}
-      <div class="row">${button(tr("连接／刷新目录"),'native-connect',state==='connecting'?'disabled':'')}${button((login && login.state!=='idle') || connected()?tr("重新授权"):tr("平台授权"),'native-login',`data-id="${escape(platform)}"`)}${button(tr("查看连接状态"),'native-refresh')}</div>
+      ${platform==='ark'?`<label class="form-label">${tr("方舟 API Key")}<input type="password" id="native-ark-key" autocomplete="off" spellcheck="false" placeholder="${tr(credential?.configured?"输入新 Key 可替换":"输入方舟 API Key")}"></label>
+      ${credential?.can_remember?`<label class="inline-checkbox"><input type="checkbox" id="native-ark-remember" ${credential.storage==='keychain'?'checked':''}> ${tr("记住 Key")}</label>
+      <p class="compact-note">${tr(credential.storage==='keychain'?"Key 已存入 macOS 钥匙串。替换时取消勾选，新 Key 仅本次有效。":"勾选后保存到 macOS 钥匙串，下次启动自动连接。")}</p>`:
+      `<p class="compact-note">${tr("Key 仅在本次运行中有效。")}</p>`}
+      <div class="row">${button(tr("应用 Key 并连接"),'native-ark-save')}${button(tr("忘记 Key"),'native-ark-clear')}${button(tr("刷新模型目录"),'native-connect',state==='connecting'?'disabled':'')}${button(tr("查看连接状态"),'native-refresh')}</div>`:
+      `<div class="row">${button(tr("连接／刷新目录"),'native-connect',state==='connecting'?'disabled':'')}${button((login && login.state!=='idle') || connected()?tr("重新授权"):tr("平台授权"),'native-login',`data-id="${escape(platform)}"`)}${button(tr("查看连接状态"),'native-refresh')}</div>`}
+
       ${connected()?`<section class="native-model-list"><div class="row between"><h3>${tr("常用模型")}</h3>
         <div class="row">${button(tr("全选"),'native-model-all','','btn small')}${button(tr("清空"),'native-model-none','','btn small')}</div></div>
         <p class="compact-note">${tr("可勾选多个。生成时从这些模型里选一个。")}</p>
@@ -253,7 +271,7 @@ export function createNativeTasks(context) {
       return {plan:{...plan,revision,groups:plan.groups.map(group=>({...group,reviewToken:byShoot.get(group.shootId).reviewToken}))},
         shots:review.groups.flatMap(group=>group.shots)};
     }
-    return {plan:{...plan,revision,reviewToken:review.reviewToken},shots:review.shots};
+    return {plan:{...plan,revision,reviewToken:review.reviewToken,countTokens:review.countTokens},shots:review.shots};
   }
 
   function reviewOptions(row){
@@ -263,12 +281,12 @@ export function createNativeTasks(context) {
     const omitted=row.options.filter(option=>!option.value);
     return `<section class="review-option-summary" aria-label="${tr("拍摄选项")}">
       <h4>${tr("写入的拍摄选项")} <span>${tr("{0} 项", written.length)}</span></h4>
-      ${written.length?`<dl>${written.map(option=>`<div data-option-field="${escape(option.field)}"><dt>${escape(tr(option.label))} <small>${escape(tr(option.mode))}</small></dt><dd>${escape(option.value)}</dd></div>`).join('')}</dl>`:`<p class="compact-note">${tr("这张照片没有单独写入的拍摄选项。")}</p>`}
-      ${omitted.length?`<p class="review-omitted"><strong>${tr("本次省略")}</strong> ${omitted.map(option=>`<span title="${escape(tr(option.note||option.mode))}">${escape(tr(option.label))}</span>`).join('')}</p>`:''}
+      ${written.length?`<dl>${written.map(option=>`<div data-option-field="${escape(option.field)}"><dt>${escape(tr(option.label))} <small>${escape(tr(option.mode))}</small></dt><dd>${escape(option.value)}${option.note?`<p class="compact-note">${escape(tr(option.note))}</p>`:''}</dd></div>`).join('')}</dl>`:`<p class="compact-note">${tr("这张照片没有单独写入的拍摄选项。")}</p>`}
+      ${omitted.length?`<p class="review-omitted"><strong>${tr("本次省略")}</strong> ${omitted.map(option=>`<span title="${escape(tr(option.note||option.mode))}">${escape(tr(option.label))}${option.note?` · ${escape(tr(option.note))}`:''}</span>`).join('')}</p>`:''}
     </section>`;
   }
 
-  function reviewMarkup(rows) {
+  function reviewMarkup(rows, chooseCamera = false, focusedShot = null) {
     const sceneId=current().refs?.find(ref=>ref.role==='环境')?.assetId;
     const scene=state().assets.find(asset=>asset.id===sceneId);
     const referenceName=ref=>sceneReferenceName(ref.role==='scene'&&scene&&ref.name===scene.name?scene.id:ref.assetId,ref.name);
@@ -280,15 +298,32 @@ export function createNativeTasks(context) {
         const frame=current().shots.find(shot=>shot.id===row.shotId&&shot.title===row.title);
         const label=[frame?shotTitle(frame):row.title,row.condition,row.repeat?tr("第 {0} 次", row.repeat):''].filter(Boolean).join(' · ');
         const count=new Set(row.references.map(ref=>ref.assetId)).size;
-        return `<details class="reference-review-shot" ${index===0?'open':''}>
+        return `<details class="reference-review-shot" ${(focusedShot?row.shotId===focusedShot:index===0)?'open':''}>
           <summary>${escape(label)} <small>${tr("{0} 张图源 · {1} 个参考位", count, row.references.length)}</small></summary>
           <div class="reference-review-grid">${row.references.map(ref=>`<figure>
             ${ref.image?`<img src="${escape(ref.image)}" alt="${escape(referenceName(ref))}">`:`<span class="reference-review-placeholder">${tr("存档参考")}</span>`}
-            <figcaption><strong>${tr("图{0} · {1}", ref.number, tr(labels[ref.role]||ref.role))}</strong>
+            <figcaption><strong>${tr("图{0} · {1}", ref.number, row.editing?tr(ref.number===1?'原作品':ref.name==='圈选位置 · 修改区域'?'圈选位置':'细节参考'):tr(labels[ref.role]||ref.role))}</strong>
             <small>${ref.reuse?tr("沿用图")+ref.reuse:escape(referenceName(ref))}</small></figcaption>
           </figure>`).join('')}</div>
-          <p class="compact-note">${row.frozen?tr("沿用历史任务原文和参考。 "):''}
-            ${!roles.has('scene')?tr("环境只发文字。 "):''}${!roles.has('pose')?tr("没有姿态图片，沿用本镜头的文字要求。"):''}</p>
+          ${row.textEnvironment?`<div class="review-option-summary text-scene-review">
+            <h4>${tr("文字场景")}</h4><p>${escape(row.textEnvironment)}</p>
+            ${row.manual?`<p class="compact-note">${tr("自写全文按原文发送。请在全文中写明你要使用的场景。")}</p>`:''}
+          </div>`:''}
+          ${row.editing?'':`<p class="compact-note">${row.frozen?tr("沿用历史任务原文和参考。 "):''}
+            ${!roles.has('scene')&&!row.textEnvironment?tr("环境只发文字。 "):''}${!roles.has('pose')?tr("没有姿态图片，沿用本镜头的文字要求。"):''}</p>`}
+          ${row.direction?`<p class="compact-note">${escape(tr("沿用试拍「{0}」的摄影设置，只发送文字。",row.direction.title))}</p>`:''}
+          ${row.productId?`<p class="compact-note">${escape(tr("商品依据版本 {0}",row.evidenceVersion))}</p>`:''}
+          ${row.promptVariant?'<p class="compact-note">'+tr(isStudioPrompt(row.promptVariant)?"Studio 摄影提示词":row.promptVariant==='natural-shoot-candidate'
+            ?"本镜头使用自然拍摄提示词":"本镜头使用简洁候选稿")+'</p>':''}
+          ${row.cameraConflict?`<div class="notice warning">
+            <strong>${tr("机位冲突，请选择本次使用的机位")}</strong>
+            <p>${tr("所选机位")} · ${escape(row.cameraConflict.preset)}</p>
+            <p>${tr("补充文字")} · ${escape(row.cameraConflict.text)}</p>
+            ${chooseCamera?`<div class="row">
+              ${button(tr("保留所选机位"),'native-camera-preset',`data-id="${escape(row.shotId)}"`,'btn small')}
+              ${button(tr("采用补充文字"),'native-camera-text',`data-id="${escape(row.shotId)}"`,'btn small')}
+            </div>`:''}
+          </div>`:''}
           ${reviewOptions(row)}
           <details class="reference-review-text"><summary>${tr("查看最终提示词")}</summary><div class="prompt-display">${escape(row.prompt)}</div></details>
         </details>`;
@@ -307,7 +342,9 @@ export function createNativeTasks(context) {
       if (product && !product.evidence?.[shot.angle]) throw Error(tr("请先补齐「")+shot.title+tr("」的商品实拍依据"));
     }
     if(sh.referenceMode==='photo'){
-      if(!sh.refs.some(item=>item.role==='环境'))throw Error(tr("请先在左侧选择一张场景图"));
+      if(!sh.refs.some(item=>item.role==='环境')&&!describedEnvironment(sh)){
+        throw Error(tr(sh.purpose==='merchant'?"请先在左侧选择一张场景图":"请先选择一张场景图或填写场景描述"));
+      }
       const missing=selected.find(frame=>!frame.poseAsset||frame.poseMode==='text');
       if(missing)throw Error(tr("请先在左侧为「")+missing.title+tr("」选择一张姿态图"));
     }
@@ -328,21 +365,28 @@ export function createNativeTasks(context) {
       return;
     }
     if (current().id!==sh.id||getDialog()!=='native-review-loading') return;
-    prepared=reviewed.plan;
     submissionRoute = 'design-jobs';onSubmitted = close;
-    const maxPerShot = Math.min(4,Math.floor(25/planned.length));
-    const summary = count => tr("将向 {0} 登记 {1} 张，平台接单后可能扣除额度。",platformName(settings.platform),planned.length*count);
+    drawShotSubmit(reviewed);
+  }
+
+  function drawShotSubmit(reviewed, count = 1, focusedShot = null) {
+    const plan=reviewed.plan;
+    prepared=plan;
+    const shotCount = plan.shots.length;
+    const maxPerShot = Math.min(4,Math.floor(25/shotCount));
+    const conflict = reviewed.shots.some(row=>row.cameraConflict);
+    const summary = n => tr("将向 {0} 登记 {1} 张，平台接单后可能扣除额度。",platformName(plan.platform),shotCount*n);
     open('native-submit',tr("确认提交这次拍摄"),`
-      <p id="native-submit-total" class="notice warning" role="status">${escape(summary(1))}</p>
-      <p>${escape(modelLabel(settings.model))} · ${escape(outputSummary(settings))}</p>
+      <p id="native-submit-total" class="notice warning" role="status">${escape(summary(count))}</p>
+      <p>${escape(modelLabel(plan.model))} · ${escape(outputSummary(plan))}</p>
       ${maxPerShot>1?`<label class="form-label">${tr("每个镜头出几张")}
-        <select id="native-image-count">${Array.from({length:maxPerShot},(_,i)=>`<option value="${i+1}">${tr("{0} 张", i+1)}</option>`).join('')}</select></label>`:''}
-      ${reviewMarkup(reviewed.shots)}
-      `,button(tr("取消"),'close')+button(tr("提交 {0} 张",planned.length),'native-submit','','btn primary'));
+        <select id="native-image-count">${options(Array.from({length:maxPerShot},(_,i)=>[String(i+1),tr("{0} 张", i+1)]),String(count))}</select></label>`:''}
+      ${reviewMarkup(reviewed.shots,true,focusedShot)}
+      `,button(tr("取消"),'close')+button(tr("提交 {0} 张",shotCount*count),'native-submit',conflict?'disabled':'','btn primary'));
     document.querySelector('#native-image-count')?.addEventListener('change',event=>{
       const count=Number(event.target.value);
       document.querySelector('#native-submit-total').textContent=summary(count);
-      document.querySelector('[data-action="native-submit"]').textContent=tr("提交 {0} 张",planned.length*count);
+      document.querySelector('[data-action="native-submit"]').textContent=tr("提交 {0} 张",shotCount*count);
     });
   }
 
@@ -354,19 +398,25 @@ export function createNativeTasks(context) {
     const source=state().tasks.find(t=>t.native&&t.id===output.taskId);
     const original=source?{platform:source.platform,model:source.model,ratio:source.ratio,
       resolution:source.resolution,size:source.size}:null;
-    if (editTarget?.id!==output.id) editNote='';
+    const editDraft=await context.editImage(output);
+    if(!editDraft)return;
+    editNote=editDraft.note;
     await refreshConnection();
     const preset=available(original)?original:shoot.nativeSettings;
-    await showSettings(settings=>{
+    await showSettings(async settings=>{
       editNote=document.querySelector('#native-edit-note')?.value.trim()||'';
       if (!editNote) throw Error(tr("请写明这次要修改的地方"));
-      prepared={...settings,requestKey:uid('design'),shootId:shoot.id,editOutput:output.id,
-                shots:[{shotId:output.shotId,prompt:editNote}]};
+      output.editDraft={...editDraft,note:editNote};
+      await writer.save(state(),persistUI());
+      const reviewed=await reviewPlan({...settings,requestKey:uid('design'),shootId:shoot.id,editOutput:output.id,
+        edit:{region:editDraft.region||null,references:editDraft.references.map(ref=>({...ref,image:writer.storedImage(ref.image)}))},
+        shots:[{shotId:output.shotId,prompt:editNote}]});
+      prepared=reviewed.plan;
       submissionRoute='design-jobs';onSubmitted=close;
       open('native-submit',tr("确认 AI 修图"),`
         <p class="notice warning">${tr("将向 {0} 提交所选原图和修改要求，生成 1 张新版本，平台可能扣除额度。", escape(platformName(settings.platform)))}</p>
         <p>${escape(modelLabel(settings.model))} · ${escape(outputSummary(settings))}</p>
-        <div class="prompt-display">${escape(editNote)}</div>`,
+        ${reviewMarkup(reviewed.shots)}`,
         button(tr("返回修改"),'edit-result',`data-id="${escape(output.id)}"`)+button(tr("提交修图"),'native-submit','','btn primary'));
     },preset,output);
   }
@@ -377,9 +427,19 @@ export function createNativeTasks(context) {
     return syncing;
   }
 
+  function poll() {
+    const watching=registering || getDialog()==='native-tasks' || state().tasks.some(t=>
+      t.native && !t.archived && (pending.has(t.state) || (t.state==='unknown'&&!t.reviewReleased)));
+    if (!watching && Date.now()-lastSync<15000) return Promise.resolve();
+    return sync();
+  }
+
   async function readFeed(force) {
-    const feed = (await betaApi('design-jobs')).jobs;
-    const signature = JSON.stringify(feed);
+    const response=await betaApi('design-jobs'+(!force && feedToken ? '?since='+encodeURIComponent(feedToken) : ''));
+    lastSync=Date.now();
+    if (response.unchanged) return;
+    const feed=response.jobs;
+    const signature=response.token || JSON.stringify(feed);
     if (!force && signature === lastFeed) return;
     const draft = state();
     const tasks = draft.tasks.filter(t => !t.native);
@@ -421,6 +481,7 @@ export function createNativeTasks(context) {
     if (getDialog() === 'native-tasks') showTasks();
     else if (!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)) context.refreshWorkflow?.();
     lastFeed = signature;
+    feedToken = response.token || '';
   }
 
   function showTasks() {
@@ -435,33 +496,61 @@ export function createNativeTasks(context) {
       'btn small '+(taskTab===id?'active':''));
     open('native-tasks',tr("任务中心"),`
       <div class="row task-toolbar">${tab(tr("全部"),'all')}${tab(tr("进行中 ")+running+(review?tr(" · 待核对 ")+review:''),'running')}${tab(tr("回收站"),'trash')}</div>
-      ${running?`<p class="compact-note" role="status">${tr("排队 {0} · 准备或提交 {1} · 平台运行 {2}", queued, running-queued-accepted, accepted)}</p>`:''}
+      ${running?`<p class="compact-note" role="status">${tr("排队 {0} · 准备或提交 {1} · 等待结果或保存 {2}", queued, running-queued-accepted, accepted)}</p>`:''}
       ${registering?`<p class="notice subtle" role="status">${tr("正在登记新任务，等本机返回登记结果。")}</p>`:''}
       ${taskTab==='trash'?`<p class="compact-note">${tr("删除任务只移出任务列表，作品可以单独管理。")}</p>`:''}
       ${entries.map(t=>{
         const shoot=state().shoots.find(item=>item.id===t.shootId);
-        const label=t.state==='done'?tr("成功"):t.state==='unknown'?(t.reviewReleased?tr("待核对 · 已解除占用"):tr("待核对")):tr(labels[t.state]||t.state);
+        const savingOriginal=t.platform==='ark'&&t.state==='running'&&t.arkImageReceipt;
+        const label=savingOriginal?tr("正在保存原图"):t.state==='done'?tr("成功"):
+          t.state==='unknown'?(t.reviewReleased?tr("待核对 · 已解除占用"):tr("待核对")):tr(labels[t.state]||t.state);
         const arg=`data-id="${escape(t.id)}"`;
         const out=t.outputId?`data-id="${escape(t.outputId)}"`:'';
         const canvas=t.platform==='libtv'&&/^[a-f0-9]{32}$/i.test(t.platformProjectId||'')?
           `<a class="btn small" href="https://www.liblib.tv/canvas/${escape(t.platformProjectId)}" target="_blank" rel="noopener noreferrer">${tr("打开原画布 ↗")}</a>`:'';
+        const ark=t.platform==='ark';
+        const d=t.arkDiagnostic||{};
+        const phases={
+          connect:'建立连接',request_or_headers:'发送请求或等待响应头',response_body:'读取响应正文',
+          http_error:'HTTP 错误',invalid_response:'解析响应',no_image:'响应缺少图片',
+          provider_rejection:'平台拒绝生成',image_received:'已收到图片地址',image_download:'保存原图',
+        };
+        const diagnosticRows=[
+          [tr("请求时间"),(d.started_at||t.created)?new Date((d.started_at||t.created)*1000).toLocaleString():null],
+          [tr("本地请求编号"),d.client_request_id||t.sourceJobId||t.id],
+          ['Request ID',d.request_id],
+          [tr("请求阶段"),phases[d.phase]?tr(phases[d.phase]):null],
+          ['HTTP',d.http],
+          [tr("原图下载 HTTP"),d.download_http],
+          [tr("平台错误码"),d.provider_code],
+          [tr("参数"),d.provider_param],
+          [tr("传输错误"),d.transport_error],
+          [tr("耗时"),d.elapsed_seconds!=null?d.elapsed_seconds+' s':null],
+          [tr("请求大小"),d.request_bytes?(d.request_bytes/1000000).toFixed(2)+' MB':null],
+          [tr("参考图数量"),d.reference_count],
+        ].filter(([,value])=>value!=null);
         return `<article class="task-item">
           <div class="row between"><h3>${escape(t.title)}${t.readOnly?' · '+tr("历史任务"):''}${t.conditionLabel?' · '+escape(t.conditionLabel):''}</h3>
           <span class="task-state ${pending.has(t.state)?'is-running':escape(t.state)}">${escape(label)}</span></div>
           <p>${escape(shoot?shootTitle(shoot):tr("拍摄"))} · ${escape(t.provider)} · ${escape(t.model)}${t.batchImage>1?tr(" · 本次第 ")+t.batchImage+tr(" 张"):''}${t.remoteIds.length?tr(" · 已接单"):''}</p>
-          ${t.error?`<p class="notice warning"><strong>${t.state==='failed'?tr("失败原因"):tr("平台提示")}</strong>　${escape(tr(t.error))}</p>`:''}
+          ${t.error?`<p class="notice warning"><strong>${t.state==='failed'?tr("失败原因"):tr(ark?"请求状态":"平台提示")}</strong>　${escape(tr(t.error))}</p>`:''}
           <div class="row">
             ${t.outputId?button(tr("看作品"),'open-result',out,'btn small'):''}
             ${t.outputId&&!t.archived?button(tr("删除作品"),'native-output-trash',out,'btn small ghost'):''}
-            ${t.outputs.filter(o=>!t.readOnly&&!o.image&&!o.trashed).map(o=>button(tr("保存平台原图"),'native-original',`data-id="${escape(o.id)}"`,'btn small')).join('')}
-            ${!t.readOnly&&!t.archived&&['queued','preparing','running'].includes(t.state)?button(tr("取消任务"),'native-cancel',arg,'btn small'):''}
-            ${!t.readOnly&&t.state==='unknown'&&(t.platform==='libtv'||t.remoteIds.length)?button(tr("查找已有任务"),'native-recheck',arg,'btn small primary'):''}
-            ${t.state==='unknown'?canvas+(t.readOnly?'':button(tr("手动关联编号"),'native-link',arg,'btn small ghost')):''}
+            ${t.outputs.filter(o=>!ark&&!t.readOnly&&!o.image&&!o.trashed).map(o=>button(tr("保存平台原图"),'native-original',`data-id="${escape(o.id)}"`,'btn small')).join('')}
+            ${!savingOriginal&&!t.readOnly&&!t.archived&&['queued','preparing','running'].includes(t.state)?button(tr("取消任务"),'native-cancel',arg,'btn small'):''}
+            ${!t.readOnly&&!t.archived&&t.state==='unknown'&&(ark||t.platform==='libtv'||t.remoteIds.length)?button(
+              tr(ark?(t.arkImageReceipt?"重新保存原图":"核对本地回执"):"查找已有任务"),
+              ark&&t.arkImageReceipt?'native-ark-original-retry':'native-recheck',arg,'btn small primary'):''}
+            ${t.state==='unknown'?canvas+(t.readOnly||ark?'':button(tr("手动关联编号"),'native-link',arg,'btn small ghost')):''}
             ${!t.readOnly&&t.state==='unknown'&&!t.reviewReleased?button(tr("解除镜头占用"),'native-review-release',arg,'btn small ghost'):''}
             ${t.readOnly?'':t.archived?button(tr("恢复任务"),'native-task-restore',arg,'btn small'):
               terminal.has(t.state)?button(tr("删除任务"),'native-task-trash',arg,'btn small ghost'):''}
           </div>
-          ${t.remoteIds.length?`<details class="compact-note"><summary>${tr("平台任务编号")}</summary><p>${escape(t.remoteIds.join('、'))}</p></details>`:''}
+          ${ark?`<details class="compact-note"><summary>${tr("方舟请求详情")}</summary>
+            <dl>${diagnosticRows.map(([label,value])=>`<div><dt>${escape(label)}</dt><dd>${escape(String(value))}</dd></div>`).join('')}</dl>
+          </details>`:''}
+          ${!ark&&t.remoteIds.length?`<details class="compact-note"><summary>${tr("平台任务编号")}</summary><p>${escape(t.remoteIds.join('、'))}</p></details>`:''}
         </article>`;
       }).join('')||`<p>${tr("这个列表目前没有任务。")}</p>`}`,
       button(tr("刷新任务"),'native-task-refresh')+button(tr("返回拍摄"),'close'));
@@ -481,6 +570,14 @@ export function createNativeTasks(context) {
 
   async function handle(action, id) {
     switch (action) {
+      case 'native-ark-save': {
+        const input=document.querySelector('#native-ark-key');
+        const remember=document.querySelector('#native-ark-remember')?.checked===true;
+        await betaApi('ark-key',{api_key:input.value,remember});
+        input.value='';schemas.clear();await showConnections();break;
+      }
+      case 'native-ark-clear':
+        await betaApi('ark-key',{clear:true});schemas.clear();await showConnections();break;
       case 'native-platform':
         await betaApi('platform',{platform:id}); schemas.clear(); await showConnections(); break;
       case 'native-connect':
@@ -507,7 +604,24 @@ export function createNativeTasks(context) {
       case 'native-settings-apply': {
         if (settingsChange || !available(dialogSettings) || !currentSchema(dialogSettings)) throw Error(tr("请先选择模型，等参数读取完成"));
         const apply=onSettings;
-        apply(dialogSettings);onSettings=null;break;
+        const control=document.querySelector('[data-action="native-settings-apply"]');
+        if(!apply||control?.disabled)break;
+        if(control)control.disabled=true;
+        try{await apply(dialogSettings);onSettings=null;}finally{if(control?.isConnected)control.disabled=false;}
+        break;
+      }
+      case 'native-camera-preset':
+      case 'native-camera-text': {
+        const plan=prepared;
+        if (busy || getDialog()!=='native-submit' || plan?.shootId!==current().id || !plan.shots?.some(shot=>shot.shotId===id)) break;
+        const count=Number(document.querySelector('#native-image-count')?.value||1);
+        const choice=action==='native-camera-preset'?'preset':'text';
+        const next={...plan,cameraChoices:{...plan.cameraChoices,[id]:choice}};
+        const reviewed=await betaApi('design-review',next);
+        if (getDialog()==='native-submit' && prepared===plan) {
+          drawShotSubmit({plan:{...next,reviewToken:reviewed.reviewToken,countTokens:reviewed.countTokens},shots:reviewed.shots},count,id);
+        }
+        break;
       }
       case 'native-submit': {
         if (busy || !prepared) break;
@@ -520,7 +634,9 @@ export function createNativeTasks(context) {
           button(tr("返回拍摄"),'close'));
         try {
           if (plan.revision===undefined) await writer.save(state(),persistUI());
-          const result=await betaApi(route,{...plan,count,revision:plan.revision??writer.revision});
+          const {countTokens,...submission}=plan;
+          const result=await betaApi(route,{...submission,count,reviewToken:countTokens?.[count]??plan.reviewToken,
+            revision:plan.revision??writer.revision});
           registering=false;
           const accepted=result.accepted ?? result.groups?.reduce((n,g)=>n+(g.accepted||0),0) ?? 0;
           if (getDialog()==='native-registering') after(result);
@@ -549,6 +665,7 @@ export function createNativeTasks(context) {
         await setOutputTrash(state().outputs.find(o=>o.id===id),true);
         showTasks();toast(tr("作品已移到作品回收站"));break;
       case 'native-cancel':
+      case 'native-ark-original-retry':
       case 'native-recheck':
       case 'native-review-release-apply': {
         const task = state().tasks.find(t=>t.native&&t.id===id);
@@ -558,8 +675,10 @@ export function createNativeTasks(context) {
           await betaApi('design-recover',{action:'release',id,project_id:task.projectId,confirmed:true});
           toast(tr("待核对记录已保留，镜头已解除占用"));
         } else {
-          await betaApi('design-recover',{action:'lookup',id,project_id:task.projectId});
-          toast(tr("已关联原任务，正在读取结果"));
+          const result=await betaApi('design-recover',{
+            action:action==='native-ark-original-retry'?'save-original':'lookup',id,project_id:task.projectId});
+          toast(tr(result.action==='save-original'?"正在从方舟回执保存原图":
+            result.action==='confirmed-failure'?"已核对方舟回执，平台明确拒绝了请求":"已关联原任务，正在读取结果"));
         }
         await sync(true);showTasks();break;
       }
@@ -611,10 +730,16 @@ export function createNativeTasks(context) {
     open('native-submit',options.title||tr("确认提交"),
       `<p class="notice warning">${tr("将向 {0} 提交 {1} 张。{2} · {3}。平台可能扣除额度。", escape(platformName(settings.platform)), count, escape(modelLabel(settings.model)), escape(outputSummary(settings)))}</p>
       ${description}${reviewMarkup(reviewed.shots)}`,
-      button(tr("取消"),'close')+button(tr("提交 ")+count+tr(" 张"),'native-submit','','btn primary'));
+      button(tr("取消"),'close')+button(tr("提交 ")+count+tr(" 张"),'native-submit',reviewed.shots.some(row=>row.cameraConflict)?'disabled':'','btn primary'));
   }
 
-  return {showConnections, showSettings, showSubmit, showEdit, showTasks, sync, handle, confirmWorkflow,
+  function generationState(settings){
+    const ready=Boolean(available(settings));
+    const label=ready?platformName(settings.platform)+' · '+modelLabel(settings.model):
+      connected()?tr('绘图平台已连接，待选择模型'):tr('绘图平台尚未连接');
+    return {ready,label};
+  }
+  return {generationState,showConnections, showSettings, showSubmit, showEdit, showTasks, sync, poll, handle, confirmWorkflow,
     fields, loadControls, prepareControls, changeSettings, connectionBadge, taskBadge, setOutputTrash,
   };
 }

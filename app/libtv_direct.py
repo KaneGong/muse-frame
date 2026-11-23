@@ -675,7 +675,7 @@ class LibTVBridge:
                     continue
         if slots and len([node for node in slot_nodes if node]) != len(slots):
             missing = len(slots) - len([node for node in slot_nodes if node])
-            raise PreparationError('有 %d 张参考图未能映射到平台节点（可能未上传），请重新选择参考图后重试；不会以缺图生成' % missing)
+            raise PreparationError('有 %d 张参考图无法绑定到当前 LibTV 画布，本次未发起生成。' % missing)
         refs = list(dict.fromkeys(node for node in slot_nodes if node))
         limit = MODEL_MAX_REFS.get(model) or 14
         if len(refs) > limit:

@@ -1,0 +1,28 @@
+# Muse Frame shot planner · Agent 拍摄计划
+
+Muse Frame 0.6 接受由 Agent 草拟的 1 至 12 镜头人像计划。可以先在对话里调整张数、构图和拍摄要求，满意后把计划文件拖入系统文件选择器，或将 JSON 粘贴至首页「导入 Agent 拍摄计划」。预览后点「建立独立拍摄」，在本机选人物、服装和参考，再核对生成数量及平台费用。
+
+## ChatGPT 与 Codex
+
+本仓提供 skills-only 插件。支持仓库插件源的 Codex 可以使用下列命令，然后在新对话里调用 Muse Frame。ChatGPT 桌面端如提供仓库插件源，选择本仓源并安装 Muse Frame。网页或移动端的公共插件发现依赖 OpenAI 目录审核；GitHub 下载本身不会使插件进入公共目录。
+
+```sh
+codex plugin marketplace add KaneGong/muse-frame --ref v0.6.0
+codex plugin add muse-frame@muse-frame-studio
+```
+
+## DeepSeek Harness
+
+从本版发行附件下载 muse-frame-shot-planner-0.6.0.tgz，在文件所在目录运行下列命令。以 web 为例，使用其他 profile 时替换其名称。重新打开该 profile，在具备技能加载能力的 Agent 中请求 Muse Frame 镜头计划。
+
+```sh
+dsh plugin --profile web add ./muse-frame-shot-planner-0.6.0.tgz
+```
+
+## 示例
+
+对 Agent 说「用 Muse Frame 做一组三张的雨后街拍。保持人物和服装一致，第一张全身，第二张半身，第三张拍肩包细节」。在桌面预览页可查看每个镜头的文字，再确认创建。支持同一技能格式的其他 Agent 可使用 [shot-planner](../plugins/muse-frame/skills/shot-planner/SKILL.md)。当前插件通过计划文件与桌面交换创作文字。
+
+## English
+
+Use the Muse Frame plugin to draft a portrait series. Download the JSON or copy the JSON block. In Muse Frame 0.6+, choose **Import agent shot plan → Review plan → Create separate shoot**. Add your reference images locally and review provider costs before submitting. The Codex repo marketplace and DSH profile commands above install the skills-only planner. ChatGPT public directory distribution requires OpenAI review. The DSH plugin archive is attached to the GitHub release.

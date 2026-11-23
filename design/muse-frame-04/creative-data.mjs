@@ -1,4 +1,5 @@
 // Design06 catalog: stable identities with restored locations and verified scene capabilities.
+import {TONES,CAMERA_ANGLES} from './photographic-options.mjs';
 import * as B from './creative-base.mjs';
 import {EXTRA_SPACES,EXTRA_PLANS,EXTRA_MOODS,EXTRA_FRAMINGS,EXTRA_EXPRESSIONS} from './catalog-expansion.mjs';
 import {RESTORED_SPACES,ORIGINAL_SPACE_ALIASES} from './restored-spaces.mjs';
@@ -7,7 +8,7 @@ import {withEnvironmentCapabilities} from './environment-capabilities.mjs';
 import {withVerifiedLocationDetails} from './verified-location-details.mjs';
 import {DETAIL_GROUPS as BASE_DETAIL_GROUPS} from './detail-presets.mjs';
 import {RESTORED_DETAIL_OPTIONS} from './restored-presets.mjs';
-export const DETAIL_GROUPS=BASE_DETAIL_GROUPS.map(group=>({...group,options:[...group.options,...(RESTORED_DETAIL_OPTIONS[group.id]||[])]}));
+export const DETAIL_GROUPS=[...BASE_DETAIL_GROUPS.filter(g=>!['color','angle'].includes(g.id)).map(group=>({...group,options:[...group.options,...(RESTORED_DETAIL_OPTIONS[group.id]||[])]})),{id:'color',name:'影调',scope:'shot',summary:'明暗、反差与色彩倾向。选中后写入提示词；保持动作和服装材质。',options:TONES},{id:'angle',name:'机位角度',scope:'shot',summary:'改变相机高度和俯仰方向，不改变主要动作。',options:CAMERA_ANGLES}];
 export const SPACE_CATEGORIES=[{id:'studio',name:'影棚与简洁背景'},{id:'home',name:'居家生活'},{id:'leisure',name:'探店与住宿'},{id:'city',name:'城市与建筑'},{id:'nature',name:'自然与四季'},{id:'water',name:'海岸与水边'},{id:'work',name:'职场与公共空间'},{id:'sport',name:'运动与户外'},{id:'night',name:'夜景与节日'}];
 export const PLAN_CATEGORIES=[{id:'everyday',name:'日常分享'},{id:'travel',name:'旅行探店'},{id:'profile',name:'头像与职业'},{id:'portrait',name:'人物写真'},{id:'outfit',name:'穿搭展示'},{id:'product',name:'商品上新'},{id:'campaign',name:'品牌与封面'}];
 export const MOOD_CATEGORIES=[{id:'natural',name:'自然清楚'},{id:'warm',name:'生活氛围'},{id:'graphic',name:'造型光影'},{id:'night',name:'夜间拍摄'}];

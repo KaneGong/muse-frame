@@ -2,21 +2,21 @@
 
 # 映象所 · MUSE FRAME
 
-映象所是一个适用于 Mac 和 Windows 的本地 AI 人像摄影工作台。选好人物、服装、场景和姿态，配好取景和色调，就能准备第一张照片。需要细调时，可按镜头调整光影、身形参考和拍摄要求。作品、项目和任务记录保存在电脑上，确认提交时才会把所选参考图和提示词发送至你连接的 Lovart 或 LibTV 账号。
+映象所是一个适用于 Mac 和 Windows 的本地 AI 人像摄影工作台。选好人物、服装、场景和姿态，配好取景和色调，就能准备第一张照片。需要细调时，可按镜头调整光影、身形参考和拍摄要求。作品、项目和任务记录保存在电脑上，确认提交时才会把所选参考图和提示词发送至你连接的 Lovart、LibTV 或方舟 账号。
 
-**[下载 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [第一次拍摄图文教程](docs/zh-CN/webui-guide.md) · [安装与迁移](docs/zh-CN/quick-start.md) · [发布说明](RELEASE_NOTES.md) · [English](README.md)**
+**[下载 0.6.0](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.0) · [Agent 插件安装](docs/agent-plugins.md) · [安装与迁移](docs/zh-CN/quick-start.md) · [English](README.md)**
 
-## 社区预发布版 0.5.0-beta.5
+## 摄影工作台 0.6
 
-Mac 和 Windows 启动器会在系统默认浏览器中打开同一套界面，安装包已包含启动所需组件。工作台服务在本机运行，只监听本地回环地址。
+从首页开始拍人像、制作商品套图、上传修图，也可以继续已有拍摄，或预览并导入 Agent 准备的镜头计划。正式版沿用 MUSE FRAME 资料目录与本机 9014 端口。Studio Preview 工作区继续独立保存。每次新建人像拍摄都有自己的参考资料、镜头设置和草稿。
 
-| 使用方式 | 安装包与验证状态 |
+| 下载 | 安装方法 |
 | --- | --- |
-| Mac | Apple 芯片 DMG。App 采用临时签名，尚未经过 Apple 公证。最低系统版本见 DMG 内的 `BUILD-INFO.txt`。 |
-| Windows | 面向当前 Windows 用户的 x64 安装程序。安装程序和启动器均未签名。[Windows x64 自动检查](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361)已通过。 |
-| 源码 | 安装 Python 后，可从源码目录启动同一套本地 WebUI。[源码启动说明](docs/zh-CN/quick-start.md#本地-webui-源码版) |
+| Apple 芯片 Mac DMG | 打开 DMG，把 Muse Frame 拖进「应用程序」。采用临时签名，尚未公证。最低系统版本见随包 BUILD-INFO。 |
+| Windows x64 Setup.exe | 双击安装，之后从开始菜单启动。安装器未签名。 |
+| Agent 插件 | 发行附件提供 skills-only ZIP 和 DSH 扩展包。[安装与导入示例](docs/agent-plugins.md) |
 
-此前的 [0.4.0-beta.2 Mac 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) 仍可下载。该版使用内嵌窗口，[图文教程](docs/zh-CN/user-guide.md)对应旧版界面。
+两端都已内置运行环境。系统的下载安全策略可能限制打开。素材和依赖分别保留原有许可。[发布说明](RELEASE_NOTES.md)。
 
 ## 从参考图到作品
 
@@ -37,8 +37,8 @@ Mac 和 Windows 启动器会在系统默认浏览器中打开同一套界面，�
 
 ## 隐私、反馈与许可
 
-在线图库会访问各自的来源站点。平台可用性、模型参数与费用由平台决定。本预发布版提供简体中文与英文界面，部分平台诊断、内置提示词和图库文字仍采用来源语言。[隐私](docs/zh-CN/privacy.md) · [兼容性](docs/zh-CN/compatibility.md)。
+在线图库会访问各自的来源站点。平台可用性、模型参数与费用由平台决定。本版提供简体中文与英文界面，部分平台诊断、内置提示词和图库文字仍采用来源语言。[隐私](docs/zh-CN/privacy.md) · [兼容性](docs/zh-CN/compatibility.md)。
 
 反馈可复现问题时，请附映象所版本、操作系统、芯片架构及步骤。公开前移除私人图片、提示词和账号凭据。[问题反馈](https://github.com/KaneGong/muse-frame/issues/new/choose) · [构建](docs/zh-CN/build.md) · [更新记录](CHANGELOG.zh-CN.md) · [安全反馈](SECURITY.md)。
 
-软件采用 [AGPL-3.0-only](LICENSE)。0.5.0-beta.5 对应的源码归档、文件清单和 SHA-256 校验文件与安装包分别提供。展示作品和示例素材适用各自的使用条款。[素材说明](ASSET_LICENSES.md) · [依赖许可](THIRD_PARTY_NOTICES.md) · [品牌说明](TRADEMARKS.md)。
+软件采用 [AGPL-3.0-only](LICENSE)。0.6.0 对应的源码归档、文件清单和 SHA-256 校验文件与安装包分别提供。展示作品和示例素材适用各自的使用条款。[素材说明](ASSET_LICENSES.md) · [依赖许可](THIRD_PARTY_NOTICES.md) · [品牌说明](TRADEMARKS.md)。

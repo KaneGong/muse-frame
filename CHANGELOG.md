@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0 · 2026-11-23
+
+Stable photography home, Studio workflows, independent agent shot-plan import, and updated Mac and Windows launchers.
+
 ## 0.5.0-beta.5
 
 - Added Apple Silicon and Windows x64 launchers for the bilingual, local browser workspace.

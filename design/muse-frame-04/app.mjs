@@ -1,3 +1,9 @@
+import {readAgentPlan, createPlannedShoot, maxPlanBytes} from './agent-plan.mjs';
+import {studioHome,shootChecklist} from './studio-home.mjs';
+import {directionControls,openDirection,saveDirection,clearDirection} from './studio-direction.mjs';
+import {bagControls} from './bag-options.mjs';
+import {createAIEditor,readEditImage,uploadRatio} from './ai-edit.mjs';
+import {createCandidateCompare} from './candidate-compare.mjs';
 import {tr, getLanguage, setLanguage, browserLanguage, rememberLanguage, shootTitle, shotTitle, sceneReferenceName} from './language.mjs';
 import * as M from './model.mjs';
 import * as C from './creative-model.mjs';
@@ -5,9 +11,11 @@ import {FRAMING_VISUALS} from './framing-visuals.mjs';
 import {createCreativeUI} from './ui-creative.mjs';
 import {personHair,personHairOptions,selectedPoseVariant,renderPoseCardItems,renderPosePreview} from './ui-gallery.mjs';
 import {encodeState,decodeState} from './storage.mjs';
-import {makeZip} from './export.mjs';
+import {makeZip,prepareDelivery} from './export.mjs';
 import {createPhotoTools,adjustedOutput,adjustmentList} from './photo-tools.mjs';
 import {betaApi,workspaceWriter} from './beta-client.mjs';
+import {packImages,windowView} from './workspace-patch.mjs';
+import {draftStore,draftNotice} from './workspace-recovery.mjs';
 import {createNativeTasks} from './beta-tasks.mjs';
 import {createWorkflows} from './beta-workflows.mjs';
 
@@ -36,23 +44,51 @@ const uiPrefix=document.body.dataset.uiPrefix||'';
 const [library,scenes]=await Promise.all([fetch(uiPrefix+'data/library.json').then(r=>{if(!r.ok)throw Error(tr("摄影预设未能读取"));return r.json()}),fetch(uiPrefix+'data/scenes.json').then(r=>{if(!r.ok)throw Error(tr("场景预设未能读取"));return r.json()})]);
 let state,healthy=true;
 const localRuntime=document.body.dataset.runtime==='local';
-let workspace,writer,saveLabel='✓ 已保存在本机';
+const studioEdition = document.body.dataset.studio === '1';
+const legacyFramingText=studioEdition ? await fetch(uiPrefix+'data/prompt-framing-compat.json').then(r=>{if(!r.ok)throw Error(tr("摄影预设未能读取"));return r.json()}) : {};
+M.setStudioPromptDefaults(studioEdition,library.studioOptionText,library.studioCoverage,legacyFramingText);
+let homeVisible = studioEdition && location.hash !== '#shoot';
+function setStudioView(home) {
+  if (!studioEdition) return;
+  homeVisible=home;
+  const hash=home?'#home':'#shoot';
+  if(location.hash!==hash)history.pushState(null,'',hash);
+}
+window.addEventListener('popstate',()=>{
+  if(!studioEdition)return;
+  homeVisible=location.hash!=='#shoot';
+  closeDialog();
+  render();
+});
+let workspace,writer,view,recovery,saveLabel='✓ 已保存在本机';
 if(localRuntime){
-  try{workspace=await betaApi('design-workspace');state=workspace.state;
+  try{workspace=await betaApi('design-workspace');
+    if(workspace.patchVersion===1&&!workspace.state){
+      try{await betaApi('design-workspace',packImages({revision:null,state:initialState(),ui:{}},new Map()));}
+      catch(e){if(e.code!=='workspace_conflict')throw e;}
+      workspace=await betaApi('design-workspace');
+    }
+    state=workspace.state;
     setLanguage(workspace.ui?.language);updateDocumentLanguage();}
   catch(err){$('#app').textContent=tr("本机拍摄记录暂时无法读取，请重新打开工作台。")+' '+err.message;throw err;}
 }else try{const raw=localStorage.getItem(KEY);state=raw?decodeState(raw):null;if(state&&!Array.isArray(state.shoots))throw Error('invalid');}catch{healthy=false;}
 function initialState(){return C.createInitialState();}
 if(!state)state=initialState();
 let ui={scope:'frame',shotId:null,selected:[],version:null,customDrafts:{},customOpen:{},dialog:null,gallery:null,compareId:null,compareWith:null,uploadRole:null,recipeId:null,recipeVersion:null};
-try{Object.assign(ui,localRuntime?workspace.ui:JSON.parse(localStorage.getItem(KEY+'-ui')||'{}'),{dialog:null,gallery:null});}catch{}
+if(workspace?.patchVersion===1)view=windowView(workspace,window.sessionStorage,window.localStorage);
+try{Object.assign(ui,localRuntime?{...workspace.ui,...view?.read()}:JSON.parse(localStorage.getItem(KEY+'-ui')||'{}'),{dialog:null,gallery:null});}catch{}
 if(localRuntime){
-  writer=workspaceWriter(workspace.revision,(label,message)=>{
+  const drafts=view ? draftStore(workspace.workspaceId) : null;
+  if(drafts)recovery=draftNotice({storage:drafts,writer:()=>writer,workspaceId:workspace.workspaceId,
+    fetchWorkspace:()=>betaApi('design-workspace'),apply:request=>betaApi('design-workspace',request),
+    download:downloadBlob,warn:error=>warn(error.message)});
+  writer=workspaceWriter(workspace,(label,message)=>{
     saveLabel=label;
     const status=$('.saved');if(status)status.textContent=tr(label);
-    if(message)warn(message);else $('#save-warning').hidden=true;
-  });
-  window.addEventListener('beforeunload',event=>{if(writer.unsaved){event.preventDefault();event.returnValue='';}});
+    if(recovery)recovery.show(message);else if(message)warn(message);else $('#save-warning').hidden=true;
+  },{view,drafts,onDraft:message=>recovery?.refresh(message)});
+  recovery?.refresh();
+  window.addEventListener('beforeunload',event=>{if(writer.needsUnloadWarning){event.preventDefault();event.returnValue='';}});
 }
 const current=()=>M.findShoot(state,state.currentShoot)||state.shoots[0];
 const shots=()=>M.activeShots(current());
@@ -94,7 +130,7 @@ function changeLanguage(value){
 if(!healthy)warn(tr("旧试用记录未能读取。当前为临时会话，原记录保留；请先导出再关闭。"));
 
 function warn(text){$('#save-warning').hidden=false;$('#save-warning').textContent=tr(text);}
-function save(){if(!healthy)return;const {gallery,dialog,...persist}=ui;if(writer){writer.save(state,persist).catch(()=>{});return;}try{localStorage.setItem(KEY,encodeState(state));localStorage.setItem(KEY+'-ui',JSON.stringify(persist));$('#save-warning').hidden=true;}catch{healthy=false;warn(tr("本机存储空间不足，当前改动还未保存。请从拍摄列表导出试用记录后再关闭。"));}}
+function save(){if(!healthy)return;const {gallery,dialog,...persist}=ui;if(writer){const write=writer.save(state,persist);write.catch(()=>{});return write;}try{localStorage.setItem(KEY,encodeState(state));localStorage.setItem(KEY+'-ui',JSON.stringify(persist));$('#save-warning').hidden=true;}catch{healthy=false;warn(tr("本机存储空间不足，当前改动还未保存。请从拍摄列表导出试用记录后再关闭。"));}}
 async function saveLocalPhoto(parent,payload){
   if(!healthy)throw Error(tr("当前试用记录未能正常保存。请先下载 PNG，原作品和本次调整都还保留。"));
   const original=state.outputs.find(o=>o.id===parent.id);
@@ -120,10 +156,15 @@ function photoEditInfo(id){
   const o=state.outputs.find(x=>x.id===id),parent=state.outputs.find(x=>x.id===o?.parentOutputId);if(!o)return;
   ui.dialog='photo-edit-info';openDialog(tr("这张照片的修图记录"),`<p>${tr("由版本 {0} 在本机调整，没有调用 AI。原图仍保留。", parent?.revision||'—')}</p><div class="spacer"></div><div class="prompt-display">${adjustmentList(o.adjustments).map(esc).join('<br>')}</div>`,(parent?btn(tr("查看修改前"),'choose-output-version',`data-id="${parent.id}"`):'')+btn(tr("关闭"),'close'),'narrow');
 }
-function toast(message){$('#toast').textContent=tr(message);$('#toast').classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('visible'),3800);}
-function error(err){toast(tr(err.message||String(err)));if($('#sheet').open){let el=$('#dialog-error');if(!el){el=document.createElement('div');el.id='dialog-error';el.className='notice error';el.setAttribute('role','alert');$('.dialog-body')?.prepend(el);}el.textContent=tr(err.message||String(err));}}
-function enterShoot(sh){prepareRecommended(sh);state.currentShoot=sh.id;ui.shotId=M.activeShots(sh)[0]?.id;ui.selected=M.activeShots(sh).map(x=>x.id);ui.version=null;ui.scope='frame';closeDialog();save();render();nativeTasks?.prepareControls(sh.nativeSettings).catch(error);}
+function toast(message,afterSave=true){if(afterSave&&writer?.unsaved){writer.confirm().then(()=>toast(message,false)).catch(()=>{});return;}$('#toast').textContent=tr(message);$('#toast').classList.add('visible');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').classList.remove('visible'),3800);}
+function error(err){toast(tr(err.message||String(err)),false);if($('#sheet').open){let el=$('#dialog-error');if(!el){el=document.createElement('div');el.id='dialog-error';el.className='notice error';el.setAttribute('role','alert');$('.dialog-body')?.prepend(el);}el.textContent=tr(err.message||String(err));}}
+function enterShoot(sh){setStudioView(false);prepareRecommended(sh);state.currentShoot=sh.id;ui.shotId=M.activeShots(sh)[0]?.id;ui.selected=M.activeShots(sh).map(x=>x.id);ui.version=null;ui.scope='frame';closeDialog();save();render();nativeTasks?.prepareControls(sh.nativeSettings).catch(error);}
 function render(){
+  document.body.classList.toggle('at-studio-home',homeVisible);
+  if(homeVisible){
+    $('#app').innerHTML=studioHome({state,current:current(),esc,btn,languagePicker});
+    return;
+  }
   const scroll=$('.inspector-body')?.scrollTop||0;
   const leftScroll=$('.references')?.scrollTop||0;
   const openOptions=new Set([...document.querySelectorAll('.inspector-body details[data-option-section][open]')].map(el=>el.dataset.optionSection));
@@ -192,14 +233,14 @@ function keepVersionVisible(){
   if(list.scrollWidth>list.clientWidth){if(item.left<box.left)list.scrollLeft-=box.left-item.left;else if(item.right>box.right)list.scrollLeft+=item.right-box.right;}
   else if(list.scrollHeight>list.clientHeight){if(item.top<box.top)list.scrollTop-=box.top-item.top;else if(item.bottom>box.bottom)list.scrollTop+=item.bottom-box.bottom;}
 }
-const outputTypeNames={generate:'生成','ai-edit':'AI 修图','local-edit':'基础修图',unknown:'类型待核对'};
+const outputTypeNames={generate:'生成','ai-edit':'AI 修图','local-edit':'基础修图',unknown:'类型待核对',uploaded:'上传原图'};
 function outputInfo(o){
   const task=state.tasks.find(t=>t.id===o.taskId),local=o.editType==='local-adjustment'||(o.nonAI===true&&o.adjustments);
   const parentId=o.parentOutputId||o.parentId||task?.parentOutputId||task?.parentOutput;
   const parent=parentId?state.outputs.find(item=>item.id===parentId&&item.id!==o.id):null;
   const mode=['generate','edit'].includes(o.mode)?o.mode:task?.mode;
-  const demo=o.demo===true||task?.snapshot?.demo===true||(!o.native&&!local)||(local&&parent?.demo===true);
-  const type=local?'local-edit':mode==='edit'?'ai-edit':mode==='generate'?'generate':parentId?'ai-edit':demo?'generate':'unknown';
+  const demo=o.demo===true||task?.snapshot?.demo===true||(!o.native&&!local&&!o.uploaded)||(local&&parent?.demo===true);
+  const type=o.uploaded?'uploaded':local?'local-edit':mode==='edit'?'ai-edit':mode==='generate'?'generate':parentId?'ai-edit':demo?'generate':'unknown';
   return {type,label:tr(outputTypeNames[type]),demo:Boolean(demo),parent};
 }
 function outputTypeBadge(o){const info=outputInfo(o);return `<span class="output-type ${info.type}" data-output-type="${info.type}">${info.label}</span>`;}
@@ -207,7 +248,7 @@ function outputStatus(o){const info=outputInfo(o);return `${outputTypeBadge(o)}<
 function needsOriginal(o){return localRuntime&&o?.native&&!o.original&&o.editType!=='local-adjustment';}
 function outputMeta(o){
   const info=outputInfo(o),failure=originalErrors.get(o.id);
-  const label=info.type==='local-edit'?tr("原图保留 · 未调用 AI")+(info.demo?tr(" · 基于演示样例"):''):
+  const label=o.uploaded?tr('上传原图 · 未调用 AI'):info.type==='local-edit'?tr("原图保留 · 未调用 AI")+(info.demo?tr(" · 基于演示样例"):''):
     info.demo?tr("示例图片 · 未执行真实生图"):o.original?tr("正在显示原图"):o.migrated?tr("仅存预览"):
     failure?tr("原图读取失败 · 正在显示预览"):tr("正在读取原图…");
   const origin=info.parent?tr("由版本 {0} 修改 · ", info.parent.revision):'';
@@ -225,19 +266,23 @@ function modeTabs(){
     return btn(label,'shoot-mode',`data-mode="${id}" role="tab" aria-selected="${selected}"`,`scope-tab ${selected?'active':''}`);
   }).join('')}</div>`;
 }
-function shell(){const sh=current(),name=esc(shootTitle(sh)),count=shots().length;return `<div class="app-shell"><header class="app-header"><button class="brand" data-action="projects" aria-label="${tr("Muse Frame，打开拍摄列表")}"><img class="brand-mark" src="assets/muse-frame-mark.png" alt="${tr("Muse Frame 标志")}"><span class="brand-name">MUSE FRAME<small>THE PORTRAIT STUDIO</small></span></button><nav class="app-nav" aria-label="${tr("主导航")}">${btn(tr("拍摄"),'projects','','nav-link active')}${btn(tr("素材"),'assets','','nav-link')}${btn(tr("拍法"),'recipes','','nav-link')}${btn(tr("作品"),'works','','nav-link')}${localRuntime?btn(tr("商家批次"),'workflow-merchant','','nav-link'):''}</nav><div class="header-end">${languagePicker()}<button class="demo-chip" data-action="guide"><i class="dot"></i> ${tr("设计试用")}</button><span class="header-separator"></span>${btn(taskBadgeMarkup(),'tasks',`id="task-center-button" aria-label="${tr("打开任务中心")}"`,'btn ghost small')}${btn(nativeTasks?nativeTasks.connectionBadge():`<i class="dot"></i> ${esc(state.provider)}`,'connections',`aria-label="${tr("绘图平台")}"`,'btn small')}</div></header><div class="project-bar"><div class="project-title">${btn('‹','projects',`aria-label="${tr("返回拍摄列表")}"`,'back-pill')}<div class="project-name-block">${btn(name,'shoot-name',`title="${name}" aria-label="${tr("查看完整拍摄名称：{0}", name)}"`,'project-name')}<span class="project-subtitle">${tr(count===1?"{0} · 单张照片":"{0} · {1} 张照片", esc(tr(sh.styleName)||(sh.free?tr("自由拍摄"):tr("拍摄方案"))), count)}</span></div>${btn(tr("改名"),'shoot-name',`aria-label="${tr("修改拍摄名称")}"`,'project-rename')}</div><div class="row"><span class="saved">${healthy?tr(saveLabel):tr("改动未保存")}</span>${btn(icon('users')+(localRuntime?tr("参考图"):tr("整组参考")),'references','','btn small mobile-refs')}${btn('•••','mobile-menu',`aria-label="${tr("更多拍摄操作")}"`,'icon-btn mobile-more')}${localRuntime&&sh.validationOf?btn(tr("记录复验"),'workflow-validation-note','','btn small'):''}${btn(tr("保存这套设置"),'save-recipe','','btn small')}${btn(icon('download')+tr("导出"),'export','','btn small')}</div></div><main class="workspace" id="workspace" tabindex="-1"><aside class="references" aria-label="${localRuntime?tr("参考图"):tr("整组参考")}">${referencesPanel()}</aside><section class="stage-column" aria-label="${tr("当前照片")}">${stage()}</section><aside class="inspector" aria-label="${tr("拍摄设置")}">${localRuntime?modeTabs():''}${quickMode()?'':`<div class="scope-tabs" role="tablist" aria-label="${tr("设置作用范围")}">${btn(tr("这张怎么拍"),'scope','data-scope="frame" role="tab" aria-selected="'+(ui.scope==='frame')+'"',`scope-tab ${ui.scope==='frame'?'active':''}`)}${btn(tr("整组方案"),'scope','data-scope="group" role="tab" aria-selected="'+(ui.scope==='group')+'"',`scope-tab ${ui.scope==='group'?'active':''}`)}</div>`}<div class="inspector-body">${quickMode()?creative.quickControls():ui.scope==='frame'?frameControls():groupControls()}</div></aside></main>${generationBar()}</div>`;}
+function shell(){const sh=current(),name=esc(shootTitle(sh)),count=shots().length;return `<div class="app-shell"><header class="app-header"><button class="brand" data-action="${studioEdition?'studio-home':'projects'}" aria-label="${tr(studioEdition?"工作首页":"Muse Frame，打开拍摄列表")}"><img class="brand-mark" src="assets/muse-frame-mark.png" alt="${tr("Muse Frame 标志")}"><span class="brand-name">MUSE FRAME<small>THE PORTRAIT STUDIO</small></span></button><nav class="app-nav" aria-label="${tr("主导航")}">${btn(tr("拍摄"),'projects','','nav-link active')}${btn(tr("素材"),'assets','','nav-link')}${btn(tr("拍摄方案"),'recipes','','nav-link')}${btn(tr("作品"),'works','','nav-link')}${localRuntime?btn(tr('上传修图'),'upload-edit','','nav-link'):''}${studioEdition?btn(tr('商品批次'),'workflow-merchant','','nav-link'):localRuntime?btn(tr("更多"),'more-tools','','nav-link'):''}</nav><div class="header-end">${languagePicker()}<button class="demo-chip" data-action="guide"><i class="dot"></i> ${(tr(localRuntime?"本机版":"设计试用"))}</button><span class="header-separator"></span>${btn(taskBadgeMarkup(),'tasks',`id="task-center-button" aria-label="${tr("打开任务中心")}"`,'btn ghost small')}${btn(nativeTasks?nativeTasks.connectionBadge():`<i class="dot"></i> ${esc(state.provider)}`,'connections',`aria-label="${tr("绘图平台")}"`,'btn small')}</div></header><div class="project-bar"><div class="project-title">${btn('<span aria-hidden="true">‹</span><span>'+tr('拍摄列表')+'</span>','projects',`aria-label="${tr("返回拍摄列表")}"`,'back-pill')}<div class="project-name-block">${btn(name,'shoot-name',`title="${name}" aria-label="${tr("查看完整拍摄名称：{0}", name)}"`,'project-name')}<span class="project-subtitle">${tr(count===1?"{0} · 单张照片":"{0} · {1} 张照片", esc(tr(sh.styleName)||(sh.free?tr("自由拍摄"):tr("拍摄方案"))), count)}</span></div>${btn(icon('pencil'),'shoot-name',`aria-label="${tr("修改拍摄名称")}"`,'project-rename')}</div><div class="row"><span class="saved">${healthy?tr(saveLabel):tr("改动未保存")}</span>${btn(icon('users')+(localRuntime?tr("参考图"):tr("整组参考")),'references','','btn small mobile-refs')}${btn('•••','mobile-menu',`aria-label="${tr("更多拍摄操作")}"`,'icon-btn mobile-more')}${localRuntime&&sh.validationOf?btn(tr("记录复验"),'workflow-validation-note','','btn small'):''}${sh.editingOnly?'':btn(tr("保存拍摄方案"),'save-recipe','','btn small')}${btn(icon('download')+tr("导出"),'export','','btn small')}</div></div><main class="workspace" id="workspace" tabindex="-1"><aside class="references" aria-label="${localRuntime?tr("参考图"):tr("整组参考")}">${referencesPanel()}</aside><section class="stage-column" aria-label="${tr("当前照片")}">${stage()}</section><aside class="inspector" aria-label="${tr("拍摄设置")}">${localRuntime&&!sh.editingOnly?modeTabs():''}${quickMode()||sh.editingOnly?'':`<div class="scope-tabs" role="tablist" aria-label="${tr("设置作用范围")}">${btn(tr("这张怎么拍"),'scope','data-scope="frame" role="tab" aria-selected="'+(ui.scope==='frame')+'"',`scope-tab ${ui.scope==='frame'?'active':''}`)}${btn(tr("整组方案"),'scope','data-scope="group" role="tab" aria-selected="'+(ui.scope==='group')+'"',`scope-tab ${ui.scope==='group'?'active':''}`)}</div>`}<div class="inspector-body">${sh.editingOnly?editUploadIntro():quickMode()?creative.quickControls():ui.scope==='frame'?frameControls():groupControls()}</div></aside></main>${generationBar()}</div>`;}
 function referencesPanel(){if(localRuntime)return nativeReferences();const sh=current();return `<div class="panel-heading"><h2>${tr("整组参考")}</h2><small>${tr("这组照片共用")}</small></div>${referenceCard('person',asset(sh.model))}${localRuntime&&sh.productId?productReference(sh):referenceCard('outfit',asset(sh.outfit))}<div class="reference-card"><div class="reference-label"><strong>${tr("拍摄空间")}</strong><span class="scope-mini">${tr("整组")}</span></div>${creative.summary()}</div><div class="reference-footer">${tr("人物只提供身份，服装只提供穿搭。动作在右侧按每张设置。{0}", btn(tr("身形与更多参考"),'more-references','','btn small ghost'))}</div>`;}
-function photoReferenceSlot(label,source,scope,action,attrs='',fallback='',extra=''){
-  return `<section class="reference-card photo-reference-slot" data-reference-slot="${esc(label)}">
+function photoReferenceSlot(label,source,scope,action,attrs='',fallback='',extra='',description=''){
+  return `<section class="reference-card photo-reference-slot refined-reference" data-reference-slot="${esc(label)}">
     <div class="reference-label"><strong>${esc(tr(label))}</strong><span class="scope-mini">${esc(scope)}</span></div>
-    ${source?`<button type="button" class="ref-preview" data-action="preview-asset" data-id="${esc(source.id)}" data-label="${tr("{0}参考", esc(tr(label)))}" aria-label="${tr("放大{0}图", esc(tr(label)))}"><img src="${esc(source.thumb||source.image)}" alt=""><span class="zoom-hint" aria-hidden="true">↗</span></button>`:
+    ${description?`<button type="button" class="ref-slot-empty text-scene-preview" data-action="creative-custom-space" aria-label="${tr("编辑文字场景")}"><strong>${tr("文字场景")}</strong><small>${esc(description)}</small></button>`:
+    source?`<button type="button" class="ref-preview" data-action="preview-asset" data-id="${esc(source.id)}" data-label="${tr("{0}参考", esc(tr(label)))}" aria-label="${tr("放大{0}图", esc(tr(label)))}"><img src="${esc(source.thumb||source.image)}" alt=""><span class="zoom-hint" aria-hidden="true">↗</span></button>`:
     `<button type="button" class="ref-slot-empty" data-action="${action}" ${attrs} aria-label="${tr("选择{0}", esc(tr(label)))}"><span aria-hidden="true">＋</span>${esc(fallback||tr("选择{0}",tr(label)))}</button>`}
-    ${source?`<div class="reference-slot-actions">${btn(tr("更换"),action,`${attrs} aria-label="${tr("更换{0}", esc(tr(label)))}"`,'btn small')}${extra}</div>`:''}
+    <p class="reference-purpose">${esc(tr({'人物':'面部与身份','身形':'只参考身体比例','服装':'服饰与材质','场景':'空间与环境','姿态':'动作与承重'}[label]||''))}</p>
+    ${source||description?`<div class="reference-slot-actions">${btn(tr("更换"),action,`${attrs} aria-label="${tr("更换{0}", esc(tr(label)))}"`,'btn small')}${extra}</div>`:''}
   </section>`;
 }
 function nativeReferences(){
+  if(current().editingOnly)return editUploadSource();
   const sh=current(),frame=shot(),findRole=role=>asset(sh.refs?.find(item=>item.role===role)?.assetId);
   const body=findRole("身形"),scene=findRole("环境");
+  const sceneText=scene?'':M.describedEnvironment(sh);
   const pose=frame.poseMode==='text'?null:asset(frame.poseAsset);
   const poseSettings=!quickMode()&&pose?`<label class="form-label pose-reference-mode">${tr("姿态要求")}<select data-pose-mode>${Object.entries(poseModes())
     .map(([key,label])=>`<option value="${key}" ${frame.poseMode===key?'selected':''}>${tr(label)}</option>`).join('')}</select></label>`:'';
@@ -249,14 +294,15 @@ function nativeReferences(){
   return `<div class="panel-heading"><h2>${tr("参考图")}</h2><small>${tr("点图放大")}</small></div><div class="photo-reference-grid">
     ${photoReferenceSlot('人物',asset(sh.model),tr("整组"),'gallery','data-kind="person"','',sh.model?remove('person',tr("人物")):'')}
     ${sh.productId?productReference(sh):photoReferenceSlot('服装',asset(sh.outfit),tr("整组"),'gallery','data-kind="outfit"','',sh.outfit?remove('outfit',tr("服装")):'')}
-    ${photoReferenceSlot('场景',scene,tr("整组"),'creative-spaces','',sh.environment&&sh.referenceMode!=='photo'?tr("文字场景 · 可选图片"):'',sceneAction)}
-    ${photoReferenceSlot('姿态',pose,tr("第 {0} 张{1}",shotNumber(),""),'gallery','data-kind="pose"',frame.pose&&sh.referenceMode!=='photo'?tr("当前仅使用文字动作"):'',poseActions)}
-    ${body||!quickMode()?photoReferenceSlot('身形',body,tr("可选"),'body-references','',tr("添加身形图"),removeBody):
+    ${body||!quickMode()?photoReferenceSlot('身形',body,body?.id===state.defaultBodyAssetId?tr("默认模板"):tr("自选"),'body-references','',tr("添加身形图"),removeBody):
       btn(`${tr("＋ 添加身形参考")} <span>${tr("可选")}</span>`,'body-references','','body-reference-shortcut')}
-    </div>${poseSettings}
+    ${photoReferenceSlot('场景',scene,tr("整组"),'creative-spaces','',sh.environment&&sh.referenceMode!=='photo'?tr("文字场景 · 可选图片"):'',sceneAction,sceneText)}
+    ${photoReferenceSlot('姿态',pose,tr("第 {0} 张{1}",shotNumber(),""),'gallery','data-kind="pose"',frame.pose&&sh.referenceMode!=='photo'?tr("当前仅使用文字动作"):'',poseActions)}
+
+    </div>${poseSettings}${bagControls(frame,esc)}
     ${sh.refs?.some(item=>!['环境','身形'].includes(item.role))?btn(tr("管理历史参考"),'more-references','','btn small ghost'):''}`;
 }
-const BODY_SAMPLE={id:'body-reference-sample',name:'全身比例 · AI 示例',image:FRAMING_VISUALS.full.src,thumb:FRAMING_VISUALS.full.thumb,type:'reference',referenceRole:'身形',source:'本机样例'};
+const BODY_SAMPLE=state.assets.find(a=>a.id===state.defaultBodyAssetId)||{id:'body-reference-sample',name:'全身比例 · AI 示例',image:FRAMING_VISUALS.full.src,thumb:FRAMING_VISUALS.full.thumb,type:'reference',referenceRole:'身形',source:'本机样例'};
 const bodyAsset=id=>asset(id)||(id===BODY_SAMPLE.id?BODY_SAMPLE:null);
 function bodyReferences(){
   ui.dialog='body-references';
@@ -287,18 +333,67 @@ function productReference(sh){
   </section>`;
 }
 function referenceCard(role,a){return `<section class="reference-card"><div class="reference-label"><strong>${roleName(role)}</strong><div class="row"><span class="scope-mini">${tr("整组")}</span>${a?btn(tr("取消采用"),'clear-reference',`data-role="${role}" aria-label="${tr("取消采用这组{0}", roleName(role))}"`,'link-btn'):''}</div></div>${a?`<div class="ref-media-row"><button class="ref-preview ${role}" data-action="preview-asset" data-id="${esc(a.id)}" aria-label="${tr("放大查看{0}参考", roleName(role))}"><img src="${esc(a.image)}" alt="${esc(a.name)}"><span class="zoom-hint">↗</span></button><div class="ref-copy"><div class="ref-name">${esc(a.name)}</div><div class="ref-source">${esc(a.source||tr("本机素材"))}</div></div></div>`:`<div class="ref-placeholder">${icon(role==='person'?'users':'folder')}<span>${tr("尚未选择{0}", roleName(role))}</span></div>`}<div class="ref-actions">${btn(tr("从图库选{0}", roleName(role)),'gallery',`data-kind="${role}"`)}${btn(tr("上传"),'upload',`data-role="${role}"`)}</div></section>`;}
-function stage(){const sh=shot(),title=shotTitle(sh),number=shotNumber(),o=output(),busy=state.tasks.find(t=>t.shootId===current().id&&t.shotId===sh.id&&['queued','preparing','submitting','running','cancelling','recovering','unknown'].includes(t.state));return `<header class="stage-top"><div class="frame-title"><span class="number">${tr("{0}第 {1} 张", sh.removed?tr("历史"):'', number)}</span>${!sh.titleEdited&&title===tr("镜头 {0}",number)&&getLanguage()==='en'?'':esc(sh.titleEdited?title:title.replace(/^封面 · /,''))}</div><div class="row"><div class="version-tabs">${btn(tr("拍摄计划"),'version','data-id="plan"',`version-tab ${!o?'active':''}`)}</div>${btn(tr("本次作品 ")+shootWorks().length,'shoot-works',`aria-label="${tr("浏览本次拍摄全部作品")}"`,'stage-works-entry')}${btn('•••','shot-menu',`aria-label="${tr("当前照片更多操作")}"`,'icon-btn')}</div></header><div class="stage-media"><div class="stage-photo">${o?`<button class="main-photo-open" data-action="photo-viewer" data-id="${o.id}" aria-label="${tr("放大查看第{0}张，版本{1}", shotNumber(), o.revision)}"><img class="main-photo" src="${esc(o.image)}" alt="${tr("第{0}张 {1} 版本{2}", shotNumber(), esc(o.title), o.revision)}"></button><span class="image-status">${outputStatus(o)}</span><div class="photo-meta" aria-live="polite">${outputMeta(o)}</div>`:planEmpty(sh,busy)}</div>${versionRail()}</div><div class="stage-actions"><div class="row">${o?btn(sh.purpose==='merchant'?(o.review==='approved'?tr("✓ 商品已核对"):tr("核对商品")):(o.picked?tr("✓ 已采用"):tr("✓ 采用这张")),'pick',`data-id="${o.id}"`,`btn ${o.picked?'active':''}`)+btn(icon('pencil')+tr("基础修图"),'photo-retouch',`data-id="${o.id}"`)+btn(localRuntime?tr("AI 修图"):tr("改画面（演示）"),'edit-result',`data-id="${o.id}"`)+btn(tr("比较效果"),'compare',`data-id="${o.id}"`):quickMode()?'':btn(tr("比较设置"),'compare')}${o?btn(icon('download'),'download',`data-id="${o.id}" aria-label="${tr("下载当前原图")}"`):''}</div>${btn(o?.editType==='local-adjustment'?tr("修图记录 ↗"):o?tr("当时用的设置 ↗"):tr("当前设置 ↗"),o?.editType==='local-adjustment'?'photo-edit-info':o?'snapshot':'prompt',o?.editType==='local-adjustment'?`data-id="${o.id}"`:o?`data-task="${o.taskId}"`:'','link-btn')}</div><div class="shot-strip-wrap"><div class="strip-heading"><strong>${tr("这组照片")} <span>${tr("点击查看 · 勾选生成")}</span></strong><div class="strip-actions">${current().shots.some(x=>x.removed)?btn(tr("已移出 ")+current().shots.filter(x=>x.removed).length,'removed-shots',`aria-label="${tr("找回已移出的镜头")}"`,'link-btn'):''}${btn(ui.selected.length===shots().length?tr("取消全选"):tr("全选"),'select-all','','link-btn')}</div></div><div class="shot-strip" data-shoot="${esc(current().id)}">${shots().map((x,i)=>{const outs=state.outputs.filter(o=>!o.trashed&&o.shootId===current().id&&o.shotId===x.id),task=state.tasks.filter(t=>t.shotId===x.id).at(-1);const status=['queued','running','recovering','unknown'].includes(task?.state)?tr(stateLabels[task.state]):outs.length?tr("{0} 个作品版本", outs.length):tr("尚未生成");return `<article class="shot-tile ${x.id===sh.id?'current':''}"><button class="shot-open" data-action="select-shot" data-id="${x.id}" aria-pressed="${x.id===sh.id}" aria-label="${tr("查看第{0}张 {1}", i+1, esc(shotTitle(x)))}"><span class="number">${String(i+1).padStart(2,'0')}${x.id===sh.id?tr(" · 当前"):''}</span><strong>${esc(x.titleEdited?x.title:shotTitle(x).replace(/^封面 · /,''))}</strong><span class="shot-state">${status}</span></button><div class="shot-tile-actions"><label class="shot-select"><input type="checkbox" data-select-shot="${x.id}" aria-label="${tr("勾选第{0}张用于批量生成", i+1)}" ${ui.selected.includes(x.id)?'checked':''}><span>${tr("生成")}</span></label>${btn(tr("删除"),'remove-shot',`data-id="${x.id}" aria-label="${tr("删除第{0}张镜头，可恢复", i+1)}" title="${shots().length<2?tr("至少保留一张镜头"):tr("从计划移除，可恢复；历史作品保留")}" ${shots().length<2?'disabled':''}`,'shot-remove')}</div></article>`;}).join('')}${btn('+','add-shot',`aria-label="${tr("添加一张照片")}"`,'add-tile')}</div></div>`;}
-function planEmpty(sh,busy){const p=asset(sh.poseAsset);return `<div class="plan-empty">${p?`<img class="pose-plan-image" src="${esc(p.image)}" alt="${tr("当前镜头的动作参考")}"><span class="tag gold">${tr("动作参考 · 不是生成结果")}</span>`:`<div class="plan-visual">${icon('camera')}</div>`}<h2>${busy?tr(stateLabels[busy.state]):tr("这一张，按你的想法拍。")}</h2><p>${busy?tr("任务已记录，你可以继续设置其他照片。"):esc(localRuntime?(quickMode()?tr("左侧选参考图，右侧选取景和色调。"):tr("按需设置这个镜头，再生成这张。")):sh.description||tr("选一个动作，配好表情与取景，再生成这张。"))}</p>${!localRuntime&&!p&&!busy?btn(tr("从姿态图库开始"),'gallery','data-kind="pose"','btn gold'):''}</div>`;}
+function stage(){const sh=shot(),title=shotTitle(sh),number=shotNumber(),o=output(),busy=state.tasks.find(t=>t.shootId===current().id&&t.shotId===sh.id&&M.blocksStudioShot(t));return `<header class="stage-top"><div class="frame-title"><span class="number">${tr("{0}第 {1} 张", sh.removed?tr("历史"):'', number)}</span>${!sh.titleEdited&&title===tr("镜头 {0}",number)&&getLanguage()==='en'?'':esc(sh.titleEdited?title:title.replace(/^封面 · /,''))}</div><div class="row"><div class="version-tabs">${current().editingOnly?'':btn(tr("拍摄计划"),'version','data-id="plan"',`version-tab ${!o?'active':''}`)}</div>${btn(tr("本次作品 ")+shootWorks().length,'shoot-works',`aria-label="${tr("浏览本次拍摄全部作品")}"`,'stage-works-entry')}${current().editingOnly?'':btn('•••','shot-menu',`aria-label="${tr("当前照片更多操作")}"`,'icon-btn')}</div></header><div class="stage-media"><div class="stage-photo">${o?`<button class="main-photo-open" data-action="photo-viewer" data-id="${o.id}" aria-label="${tr("放大查看第{0}张，版本{1}", shotNumber(), o.revision)}"><img class="main-photo" src="${esc(o.image)}" alt="${tr("第{0}张 {1} 版本{2}", shotNumber(), esc(o.title), o.revision)}"></button><span class="image-status">${outputStatus(o)}</span><div class="photo-meta" aria-live="polite">${outputMeta(o)}</div>`:planEmpty(sh,busy)}</div>${versionRail()}</div><div class="stage-actions"><div class="row">${o?btn(current().purpose==='merchant'?(o.review==='approved'?tr("✓ 商品已核对"):tr("核对商品")):(o.picked?tr("✓ 已采用"):tr("✓ 采用这张")),'pick',`data-id="${o.id}"`,`btn ${o.picked?'active':''}`)+btn(icon('pencil')+tr("基础修图"),'photo-retouch',`data-id="${o.id}"`)+(studioEdition&&current().editingOnly?'':btn(localRuntime?tr("AI 修图"):tr("改画面（演示）"),'edit-result',`data-id="${o.id}"`))+btn(tr(studioEdition?'比较已有版本':'候选对比'),'candidate-compare',`data-id="${o.id}" ${results().length<2?'disabled':''}`)+(!current().editingOnly?btn(tr(studioEdition?"另做一轮试拍":"对照试拍"),'compare',`data-id="${o.id}"`):''):quickMode()?'':btn(tr("比较设置"),'compare')}${studioEdition?directionControls(state,current(),sh,o,btn,esc):''}${o?btn(icon('download'),'download',`data-id="${o.id}" aria-label="${tr("下载当前原图")}"`):''}</div>${o?.uploaded?btn(tr("上传原图"),'photo-viewer',`data-id="${o.id}"`,'link-btn'):btn(o?.editType==='local-adjustment'?tr("修图记录 ↗"):o?tr("当时用的设置 ↗"):tr("当前设置 ↗"),o?.editType==='local-adjustment'?'photo-edit-info':o?'snapshot':'prompt',o?.editType==='local-adjustment'?`data-id="${o.id}"`:o?`data-task="${o.taskId}"`:'','link-btn')}</div>${current().editingOnly?'':`<div class="shot-strip-wrap"><div class="strip-heading"><strong>${tr("这组照片")} <span>${tr("点击查看 · 勾选生成")}</span></strong><div class="strip-actions">${current().shots.some(x=>x.removed)?btn(tr("已移出 ")+current().shots.filter(x=>x.removed).length,'removed-shots',`aria-label="${tr("找回已移出的镜头")}"`,'link-btn'):''}${btn(ui.selected.length===shots().length?tr("取消全选"):tr("全选"),'select-all','','link-btn')}</div></div><div class="shot-strip" data-shoot="${esc(current().id)}">${shots().map((x,i)=>{const outs=state.outputs.filter(o=>!o.trashed&&o.shootId===current().id&&o.shotId===x.id),task=state.tasks.filter(t=>t.shotId===x.id).at(-1);const status=['queued','running','recovering','unknown'].includes(task?.state)?tr(stateLabels[task.state]):outs.length?tr("{0} 个作品版本", outs.length):tr("尚未生成");return `<article class="shot-tile ${x.id===sh.id?'current':''}"><button class="shot-open" data-action="select-shot" data-id="${x.id}" aria-pressed="${x.id===sh.id}" aria-label="${tr("查看第{0}张 {1}", i+1, esc(shotTitle(x)))}"><span class="number">${String(i+1).padStart(2,'0')}${x.id===sh.id?tr(" · 当前"):''}</span><strong>${esc(x.titleEdited?x.title:shotTitle(x).replace(/^封面 · /,''))}</strong><span class="shot-state">${status}</span></button><div class="shot-tile-actions"><label class="shot-select"><input type="checkbox" data-select-shot="${x.id}" aria-label="${tr("勾选第{0}张用于批量生成", i+1)}" ${ui.selected.includes(x.id)?'checked':''}><span>${tr("生成")}</span></label>${btn(tr("删除"),'remove-shot',`data-id="${x.id}" aria-label="${tr("删除第{0}张镜头，可恢复", i+1)}" title="${shots().length<2?tr("至少保留一张镜头"):tr("从计划移除，可恢复；历史作品保留")}" ${shots().length<2?'disabled':''}`,'shot-remove')}</div></article>`;}).join('')}${btn('+','add-shot',`aria-label="${tr("添加一张照片")}"`,'add-tile')}</div></div>`}`;}
+function planEmpty(sh,busy){const p=asset(sh.poseAsset);return `<div class="plan-empty ${p?'with-reference':''}">${p?`<img class="pose-plan-image" src="${esc(p.image)}" alt="${tr("当前镜头的动作参考")}"><span class="tag gold">${busy?tr(stateLabels[busy.state])+' · ':''}${tr("动作参考 · 不是生成结果")}</span>`:`<div class="plan-visual">${icon('camera')}</div>`}<h2>${busy?tr(stateLabels[busy.state]):tr("这一张，按你的想法拍。")}</h2><p>${busy?tr("任务已记录，你可以继续设置其他照片。"):esc(sh.note||(localRuntime?(quickMode()?tr("左侧选参考图，右侧选取景、机位与影调。"):tr("按需设置这个镜头，再生成这张。")):sh.description||tr("选一个动作，配好表情与取景，再生成这张。")))}</p>${!localRuntime&&!p&&!busy?btn(tr("从姿态图库开始"),'gallery','data-kind="pose"','btn gold'):''}</div>`;}
+function editUploadIntro(){return `<div class="edit-upload-intro"><h2>${tr('从现有图片开始')}</h2><p>${tr('圈选需要修改的位置，写下要求，也可以补充细节参考。')}</p><p>${tr('每次修图都会保留原图和历史版本。')}</p>${studioEdition?'':btn(tr('AI 修图'),'edit-result',`data-id="${esc(output()?.id||'')}"`,'btn primary')}</div>`;}
+function editUploadSource(){const source=state.outputs.find(o=>o.shootId===current().id&&o.uploaded&&!o.trashed);return `<div class="panel-heading"><h2>${tr('上传原图')}</h2></div>${source?`<img class="edit-upload-preview" src="${esc(source.image)}" alt="${esc(source.title)}"><p class="compact-note">${esc(source.title)}</p>`:''}${btn(tr('上传另一张图片'),'upload-edit','','btn')}`;}
+async function uploadForEditing(file){
+  if(!file)return;
+  const image=await readEditImage(file),previousSettings=current().nativeSettings,next=structuredClone(state);
+  const sh=M.createShoot(next,{free:true,title:image.name});
+  Object.assign(sh,{editingOnly:true,refs:[],titleEdited:true,styleName:'上传修图',nativeSettings:previousSettings?{...previousSettings,ratio:uploadRatio(image.width,image.height),size:null}:undefined});
+  sh.shots[0].title=image.name;sh.shots[0].titleEdited=true;
+  const o={id:M.uid('uploaded'),shootId:sh.id,shotId:sh.shots[0].id,title:image.name.slice(0,180),image:image.image,
+    width:image.width,height:image.height,revision:1,uploaded:true,original:true,demo:false,native:false,picked:false,checks:{},checkReasons:{},reviewHistory:[],created:new Date().toISOString()};
+  next.outputs.push(o);
+  await writer.save(next,{...ui,dialog:null,currentShoot:sh.id,shotId:o.shotId,version:o.id});
+  state=next;enterShoot(sh);await nativeTasks.showEdit(o);
+}
+let preflight=null;
+let reviewedPlan = null;
+function openPlanImport(text = '') {
+  reviewedPlan = null;
+  ui.dialog = 'agent-import';
+  const body = '<p>'+tr('粘贴 Agent 的拍摄计划，或打开 JSON 文件。预览后会建立独立拍摄。')+'</p>'+
+    '<details><summary>'+tr('查看计划格式示例')+'</summary><pre class="plan-example">'+esc(JSON.stringify({format:'muse-frame.plan/v1',title:tr('窗边人像'),shots:[{title:tr('侧面近景'),direction:tr('利用窗边柔光，拍摄自然的侧脸。')}]},null,2))+'</pre></details>'+
+    '<label class="form-label">'+tr('拍摄计划 JSON')+'<textarea id="agent-plan-text" rows="8" spellcheck="false">'+esc(text)+'</textarea></label>'+
+    '<label class="form-label">'+tr('打开计划文件')+'<input id="agent-plan-file" type="file" accept=".json,application/json"></label>';
+  openDialog(tr('导入 Agent 拍摄计划'), body,
+    btn(tr('取消'),'close') + btn(tr('预览计划'),'agent-review','','btn primary'));
+}
+function reviewAgentPlan() {
+  const plan = readAgentPlan($('#agent-plan-text').value);
+  reviewedPlan = plan;
+  ui.dialog = 'agent-review';
+  const body = '<h3>'+esc(plan.title)+'</h3><p>'+esc(plan.brief)+'</p><ol class="agent-shot-list">'+
+    plan.shots.map(shot => '<li><strong>'+esc(shot.title)+'</strong><p>'+esc(shot.direction)+'</p></li>').join('')+
+    '</ol><p class="notice">'+tr('确认后可选人物与服装，再单独核对生成费用。')+'</p>';
+  openDialog(tr('预览计划'), body, btn(tr('返回编辑'),'agent-back')+
+    btn(tr('建立独立拍摄'),'agent-create','','btn primary'));
+}
+function studioPreflight(ids){
+  const sh=current(),rows=shootChecklist(state,sh,ids);
+  if(!rows.length)throw Error(tr('请先勾选至少一张照片'));
+  preflight={shootId:sh.id,ids:rows.map(r=>r.id)};
+  const platform=nativeTasks.generationState(sh.nativeSettings);
+  const ready=rows.every(row=>!row.missing.length&&!row.busy);
+  ui.dialog='studio-preflight';
+  openDialog(tr('开拍前核对'),'<p>'+esc(tr('本次 {0} 个镜头，每镜头先试 1 张。',rows.length))+'</p><div class="studio-preflight">'+rows.map(r=>
+    '<article><strong>'+esc(tr(r.title))+'</strong><span>'+esc(r.busy?tr('已在排队或执行'):r.missing.length?tr('待补 · {0}',r.missing.join(' / ')):tr('拍摄资料齐全'))+'</span><small>'+esc(r.sources.join(' · '))+'</small>'+
+    (r.missing.length?btn(tr('返回该镜头补资料'),'studio-fix-frame','data-id="'+esc(r.id)+'"','btn small'):'')+'</article>').join('')+'</div><p class="notice">'+esc(platform.label)+'</p><p>'+tr('本页只检查资料。最终确认会使用所选平台账户的额度，实际金额由平台结算。')+'</p>',
+    btn(tr('返回拍摄'),'close')+btn(tr(platform.ready?'核对实际发送内容':'设置绘图平台与模型'),'studio-preflight-next',ready?'':'disabled','btn primary'),'medium');
+}
 function generationBar(){
+  if(current().editingOnly)return `<footer class="generation-bar edit-original-bar"><p>${tr('原图与修图版本已保存在当前工作区')}</p><div class="row">${btn(tr('查看任务'),'tasks')}${btn(tr('上传另一张图片'),'upload-edit')}${btn(tr('AI 修图'),'edit-result',`data-id="${esc(output()?.id||'')}"`,'btn primary')}</div></footer>`;
   const active=shots(),ids=ui.selected.filter(id=>active.some(x=>x.id===id));
-  const showBatch=!quickMode()&&active.length>1&&!(ids.length===1&&ids[0]===shot().id);
+  const showBatch=(studioEdition||!quickMode())&&active.length>1&&!(ids.length===1&&ids[0]===shot().id);
   const mobileBadge=localRuntime?nativeTasks.taskBadge():null;
   return `<footer class="generation-bar ${localRuntime?'native-generation-bar':''}">
     <section class="generation-config" aria-label="${tr("生成参数")}"><div class="generation-section-label">${tr("本次生成设置")}</div>
       ${localRuntime?`<div class="native-generation-fields" id="generation-settings" aria-label="${tr("本次生成设置")}">${nativeTasks.fields(current().nativeSettings)}</div>`:`<button class="generation-details" data-action="connections"><strong>${esc(state.provider)}</strong><span>${esc(current().ratio)} · ${esc(current().size)}　⌄</span></button><small class="bar-caption">${tr("演示生成，不消耗额度")}</small>`}
     </section>
     <section class="generation-submit" aria-label="${tr("生成范围与操作")}"><div class="generation-submit-heading"><span>${shot().removed?tr("正在查看历史镜头"):tr("当前：第 {0} 张",shotNumber())}${active.length>1?tr(" · 已勾选 {0} 张",ids.length):''}</span>${mobileBadge?btn(taskBadgeMarkup(),'tasks',`id="mobile-task-status" ${mobileBadge.text===tr("任务")?'hidden':''}`,'mobile-task-status'):''}</div>
-      <div class="generation-actions ${showBatch?'':'single-action'}">${btn(shot().removed?tr("已移出计划"):tr("生成这张 · ")+shotNumber(),'generate-current',shot().removed?'disabled':'',showBatch?'btn':'btn primary')}${showBatch?btn(tr("生成选中 {0} 张 {1}", ids.length, icon('chevron-right')),'generate-selected',ids.length?'':'disabled','btn primary'):''}</div>
+      <div class="generation-actions ${showBatch?'':'single-action'}">${btn(shot().removed?tr("已移出计划"):studioEdition?tr("先试当前 1 张"):tr("生成这张 · ")+shotNumber(),'generate-current',shot().removed?'disabled':'',showBatch?'btn':'btn primary')}${showBatch?btn(tr("生成选中 {0} 张 {1}", ids.length, icon('chevron-right')),'generate-selected',ids.length?'':'disabled','btn primary'):''}</div>
     </section>
   </footer>`;
 }
@@ -330,7 +425,7 @@ function migrationLink(){
 function projectsDialog(){
   ui.dialog='projects';
   const legacyLink=document.body.dataset.packaged==='true'?'':`<a class="legacy-link" href="/legacy/" target="_blank" rel="noopener">${tr("商品与批次旧设计示例（与当前拍摄不互通）↗")}</a>`;
-  openDialog(tr("你的拍摄"),`<div class="row between"><p class="muted small">${localRuntime?tr("草稿和图片保存在本机工作台。"):tr("草稿和演示结果都保存在这个浏览器。")}</p><div class="row">${btn(tr("自由拍摄"),'new-free','','btn small')}${btn(tr("新建拍摄"),'new-shoot','','btn primary small')}</div></div><div class="spacer"></div><div class="sheet-list">${state.shoots.slice().reverse().map(sh=>`<article class="sheet-list-row">${asset(sh.model)?`<img src="${esc(asset(sh.model).image)}" alt="">`:''}<div class="grow"><h3>${esc(shootTitle(sh))}</h3><p>${tr("{0} 张计划 · {1} 个样例结果", M.activeShots(sh).length, state.outputs.filter(o=>o.shootId===sh.id).length)}</p></div>${btn(tr("继续拍摄"),'open-shoot',`data-id="${sh.id}"`,'btn small')}</article>`).join('')}</div><div class="spacer"></div><div class="row workspace-links">${migrationLink()}${legacyLink}</div>`,
+  openDialog(tr("你的拍摄"),`<div class="row between"><p class="muted small">${localRuntime?tr("草稿和图片保存在本机工作台。"):tr("草稿和演示结果都保存在这个浏览器。")}</p><div class="row">${btn(tr("自由拍摄"),'new-free','','btn small')}${btn(tr("新建拍摄"),'new-shoot','','btn primary small')}</div></div><div class="spacer"></div><div class="sheet-list">${state.shoots.filter(sh=>!sh.archived).slice().reverse().map(sh=>`<article class="sheet-list-row shoot-list-item">${asset(sh.model)?`<img src="${esc(asset(sh.model).image)}" alt="">`:''}<div class="grow"><h3>${esc(shootTitle(sh))}</h3><p>${tr("{0} 张计划 · {1} 个作品", M.activeShots(sh).length, state.outputs.filter(o=>o.shootId===sh.id).length)}</p></div>${btn(tr("继续拍摄"),'open-shoot',`data-id="${sh.id}"`,'btn small')}${btn('删除','delete-shoot',`data-id="${sh.id}"`,'btn small')}</article>`).join('')}</div><div class="spacer"></div><div class="row workspace-links">${migrationLink()}${legacyLink}${btn('已删除拍摄','archived-shoots','','btn small')}</div>`,
     languagePicker()+btn(tr("导出试用记录"),'export-state','','btn small')+btn(tr("关闭"),'close'),'medium');
 }
 function assetsDialog(){ui.dialog='assets';openDialog(tr("素材库"),`<div class="info-grid">${['person','outfit','pose'].map(kind=>`<section class="info-card"><h3>${tr("{0}图库", roleName(kind))}</h3><p>${kind==='pose'?tr("每张照片独立使用；可多选动作新建照片。"):tr("从原在线图库选择，也可上传自己的资料。")}</p><div class="spacer"></div>${btn(tr("浏览")+roleName(kind)+tr("图库"),'gallery',`data-kind="${kind}"`,'btn small')}${btn(tr("上传"),'upload',`data-role="${kind}"`,'btn ghost small')}</section>`).join('')}<section class="info-card"><h3>${tr("可拍的空间")}</h3><p>${tr("按用途、人物位置和活动区选择，再挑背景与材质。")}</p><div class="spacer"></div>${btn(tr("选择拍摄空间"),'creative-spaces','','btn small')}</section></div>`,btn(tr("关闭"),'close'));}
@@ -366,7 +461,7 @@ async function openGallery(kind,tab){
   g.poseSelectionSeed=pose?.online?(g.tab==='saved'?pose.id:pose.sourceId):null;
   restoreAdoptedPoseView(g);
   renderGallery();
-  if(g.tab==='online'&&!g.data&&g.status!=='loading')await loadGallery(kind);
+  if(g.tab==='online'&&g.status!=='loading')await loadGallery(kind);
 }
 
 function restoreAdoptedPoseView(g){
@@ -378,10 +473,12 @@ function restoreAdoptedPoseView(g){
 async function loadGallery(kind,retry=false){
   const g=ui.gallery;
   if(!g||g.kind!==kind)return;
-  g.status='loading';renderGallery();
+  if(g.status==='refreshing')return;
+  g.status=g.data?'refreshing':'loading';g.refreshError=false;renderGallery();
   try{
     let data=galleries.get(kind);
-    if(!data||retry){
+    const expired=data&&Date.now()/1000-(data.checkedAt||data.fetchedAt||0)>=(data.stale?60:1800);
+    if(!data||retry||expired){
       const r=await fetch('/api/gallery?kind='+encodeURIComponent(kind)+(retry?'&refresh=1':''));
       if(!r.ok){
         const failure=await r.json().catch(()=>({}));
@@ -395,7 +492,7 @@ async function loadGallery(kind,retry=false){
     if(ui.gallery!==g||ui.dialog!=='gallery'||g.tab!=='online')return;
     restoreAdoptedPoseView(g);renderGallery();
   }catch(e){
-    g.status='error';g.error=e.message;
+    g.status=g.data?'ready':'error';g.refreshError=!!g.data;g.error=e.message;
     if(ui.gallery===g&&ui.dialog==='gallery'&&g.tab==='online')renderGallery();
   }
 }
@@ -528,6 +625,16 @@ function galleryFilters(g){
     </div>`;
 }
 
+function galleryUpdateStatus(g){
+  if(g.tab!=='online')return '';
+  const data=g.data,busy=['loading','refreshing'].includes(g.status);
+  const stamp=data?.fetchedAt?new Date(data.fetchedAt*1000).toLocaleString(getLanguage()==='en'?'en-US':'zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'';
+  const stale=data?.stale||g.refreshError,changes=data?.changes;
+  const detail=stale?tr("更新暂不可用，继续使用本机目录；远程图片仍需网络。"):
+    data?data.initial?tr("已读取来源目录"):changes&&(changes.added||changes.updated||changes.removed)?tr("本次新增 {0} · 更新 {1} · 移除 {2}",changes.added,changes.updated,changes.removed):tr("本次检查没有目录变化"):tr("只更新目录，图片按需读取");
+  return `<div class="gallery-update-row" role="status"><div><span>${stamp?tr("目录更新于 {0}",esc(stamp)):data?.bundledAt?tr("随版本目录 · {0}",esc(data.bundledAt)):tr("尚未同步目录")}</span><p class="compact-note ${stale?'gallery-update-warning':''}">${detail}${data?.untranslated?' '+tr("{0} 项暂用来源名称",data.untranslated):''}${data?.cacheWarning?' '+tr("目录已更新，但本机缓存未保存，请检查磁盘空间。") : ''}</p></div>${btn(tr(busy?"正在检查…":"检查更新"),'gallery-refresh',busy?'disabled':'','btn small')}</div>`;
+}
+
 function renderGallery(){
   const g=ui.gallery;
   if(!g)return;
@@ -539,7 +646,7 @@ function renderGallery(){
     <div class="dialog-tabs" role="group" aria-label="${tr("素材来源")}">${tabs.map(([id,label])=>
       btn(label,'gallery-tab',`data-tab="${id}" aria-pressed="${g.tab===id}"`,`dialog-tab ${g.tab===id?'active':''}`)).join('')}</div>
     ${btn(tr("上传{0}",roleName(g.kind)),'upload',`data-role="${g.kind}"`,'btn small')}</div>
-    ${galleryFilters(g)}</div>`;
+    ${galleryUpdateStatus(g)}${galleryFilters(g)}</div>`;
   const count=g.selected.length;
   const footer=(source?`<a class="source-link" href="${esc(source)}" target="_blank" rel="noopener">${tr("打开原图库 ↗")}</a>`:'')+
     (count?btn(tr("按 {0} 个动作新建照片", count),'gallery-add-shots','','btn primary'):btn(tr("返回拍摄"),'close'));
@@ -671,9 +778,9 @@ function snapshotDialog(taskId){const t=state.tasks.find(x=>x.id===taskId);if(!t
   }
 ui.dialog='snapshot';openDialog(tr("这张图当时用的设置"),`<div class="notice">${tr("这是该版本提交时的记录，后续编辑不会改写它。")}</div><div class="spacer"></div><div class="row">${tag(t.provider)}${tag(stateLabels[t.state]||tr("已记录"))}${tag(t.snapshot.ratio)}</div><div class="spacer"></div><h3>${tr("当时的提示词")}</h3><div class="spacer"></div><div class="prompt-display">${esc(t.snapshot.prompt)}</div><div class="spacer"></div><div class="info-grid">${[['modelAsset',tr("人物")],['outfitAsset',tr("服装")],['poseAsset',tr("本张姿态")]].map(([k,l])=>t.snapshot[k]?`<div class="sheet-list-row"><img src="${esc(t.snapshot[k].image)}" alt="${tr("{0}参考", l)}"><div><h3>${l}</h3><p>${esc(t.snapshot[k].name)}</p></div></div>`:'').join('')}</div>`,btn(tr("关闭"),'close'),'medium');}
 
-function compareDialog(outputId,create=true){if(workflows)return create?workflows.createResearch(outputId):workflows.showResearch();let ex;if(create){ex=M.createExperiment(state,current().id,outputId);ex.conditions[0].label='A · 原设置';ex.conditions[1].label='B · 换一种光影';ex.conditions[1].change='光影：宽大窗边散射光，面部阴影柔和；其他设置保持';ui.compareId=ex.id;ui.compareWith=null;if(!outputId)ex.baseline=M.snapshot(state,current(),shot());save();}else ex=state.experiments.find(x=>x.id===ui.compareId);if(!ex)return;ui.dialog='compare';const base=state.outputs.find(x=>x.id===outputId)||state.outputs.find(x=>x.taskId&&state.tasks.find(t=>t.id===x.taskId)?.snapshot.time===ex.baseline.time);const aImage=base?.image||ex.baseline.modelAsset?.image;const exTasks=ex.taskIds.map(id=>state.tasks.find(t=>t.id===id)).filter(Boolean);const condition=ex.conditions[1];const allOutputs=state.outputs.filter(o=>o.shootId===current().id);const other=state.outputs.find(x=>x.id===ui.compareWith);openDialog(tr("比较效果"),`<div class="compare-intro"><div><h3>保持人物、服装和未改设置，只比较你选择的变化。</h3><p class="compact-note">原图与所有尝试都会保留。这里仍是样例流程，图片不会随参数真实变化。</p></div>${tag('当前拍摄')}</div><div class="compare-grid"><section class="compare-card"><header><strong>A · 原设置</strong>${btn('当时的设置','compare-baseline','','link-btn')}</header>${aImage?`<img src="${esc(aImage)}" alt="A 原设置的样例">`:'<div class="gallery-placeholder">未生成</div>'}<div class="compare-caption">${esc(ex.baseline.shot.title)} · ${esc(ex.baseline.provider)}</div><div class="compare-config"><label class="form-label">保持哪些设置</label><p class="compact-note">人物 ${esc(ex.baseline.modelAsset?.name||'未选')}<br>服装 ${esc(ex.baseline.outfitAsset?.name||'未选')}<br>模型、画幅和其他未调整内容保持。</p></div></section><section class="compare-card"><header><strong>B · 比较对象</strong>${tag(other?'已有图片':'另一个设置','gold')}</header>${other?`<img src="${esc(other.image)}" alt="B 已有图片版本${other.revision}">`:`<div class="gallery-placeholder" style="height:180px;padding-top:45px"><h3>试试另一种拍法</h3><p>选择要改的一项，其他内容保持。</p></div>`}<div class="compare-config"><label class="form-label">用已有图片对照<select id="compare-existing"><option value="">新建一组设置</option>${allOutputs.map(o=>`<option value="${o.id}" ${other?.id===o.id?'selected':''}>${esc(o.title)} · 版本 ${o.revision}</option>`).join('')}</select></label>${!other?`<label class="form-label">只调整光影<select id="compare-light">${library.groups.find(g=>g.id==='light').options.map((o,i)=>`<option value="${i}" ${condition?.change?.includes(o.prompt)?'selected':''}>${esc(o.name)}</option>`).join('')}<option value="custom">自定义变化</option></select></label><label class="form-label">本次改动<textarea id="compare-change">${esc(condition?.change||'')}</textarea></label>`:''}</div></section></div>${!other?`<div class="compare-runs"><div><label>每种设置拍 <select id="compare-repeats">${[1,2,3].map(n=>`<option ${ex.repeats===n?'selected':''}>${n}</option>`).join('')}</select> 次</label><p>${ex.conditions.length} 组设置 × ${ex.repeats} 次，共 ${ex.conditions.length*ex.repeats} 张</p></div>${btn(tr("生成 ")+ex.conditions.length*ex.repeats+' 张比较样例','run-compare','','btn primary')}</div>`:''}${exTasks.length?`<div class="spacer"></div><h3>所有尝试 · ${exTasks.length} 次</h3><div class="compare-results">${exTasks.map(t=>{const o=state.outputs.find(x=>x.id===t.outputId);return `<article class="compare-result">${o?`<img src="${esc(o.image)}" alt="${esc(t.conditionLabel)}第${t.repeat}次样例">`:'<div style="height:132px;display:grid;place-items:center">'+esc(stateLabels[t.state])+'</div>'}<p>${esc(t.conditionLabel)} · 第 ${t.repeat} 次<br>${esc(stateLabels[t.state])}</p></article>`;}).join('')}</div>`:''}<details class="details-group" ${exTasks.length?'open':''}><summary>记录你的观察</summary><p class="compact-note">记录符合、有问题或仍无法判断的内容。一次好图不代表所有情况都适用。</p><div class="observations">${Object.entries(ex.conclusions).map(([k,v])=>`<label>${esc(k)}<textarea data-conclusion="${esc(k)}" placeholder="你看到什么？依据是哪张？">${esc(v)}</textarea></label>`).join('')}</div></details><details class="details-group"><summary>更多比较条件与记录</summary>${ex.conditions.map(c=>`<label class="form-label">${esc(c.label)}<textarea data-condition="${c.id}">${esc(c.change)}</textarea></label>`).join('')}${btn('添加一个条件','add-condition','','btn small')}</details>`,btn(tr("查看比较记录"),'compare-history')+btn(tr("保存这套设置"),'save-compare-recipe')+btn(tr("返回拍摄"),'close'),'wide');}
-function saveRecipeDialog(fromCompare=false){ui.dialog='save-recipe';openDialog(tr("保存这套设置"),`<label class="form-label">${tr("名称")}<input id="recipe-name" value="${esc(current().title+' · 我的拍法')}"></label><label class="form-label">${tr("适用情况与还不确定的地方")}<textarea id="recipe-scope" placeholder="${tr("例如：适合日常街拍；换成印花衣服后还需检查")}">${esc(localRuntime?'请填写适用素材和验证范围':'当前为样例流程，真实适用效果尚未验证')}</textarea></label><label class="inline-checkbox"><input type="checkbox" id="recipe-personal">${tr("保留这组人物和服装，作为我的专用拍法")}</label><div class="spacer"></div><p class="muted small">${tr("不勾选时，再次使用会请你重新选人物和服装。镜头安排、姿态、预设和文字设置保留。")}</p>${fromCompare?`<div class="spacer"></div><label class="form-label">${tr("保存哪组设置")}<select id="recipe-condition">${state.experiments.find(e=>e.id===ui.compareId).conditions.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('')}</select></label>`:''}`,btn(tr("取消"),'close')+btn(tr("保存拍法"),'commit-recipe',`data-compare="${fromCompare?'true':'false'}"`,'btn primary'),'narrow');}
-function recipesDialog(){ui.dialog='recipes';openDialog(tr("拍法与保存的设置"),`<p class="muted small">${tr("再次使用会新建拍摄；旧照片、旧设置和旧版本都保留。")}</p><div class="spacer"></div><div class="recipe-grid">${state.recipes.filter(r=>M.recipePurpose(r)==='social').map(r=>`<article class="recipe-card"><img src="${esc(r.image)}" alt="${tr("{0}示例", esc(r.title))}"><div class="recipe-copy"><h3>${esc(r.title)}</h3><p>${tr("{0} 个版本 · {1}", r.versions.length, r.versions.at(-1).status)}</p><div class="row">${btn(tr("查看设置"),'recipe-detail',`data-id="${r.id}"`,'btn small')}${btn(tr("再拍一组"),'use-recipe',`data-id="${r.id}"`,'btn primary small')}</div></div></article>`).join('')}</div>`,btn(tr("保存当前设置"),'save-recipe')+btn(tr("关闭"),'close'),'wide');}
+function compareDialog(outputId,create=true){if(workflows&&create){openDialog(tr(studioEdition?'另做一轮试拍':'对照试拍'), '<p>改变一个设置，再生成另一张照片，与当前照片并排比较。适合测试光影、构图或提示词。</p><p>这不是修图前后对比。后续确认生成会调用模型并产生平台费用；仅打开设置不会生成。</p>',btn(tr('取消'),'close')+btn(tr('设置对照条件'),'start-research',`data-id="${esc(outputId||'')}"`,'btn primary'));return;}if(workflows)return workflows.showResearch();let ex;if(create){ex=M.createExperiment(state,current().id,outputId);ex.conditions[0].label='A · 原设置';ex.conditions[1].label='B · 换一种光影';ex.conditions[1].change='光影：宽大窗边散射光，面部阴影柔和；其他设置保持';ui.compareId=ex.id;ui.compareWith=null;if(!outputId)ex.baseline=M.snapshot(state,current(),shot());save();}else ex=state.experiments.find(x=>x.id===ui.compareId);if(!ex)return;ui.dialog='compare';const base=state.outputs.find(x=>x.id===outputId)||state.outputs.find(x=>x.taskId&&state.tasks.find(t=>t.id===x.taskId)?.snapshot.time===ex.baseline.time);const aImage=base?.image||ex.baseline.modelAsset?.image;const exTasks=ex.taskIds.map(id=>state.tasks.find(t=>t.id===id)).filter(Boolean);const condition=ex.conditions[1];const allOutputs=state.outputs.filter(o=>o.shootId===current().id);const other=state.outputs.find(x=>x.id===ui.compareWith);openDialog(tr("对照试拍"),`<div class="compare-intro"><div><h3>保持人物、服装和未改设置，只比较你选择的变化。</h3><p class="compact-note">原图与所有尝试都会保留。这里仍是样例流程，图片不会随参数真实变化。</p></div>${tag('当前拍摄')}</div><div class="compare-grid"><section class="compare-card"><header><strong>A · 原设置</strong>${btn('当时的设置','compare-baseline','','link-btn')}</header>${aImage?`<img src="${esc(aImage)}" alt="A 原设置的样例">`:'<div class="gallery-placeholder">未生成</div>'}<div class="compare-caption">${esc(ex.baseline.shot.title)} · ${esc(ex.baseline.provider)}</div><div class="compare-config"><label class="form-label">保持哪些设置</label><p class="compact-note">人物 ${esc(ex.baseline.modelAsset?.name||'未选')}<br>服装 ${esc(ex.baseline.outfitAsset?.name||'未选')}<br>模型、画幅和其他未调整内容保持。</p></div></section><section class="compare-card"><header><strong>B · 比较对象</strong>${tag(other?'已有图片':'另一个设置','gold')}</header>${other?`<img src="${esc(other.image)}" alt="B 已有图片版本${other.revision}">`:`<div class="gallery-placeholder" style="height:180px;padding-top:45px"><h3>试试另一种拍法</h3><p>选择要改的一项，其他内容保持。</p></div>`}<div class="compare-config"><label class="form-label">用已有图片对照<select id="compare-existing"><option value="">新建一组设置</option>${allOutputs.map(o=>`<option value="${o.id}" ${other?.id===o.id?'selected':''}>${esc(o.title)} · 版本 ${o.revision}</option>`).join('')}</select></label>${!other?`<label class="form-label">只调整光影<select id="compare-light">${library.groups.find(g=>g.id==='light').options.map((o,i)=>`<option value="${i}" ${condition?.change?.includes(o.prompt)?'selected':''}>${esc(o.name)}</option>`).join('')}<option value="custom">自定义变化</option></select></label><label class="form-label">本次改动<textarea id="compare-change">${esc(condition?.change||'')}</textarea></label>`:''}</div></section></div>${!other?`<div class="compare-runs"><div><label>每种设置拍 <select id="compare-repeats">${[1,2,3].map(n=>`<option ${ex.repeats===n?'selected':''}>${n}</option>`).join('')}</select> 次</label><p>${ex.conditions.length} 组设置 × ${ex.repeats} 次，共 ${ex.conditions.length*ex.repeats} 张</p></div>${btn(tr("生成 ")+ex.conditions.length*ex.repeats+' 张比较样例','run-compare','','btn primary')}</div>`:''}${exTasks.length?`<div class="spacer"></div><h3>所有尝试 · ${exTasks.length} 次</h3><div class="compare-results">${exTasks.map(t=>{const o=state.outputs.find(x=>x.id===t.outputId);return `<article class="compare-result">${o?`<img src="${esc(o.image)}" alt="${esc(t.conditionLabel)}第${t.repeat}次样例">`:'<div style="height:132px;display:grid;place-items:center">'+esc(stateLabels[t.state])+'</div>'}<p>${esc(t.conditionLabel)} · 第 ${t.repeat} 次<br>${esc(stateLabels[t.state])}</p></article>`;}).join('')}</div>`:''}<details class="details-group" ${exTasks.length?'open':''}><summary>记录你的观察</summary><p class="compact-note">记录符合、有问题或仍无法判断的内容。一次好图不代表所有情况都适用。</p><div class="observations">${Object.entries(ex.conclusions).map(([k,v])=>`<label>${esc(k)}<textarea data-conclusion="${esc(k)}" placeholder="你看到什么？依据是哪张？">${esc(v)}</textarea></label>`).join('')}</div></details><details class="details-group"><summary>更多比较条件与记录</summary>${ex.conditions.map(c=>`<label class="form-label">${esc(c.label)}<textarea data-condition="${c.id}">${esc(c.change)}</textarea></label>`).join('')}${btn('添加一个条件','add-condition','','btn small')}</details>`,btn(tr("查看比较记录"),'compare-history')+btn(tr("保存拍摄方案"),'save-compare-recipe')+btn(tr("返回拍摄"),'close'),'wide');}
+function saveRecipeDialog(fromCompare=false){ui.dialog='save-recipe';openDialog(tr("保存拍摄方案"),`<label class="form-label">${tr("名称")}<input id="recipe-name" value="${esc(current().title+' · 我的拍摄方案')}"></label><label class="form-label">${tr("适用情况与还不确定的地方")}<textarea id="recipe-scope" placeholder="${tr("例如：适合日常街拍；换成印花衣服后还需检查")}">${esc(localRuntime?'请填写适用素材和验证范围':'当前为样例流程，真实适用效果尚未验证')}</textarea></label><label class="inline-checkbox"><input type="checkbox" id="recipe-personal">${tr("保留这组人物和服装，作为我的专用方案")}</label><div class="spacer"></div><p class="muted small">${tr("不勾选时，再次使用会请你重新选人物和服装。镜头安排、姿态、预设和文字设置保留。")}</p>${fromCompare?`<div class="spacer"></div><label class="form-label">${tr("保存哪组设置")}<select id="recipe-condition">${state.experiments.find(e=>e.id===ui.compareId).conditions.map(c=>`<option value="${c.id}">${esc(c.label)}</option>`).join('')}</select></label>`:''}`,btn(tr("取消"),'close')+btn(tr("保存方案"),'commit-recipe',`data-compare="${fromCompare?'true':'false'}"`,'btn primary'),'narrow');}
+function recipesDialog(){ui.dialog='recipes';openDialog(tr("我的拍摄方案"),`<p class="muted small">${tr("保存镜头、姿态、场景和文字设置，下次换素材继续拍。再次使用会新建拍摄，旧照片与版本保留。方案用于复用设置，生成效果仍需选片确认。")}</p><div class="spacer"></div><div class="recipe-grid">${state.recipes.filter(r=>M.recipePurpose(r)==='social').map(r=>`<article class="recipe-card"><img src="${esc(r.image)}" alt="${tr("{0}示例", esc(r.title))}"><div class="recipe-copy"><h3>${esc(r.title)}</h3><p>${tr("{0} 个版本 · {1}", r.versions.length, r.versions.at(-1).status)}</p><div class="row">${btn(tr("查看设置"),'recipe-detail',`data-id="${r.id}"`,'btn small')}${btn(tr("再拍一组"),'use-recipe',`data-id="${r.id}"`,'btn primary small')}</div></div></article>`).join('')}</div>`,btn(tr("保存当前设置"),'save-recipe')+btn(tr("关闭"),'close'),'wide');}
 function recipeDetail(id,version){const r=state.recipes.find(x=>x.id===id),v=r.versions.find(x=>x.number===(Number(version)||r.defaultVersion));ui.dialog='recipe';ui.recipeId=id;ui.recipeVersion=v.number;openDialog(esc(r.title),`<div class="row between"><div class="row">${tag(tr("版本 ")+v.number)}${tag(v.number===r.defaultVersion?tr("以后默认使用"):tr("保留版本"),'gold')}${tag(v.status)}</div><select id="recipe-version">${r.versions.map(x=>`<option value="${x.number}" ${x.number===v.number?'selected':''}>${tr("版本 {0}", x.number)}</option>`).join('')}</select></div><div class="spacer"></div><div class="notice">${esc(v.scope)}</div><div class="spacer"></div><div class="info-grid"><div class="info-card"><h3>${tr("人物与服装")}</h3><p>${v.personal?tr("使用已保存的个人参考"):tr("再次使用时重新选择人物与服装")}</p></div><div class="info-card"><h3>${tr("拍摄安排")}</h3><p>${tr("{0} 张照片 · {1}", v.shots.length, esc(v.styleName||v.style||tr("未指定风格")))}</p></div></div><div class="spacer"></div><details><summary>${tr("展开设置与来源")}</summary><div class="prompt-display">${esc(JSON.stringify({style:v.style,environment:v.environment,options:v.options,scope:v.scope,source:v.source,validations:v.validations},null,2))}</div></details>`,btn(tr("用当前拍摄保存新版本"),'new-recipe-version',`data-id="${r.id}"`)+btn(tr("设为以后默认"),'recipe-default',`data-id="${r.id}" data-version="${v.number}" ${v.number===r.defaultVersion?'disabled':''}`)+(localRuntime?btn(tr("用此版本复验"),'workflow-validate',`data-id="${r.id}" data-version="${v.number}"`):'')+btn(tr("再拍一组"),'use-recipe',`data-id="${r.id}" data-version="${v.number}"`,'btn primary'),'medium');}
 function tasksDialog(){ui.dialog='tasks';openDialog(tr("拍摄任务"),`<div class="notice subtle">${tr("这里的生成与连接均为演示，当前拍摄不会向绘图平台提交。")}</div><div class="spacer"></div><div class="task-list">${state.tasks.filter(t=>t.shootId===current().id).slice().reverse().map(t=>`<article class="task-item"><div class="row between"><h3>${esc(t.snapshot.shot.title)}</h3>${tag(tr(stateLabels[t.state]),t.state==='done'?'good':['failed','unknown'].includes(t.state)?'bad':'gold')}</div><p>${esc(t.provider)}${t.conditionLabel?' · '+esc(t.conditionLabel):''}${t.error?' · '+esc(t.error):''}</p><div class="task-controls">${t.outputId?btn(tr("看结果"),'open-result',`data-id="${t.outputId}"`,'btn small'):''}${t.state==='recovering'?btn(tr("重新读取结果"),'recover',`data-id="${t.id}"`,'btn small'):''}${['failed','not-submitted'].includes(t.state)?btn(tr("重新生成这张"),'retry',`data-id="${t.id}"`,'btn small'):''}${t.state==='unknown'?btn(tr("核对提交结果"),'reconcile',`data-id="${t.id}"`,'btn small'):''}${btn('当时的设置','snapshot',`data-task="${t.id}"`,'btn small ghost')}</div></article>`).join('')||`<p class="muted small">${tr("还没有任务。")}</p>`}</div>`,btn(tr("停止尚未提交的任务"),'stop-queued')+btn(tr("关闭"),'close'),'medium');}
 function connectionsDialog(){ui.dialog='connections';openDialog(tr("绘图平台"),`<div class="notice warning">${tr("设计试用使用演示连接，不读取账号或余额，不提交真实生成。")}</div><div class="spacer"></div><div class="stack">${Object.entries(state.providers).map(([name,p])=>`<section class="provider-card ${state.provider===name?'active':''}"><div><h3>${name} ${state.provider===name?tr("· 当前使用"):''}</h3><p>${esc(p.model)} · ${p.status==='ready'?tr("演示已就绪"):tr("演示已断开")}</p></div><div class="row">${btn(tr("选择"),'provider',`data-name="${name}" ${state.provider===name?'disabled':''}`,'btn small')}${btn(p.status==='ready'?tr("模拟断开"):tr("恢复演示"),'toggle-provider',`data-name="${name}"`,'btn small ghost')}</div></section>`).join('')}</div><div class="spacer"></div><label class="form-label">${tr("试用异常恢复")}<select id="task-fault">${[['normal',tr("正常生成")],['disconnect',tr("已提交，结果待读取")],['failed',tr("准备失败，未提交")],['unknown',tr("提交结果未知")]].map(([id,label])=>`<option value="${id}" ${state.fault===id?'selected':''}>${tr(label)}</option>`).join('')}</select></label>`,btn(tr("返回拍摄"),'close'),'medium');}
@@ -693,9 +800,16 @@ function worksDialog(trash=false,scope='all',type='all') {
       ${localRuntime?btn(trash?tr("恢复作品"):tr("删除作品"),trash?'work-restore':'work-trash',`data-id="${o.id}"`,'link-btn'):''}</div></article>`;}).join('')||`<p class="muted">${ui.worksType!=='all'?tr("这里还没有这类作品，可切换到“全部”。"):trash?tr("作品回收站是空的。"):tr("还没有作品，生成后的图片会显示在这里。")}</p>`}</div>`,
     (scoped?btn(tr("查看全部拍摄的作品"),'works'):'')+btn(trash?tr("返回作品"):tr("作品回收站"),trash?'works-return':'works-trash')+btn(tr("返回拍摄"),'close'),'wide');
 }
-function exportDialog(){ui.dialog='export';const outputs=state.outputs.filter(o=>!o.trashed&&o.shootId===current().id&&o.picked&&(current().purpose!=='merchant'||o.review==='approved'));openDialog(tr("导出采用的图片"),`<div class="notice subtle">${localRuntime?tr("只导出你采用的版本。清单会区分平台作品与内置样例。"):tr("只导出你采用的版本。这里的图片为展示样例，不代表真实生图结果。")}</div><div class="spacer"></div><div class="sheet-list">${outputs.map(o=>`<div class="sheet-list-row"><img loading="lazy" src="${esc(o.thumb||o.image)}" alt="${esc(o.title)}"><div class="grow"><h3>${esc(o.title)}</h3><p>${tr("版本 {0}", o.revision)}</p></div>${btn(tr("下载原图"),'download',`data-id="${o.id}"`,'btn small')}</div>`).join('')||`<p class="muted small">${tr("还没有采用图片。回到当前照片，点击“采用这张”。")}</p>`}</div>`,btn(tr("下载图片清单"),'export-manifest')+btn(localRuntime?tr("打包所选作品与清单"):tr("打包所选样例与清单"),'export-package',outputs.length?'':'disabled','btn primary')+btn(tr("关闭"),'close'),'medium');}
+function exportDialog(){ui.dialog='export';
+  const manifest=selectedManifest();
+  const approvedIds=new Set(manifest.images.map(item=>item.id));
+  const missing=manifest.missing.map(row=>esc(tr(row.title))+(row.issue?' · '+esc(tr(row.issue)):'')).join('、');
+  const coverage=missing?'<p class="notice">'+tr('本次尚缺 · {0}',missing)+'</p>':'';
+  const outputs=state.outputs.filter(o=>approvedIds.has(o.id));openDialog(tr("导出采用的图片"),`<div class="notice subtle">${localRuntime?tr("只导出你采用的版本。清单会区分平台作品与内置样例。"):tr("只导出你采用的版本。这里的图片为展示样例，不代表真实生图结果。")}</div>${coverage}<div class="spacer"></div><div class="sheet-list">${outputs.map(o=>`<div class="sheet-list-row"><img loading="lazy" src="${esc(o.thumb||o.image)}" alt="${esc(o.title)}"><div class="grow"><h3>${esc(o.title)}</h3><p>${tr("版本 {0}", o.revision)}</p></div>${btn(tr("下载原图"),'download',`data-id="${o.id}"`,'btn small')}</div>`).join('')||`<p class="muted small">${tr("还没有采用图片。回到当前照片，点击“采用这张”。")}</p>`}</div>`,btn(tr("下载图片清单"),'export-manifest')+btn(localRuntime?tr("打包所选作品与清单"):tr("打包所选样例与清单"),'export-package',outputs.length?'':'disabled','btn primary')+btn(tr("关闭"),'close'),'medium');}
 function moreReferences(){ui.dialog='more-references';openDialog(tr("身形与更多参考"),`<p class="muted small">${tr("参考各自只负责标明的内容，不替换本次人物身份或服装。")}</p><div class="spacer"></div><div class="sheet-list">${current().refs.map((r,i)=>{const a=asset(r.assetId);return `<div class="sheet-list-row"><img src="${esc(a.image)}" alt="${esc(a.name)}"><div class="grow"><h3>${esc(a.name)}</h3><p>${tr("只参考：{0}", esc(tr(r.role)))}</p></div>${btn(tr("移除"),'remove-reference',`data-index="${i}"`,'btn small')}</div>`;}).join('')||`<p class="muted small">${tr("还没有补充参考。")}</p>`}</div><div class="spacer"></div><label class="form-label">${tr("上传参考的用途")}<select id="extra-reference-role">${['身形','环境','光影','构图','风格'].map(x=>`<option value="${x}">${tr(x)}</option>`).join('')}</select></label>${btn(tr("上传对应参考"),'upload-extra','','btn primary')}`,btn(tr("返回拍摄"),'close'),'narrow');}
-function guide(){if(localRuntime){ui.dialog='guide';openDialog(tr("本机接入验证版"),`<p class="muted small">Muse Frame ${esc(document.body.dataset.uiVersion||'')}</p><p>${tr("左侧选择人物、服装、场景和姿态图，右侧选择取景、人物状态和色调。切到进阶可添加身形、光照和其他单项设置。确认页会显示实际发送的参考图及提示词。")}</p>`,btn(tr("返回拍摄"),'close')+migrationLink());return;}ui.dialog='guide';openDialog('Design 06 · 核心创作页',`<div class="stack"><div><h3>本轮可以试什么</h3><p class="muted small">按分类和用途寻找拍摄方案与环境，搜索更多光影、取景、神态及妆发肤质；继续使用动作多视角、照片版本、比较与保存。36 套拍法的首图、118 个环境变化均有 AI 示例；整套其他镜头的样片仍待补充。示例只用于理解设置，不替换你的人物和服装。</p></div><div><h3>在线图库是真实浏览</h3><p class="muted small">只读取公开目录和所选图片，不登录账号，不批量下载原图。</p></div><div><h3>生成仍为演示</h3><p class="muted small">AI 生成与改画面仍重复使用演示样例；基础修图会在本机实际处理像素，保存为新版本。</p></div><div><h3>旧流程继续保留</h3><p class="muted small">Design 01 保留商品批次与研究流程的旧设计示例；与本页数据不互通，真实商品批次尚未迁入。</p><div class="spacer"></div><a href="/legacy/" target="_blank" rel="noopener">${tr("商品与批次旧设计示例（与当前拍摄不互通）↗")}</a></div></div>`,btn(tr("导出试用记录"),'export-state')+btn('重新开始试用','reset-confirm','','btn danger')+btn('开始试用','close','','btn primary'),'narrow');}
+function guide(){if(studioEdition){ui.dialog='guide';const build=document.body.dataset.uiBuild||'source';const info='Muse Frame '+document.body.dataset.uiVersion+' · '+build;
+    openDialog(tr('工作台指南'),'<p>'+esc(info)+'</p><p>'+tr('本机工作区 · 默认端口 9014。绘图费用由你选择的平台账户承担。')+'</p><p>'+tr('先用内置人物近照核对素材与镜头，制作商品时按款色建立批次，复核后导出。')+'</p>',
+      btn(tr('复制版本信息'),'studio-copy-version')+btn(tr('工作首页'),'studio-home')+btn(tr('关闭'),'close'),'narrow');return;}if(localRuntime){ui.dialog='guide';openDialog(tr('Muse Frame 本机版'),`<p class="muted small">Muse Frame ${esc(document.body.dataset.uiVersion||'')}</p><div class="spacer"></div><ol><li>${tr('拍摄方案保存常用设置，更多菜单可进入商家批次。')}</li><li>${tr('在线图库可检查更新，更新失败时保留上次目录。')}</li><li>${tr('作品下方点 AI 修图，可框选位置并添加细节参考。')}</li><li>${tr('顶部点上传修图，可直接编辑电脑里的图片。')}</li><li>${tr('参考图下方设置本镜头的包包，确认页可核对实际提示词。')}</li><li>${tr('同一镜头有两张以上作品时，点候选对比查看细节。')}</li></ol><div class="spacer"></div><p class="compact-note">${tr('圈选提供位置提示，生成效果仍需检查。提交修图会按所选平台计费。')}</p>`,btn(tr('关闭'),'close')+migrationLink(),'medium');return;}ui.dialog='guide';openDialog('Design 06 · 核心创作页',`<div class="stack"><div><h3>本轮可以试什么</h3><p class="muted small">按分类和用途寻找拍摄方案与环境，搜索更多光影、取景、神态及妆发肤质；继续使用动作多视角、照片版本、比较与保存。36 套拍法的首图、118 个环境变化均有 AI 示例；整套其他镜头的样片仍待补充。示例只用于理解设置，不替换你的人物和服装。</p></div><div><h3>在线图库是真实浏览</h3><p class="muted small">只读取公开目录和所选图片，不登录账号，不批量下载原图。</p></div><div><h3>生成仍为演示</h3><p class="muted small">AI 生成与改画面仍重复使用演示样例；基础修图会在本机实际处理像素，保存为新版本。</p></div><div><h3>旧流程继续保留</h3><p class="muted small">Design 01 保留商品批次与研究流程的旧设计示例；与本页数据不互通，真实商品批次尚未迁入。</p><div class="spacer"></div><a href="/legacy/" target="_blank" rel="noopener">${tr("商品与批次旧设计示例（与当前拍摄不互通）↗")}</a></div></div>`,btn(tr("导出试用记录"),'export-state')+btn('重新开始试用','reset-confirm','','btn danger')+btn('开始试用','close','','btn primary'),'narrow');}
 function readImageData(blob){
   return new Promise((resolve,reject)=>{
     const reader=new FileReader();
@@ -717,7 +831,7 @@ async function downloadBlob(blob,name){
     const result=await response.json();
     if(!response.ok||result.error)throw Error(result.error||tr("未能保存文件"));
     if(result.cancelled)return false;
-    toast(tr("已保存到「{0}」",result.folder));
+    toast(tr("已保存到「{0}」",result.folder),false);
     return true;
   }
   const url=URL.createObjectURL(blob),a=document.createElement('a');
@@ -770,7 +884,7 @@ async function downloadOutput(id){
   if(!response.ok)throw Error(tr("原图暂时无法读取，请重试"));
   const blob=await response.blob();
   const extension=blob.type.includes('png')?'png':blob.type.includes('jpeg')?'jpg':'webp';
-  await downloadBlob(blob,`MuseFrame-${output.native?'作品':'样例'}-${output.title}-v${output.revision}.${extension}`);
+  await downloadBlob(blob,`MuseFrame-${output.uploaded?'原图':output.native?'作品':'样例'}-${output.title}-v${output.revision}.${extension}`);
 }
 function selectedManifest(shootIds=[current().id]){
   const manifest=M.exportManifest(state,shootIds);
@@ -783,11 +897,28 @@ function selectedManifest(shootIds=[current().id]){
       const product=state.products.find(p=>p.id===shoot.productId);
       const task=state.tasks.find(t=>t.id===output.taskId);
       return {...item,shotTitle:frame?.title,angle:frame?.angle,productName:product?.name,color:product?.color,
-        recipeVersion:task?.recipeVersion,source:output.demo?'内置样例':output.editType==='local-adjustment'?'本机修图':'平台作品'};
+        recipeVersion:task?.recipeVersion,source:output.demo?'内置样例':output.editType==='local-adjustment'?'本机修图':output.uploaded?'用户上传原图':'平台作品'};
     })};
 }
+function deliveryScope(manifest){
+  return JSON.stringify([manifest.images.map(o=>[o.id,o.revision,o.evidenceVersion]),manifest.missing.map(o=>[o.shotId,o.issue]),manifest.complete]);
+}
+async function freshBatch(shootIds){
+  await writer.confirm();
+  const local=selectedManifest(shootIds);
+  const disk=(await betaApi('design-workspace')).state;
+  if(!disk||deliveryScope(M.exportManifest(disk,shootIds))!==deliveryScope(local)){
+    throw Error(tr('批次已在其他窗口更新。请刷新后重新核对交付范围。'));
+  }
+  return local;
+}
+async function previewBatch(shootIds){
+  const manifest=await freshBatch(shootIds);
+  for(const item of manifest.images)await fullOutput(item.id);
+  return (await prepareDelivery(selectedManifest(shootIds))).manifest;
+}
 async function downloadBatch(shootIds){
-  let manifest=selectedManifest(shootIds);
+  let manifest=await freshBatch(shootIds);
   if(!manifest.images.length)throw Error(tr("还没有符合当前商品依据的合格图片"));
   for(const item of manifest.images)await fullOutput(item.id);
   manifest=selectedManifest(shootIds);
@@ -796,7 +927,7 @@ async function downloadBatch(shootIds){
 }
 function markCreativeFine(scope,key){
   if(scope==='shot'){
-    if(M.FRAMING_FIELDS.includes(key))shot().framingId=null;
+    if(key!=='angle'&&M.FRAMING_FIELDS.includes(key))shot().framingId=null;
     if(['expression','gaze'].includes(key))shot().expressionId=null;
   }else if(['light','color','contrast','depth'].includes(key)){
     const sh=current();
@@ -813,8 +944,16 @@ function markCreativeFine(scope,key){
 function queue(ids){if(!ids.length)throw Error(tr("请先勾选至少一张照片"));const tasks=M.queueShots(state,current().id,ids);if(!tasks.length)throw Error(tr("所选照片已有进行中的任务，请在任务列表查看"));save();render();toast(tr("已建立 {0} 个演示任务，不消耗平台额度", tasks.length));}
 
 const creative=createCreativeUI({getState:()=>state,getCurrent:current,getShot:shot,getNumber:shotNumber,getUI:()=>ui,localRuntime,library,preset,markCreativeFine,save,render,openDialog,closeDialog,toast,enterShoot});
-const photoTools=createPhotoTools({dialog:$('#photo-tools'),onSave:saveLocalPhoto,download:downloadBlob,notify:toast,loadOriginal:fullOutput});
+const photoTools=createPhotoTools({storage:localRuntime?{getItem:key=>state.retouchPresets?JSON.stringify(state.retouchPresets):localStorage.getItem(key),setItem:(key,value)=>{state.retouchPresets=JSON.parse(value);return writer.save(state,ui);}}:localStorage,dialog:$('#photo-tools'),onSave:saveLocalPhoto,download:downloadBlob,notify:toast,loadOriginal:fullOutput});
+const aiEditor=createAIEditor({escape:esc,loadOriginal:fullOutput,
+  persistDraft:async(id,draft)=>{const o=state.outputs.find(item=>item.id===id);if(!o||o.trashed)throw Error(tr('找不到这张作品'));o.editDraft=draft;await writer.save(state,ui);},
+  outfitReference:o=>asset(state.shoots.find(sh=>sh.id===o.shootId)?.outfit),
+});
+const candidateCompare=createCandidateCompare({escape:esc,state:()=>state,loadOriginal:fullOutput,download:downloadOutput,reportError:error,
+  pick:id=>action({dataset:{action:'pick',id}}),edit:o=>nativeTasks.showEdit(o),
+});
 const nativeTasks=localRuntime?createNativeTasks({
+  editImage:async output=>{closeDialog();return aiEditor.open(output);},
   state:()=>state,current,writer,persistUI:()=>{const {gallery,dialog,...persist}=ui;return persist;},
   open:(name,title,body,footer)=>{ui.dialog=name;openDialog(title,body,footer,'medium');},
   close:closeDialog,render,toast,button:btn,escape:esc,getDialog:()=>ui.dialog,reportError:error,
@@ -833,7 +972,7 @@ const nativeTasks=localRuntime?createNativeTasks({
 }):null;
 const workflows=nativeTasks?createWorkflows({
   state:()=>state,current,shot,ui,open:(name,title,body,footer)=>{ui.dialog=name;openDialog(esc(title),body,footer,'wide');},
-  close:closeDialog,button:btn,escape:esc,save,render,enterShoot,native:nativeTasks,downloadBatch,
+  close:closeDialog,button:btn,escape:esc,save,render,enterShoot,native:nativeTasks,downloadBatch,previewBatch,fullOutput,reportError:error,
 }):null;
 async function action(el){if(creative.handleAction(el))return;const a=el.dataset.action,id=el.dataset.id;
   if(nativeTasks&&a.startsWith('native-'))return nativeTasks.handle(a,id);
@@ -844,15 +983,48 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
   case 'reset-confirm':if(localRuntime)throw Error('本机记录请通过新建拍摄管理。');ui.dialog='reset-confirm';openDialog('重新开始 Design 06 试用',`<div class="notice warning">清除本浏览器的 Design 06 试用记录，恢复初始样例。你的其他工作台、Design 01—05 和电脑中的文件不受影响。</div><div class="spacer"></div><p>本页已保存 ${state.shoots.length} 次拍摄、${state.outputs.length} 个样例结果。建议先导出试用记录，清除后无法在此页撤销。</p><div class="spacer"></div>${btn('先导出试用记录','export-state','','btn')}`,btn('取消，保留记录','close')+btn('确认清除并重新开始','reset-demo','','btn primary'),'narrow');break;
   case 'reset-demo':{if(localRuntime)throw Error('本机工作台不支持试用重置。');localStorage.removeItem(KEY);localStorage.removeItem(KEY+'-ui');state=initialState();healthy=true;ui={scope:'frame',shotId:null,selected:[],version:null,customDrafts:{},customOpen:{},dialog:null,gallery:null,compareId:null,compareWith:null,uploadRole:null,recipeId:null,recipeVersion:null};prepareRecommended(current());ui.shotId=shots()[0].id;ui.selected=shots().map(x=>x.id);closeDialog();save();render();toast('已恢复初始样例，可以重新试用');break;}
 
-  case 'mobile-menu':ui.dialog='mobile-menu';openDialog(tr("拍摄操作"),`<div class="shot-menu-grid">${btn(tr("查看任务"),'tasks')}${btn(tr("绘图平台"),'connections')}${btn(tr("保存这套设置"),'save-recipe')}${btn(tr("导出采用的图片"),'export')}${btn(tr("设计试用说明"),'guide')}</div>`,btn(tr("返回拍摄"),'close'),'narrow');break;
+  case 'more-tools':ui.dialog='more-tools';openDialog(tr("更多工具"),`<div class="info-card"><h3>${tr("商家批次")}</h3><p>${tr("为多个商品款色统一安排拍摄，对照实拍核对后导出。")}</p>${btn(tr("打开商家批次"),'workflow-merchant','','btn primary')}</div>`,btn(tr("返回拍摄"),'close'),'narrow');break;
+  case 'mobile-menu':ui.dialog='mobile-menu';openDialog(tr("拍摄操作"),`<div class="shot-menu-grid">${btn(tr("查看任务"),'tasks')}${btn(tr("绘图平台"),'connections')}${btn(tr("保存拍摄方案"),'save-recipe')}${btn(tr("导出采用的图片"),'export')}${localRuntime?btn(tr("更多工具"),'more-tools'):''}${btn(tr("设计试用说明"),'guide')}</div>`,btn(tr("返回拍摄"),'close'),'narrow');break;
+  case 'studio-copy-version':await navigator.clipboard.writeText('Muse Frame '+document.body.dataset.uiVersion+' · '+(document.body.dataset.uiBuild||'source'));toast(tr('已复制版本信息'));break;
+  case 'studio-home':closeDialog();setStudioView(true);render();break;
+  case 'studio-direction':ui.dialog='studio-direction';openDirection(state,current(),state.outputs.find(o=>o.id===id),openDialog,btn,esc);break;
+  case 'studio-direction-save':saveDirection(state,current(),state.outputs.find(o=>o.id===id));await save();closeDialog();render();toast(tr('已保存试拍方向'));break;
+  case 'studio-direction-clear':clearDirection(current(),id);await save();render();break;
+  case 'studio-apply-recipe':{
+    const sh=M.useRecipe(state,id,Number(el.dataset.version),{people:$('#reuse-people').checked,references:$('#reuse-references').checked,text:$('#reuse-text').checked});
+    enterShoot(sh);break;
+  }
+  case 'agent-import':openPlanImport();break;
+  case 'agent-review':reviewAgentPlan();break;
+  case 'agent-back':if(reviewedPlan)openPlanImport(JSON.stringify({format:'muse-frame.plan/v1',...reviewedPlan},null,2));break;
+  case 'agent-create':{
+    if(!reviewedPlan || ui.dialog!=='agent-review')break;
+    const plan=reviewedPlan; reviewedPlan=null;
+    enterShoot(createPlannedShoot(state,plan));toast(tr('已建立独立拍摄'));break;
+  }
+  case 'studio-portrait':creative.openPortraitSample();break;
   case 'projects':projectsDialog();break;
+  case 'start-research':workflows.createResearch(id||undefined);break;
+  case 'delete-shoot':{
+    const sh=M.findShoot(state,id);openDialog('删除拍摄',`<p>将「${esc(shootTitle(sh))}」移入已删除拍摄，可随时恢复。</p><label class="inline-checkbox"><input id="clear-shoot-cache" type="checkbox">同时清理本拍摄的缩略图缓存</label><p class="compact-note">原图、生成回执和共用素材保留。缓存仅指可重新生成的缩略图；正在生成或结果待确认的拍摄不能删除。</p>`,btn('取消','close')+btn('确认删除','confirm-delete-shoot',`data-id="${esc(id)}"`,'btn primary'));break;
+  }
+  case 'confirm-delete-shoot':{
+    const clearCache=$('#clear-shoot-cache').checked;
+    if(state.shoots.filter(sh=>!sh.archived).length===1)M.createShoot(state,{free:true,title:'新的拍摄'});
+    if(writer){await writer.save(state,ui);await betaApi('design-delete-shoot',{shootId:id,clearCache,revision:writer.revision});window.location.reload();}
+    else{M.findShoot(state,id).archived=true;enterShoot(state.shoots.find(sh=>!sh.archived));}break;
+  }
+  case 'archived-shoots':openDialog('已删除拍摄',state.shoots.filter(sh=>sh.archived).map(sh=>`<article class="sheet-list-row"><strong class="grow">${esc(shootTitle(sh))}</strong>${btn('恢复拍摄','restore-shoot',`data-id="${esc(sh.id)}"`)}</article>`).join('')||'<p>没有已删除拍摄。</p>',btn('返回','projects'));break;
+  case 'restore-shoot':M.findShoot(state,id).archived=false;enterShoot(M.findShoot(state,id));break;
   case 'open-shoot':enterShoot(M.findShoot(state,id));break;
   case 'new-shoot':creative.openPlans({newShoot:true});break;
   case 'new-free':{
-    const sh=M.createShoot(state,{free:true});
+    const sh=M.createShoot(state,{free:true,independent:studioEdition});
     if(localRuntime)sh.referenceMode='photo';
     enterShoot(sh);break;
   }
+  case 'upload-edit':$('#edit-upload').value='';$('#edit-upload').click();break;
+  case 'candidate-compare':await candidateCompare.open(state.outputs.find(o=>o.id===id));break;
   case 'assets':assetsDialog();break;
   case 'references':ui.dialog='references';openDialog(localRuntime?tr("参考图"):tr("整组参考"),referencesPanel(),btn(tr("返回拍摄"),'close'),'narrow');break;
   case 'more-references':moreReferences();break;
@@ -868,8 +1040,8 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
   case 'remove-body':
     current().refs=current().refs.filter(ref=>ref.role!=='身形');current().revision++;
     save();render();if(ui.dialog==='references')$('.dialog-body').innerHTML=referencesPanel();break;
-  case 'creative-clear-framing':
-    M.clearFraming(state,current().id,shot().id);save();render();toast(tr("这张不再指定取景"));break;
+  case 'creative-clear-framing':{
+    const angle=shot().options?.angle;M.clearFraming(state,current().id,shot().id);if(angle)shot().options.angle=angle;else delete shot().options.angle;save();render();toast(tr("这张不再指定取景"));break;}
   case 'shoot-mode':
     ui.shootMode=el.dataset.mode;save();render();
     document.querySelector(`[data-action="shoot-mode"][data-mode="${ui.shootMode}"]`)?.focus({preventScroll:true});break;
@@ -903,14 +1075,25 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
   case 'restore-shot':{const target=id?current().shots.find(x=>x.id===id):shot();if(!target)throw Error(tr("找不到这张照片"));target.removed=false;ui.shotId=target.id;ui.version='plan';current().revision++;save();closeDialog();render();toast(tr("已恢复到拍摄计划；生成勾选保持不变"));break;}
   case 'removed-shots':removedShotsDialog();break;
   case 'remove-shot':{const x=id?current().shots.find(item=>item.id===id):shot();if(!x||x.removed)throw Error(tr("这张镜头已不在拍摄计划中"));if(shots().length<2)throw Error(tr("至少保留一张照片计划"));const previous=shots(),index=previous.findIndex(item=>item.id===x.id);x.removed=true;current().revision++;ui.selected=ui.selected.filter(v=>v!==x.id);if(ui.shotId===x.id){ui.shotId=shots()[Math.min(index,shots().length-1)].id;ui.version=null;}save();closeDialog();render();toast(tr("已从计划移出，可在“已移出”中恢复；历史作品保留"));break;}
-  case 'generate-current':if(nativeTasks)await nativeTasks.showSubmit([shot().id]);else queue([shot().id]);break;
-  case 'generate-selected':if(nativeTasks)await nativeTasks.showSubmit(ui.selected);else queue(ui.selected);break;
+  case 'studio-fix-frame':ui.shotId=id;ui.version='plan';closeDialog();render();break;
+  case 'studio-preflight-next':{
+    if(!preflight||preflight.shootId!==current().id)break;
+    const sh=current(),ids=preflight.ids;
+    if(nativeTasks.generationState(sh.nativeSettings).ready)await nativeTasks.showSubmit(ids);
+    else await nativeTasks.showSettings(async settings=>{
+      sh.nativeSettings=M.clone(settings);await save();render();studioPreflight(ids);
+    },sh.nativeSettings);
+    break;
+  }
+  case 'generate-current':if(studioEdition&&!current().editingOnly){studioPreflight([shot().id]);break;}if(current().editingOnly){await nativeTasks.showEdit(output());break;}if(nativeTasks)await nativeTasks.showSubmit([shot().id]);else queue([shot().id]);break;
+  case 'generate-selected':if(studioEdition){studioPreflight(ui.selected);break;}if(nativeTasks)await nativeTasks.showSubmit(ui.selected);else queue(ui.selected);break;
   case 'gallery':await openGallery(el.dataset.kind,el.dataset.tab);break;
+  case 'gallery-refresh':
   case 'gallery-retry':await loadGallery(ui.gallery.kind,true);break;
   case 'gallery-tab':{
     const g=ui.gallery;
     rememberGalleryList();setGalleryTab(g,el.dataset.tab);renderGallery();
-    if(g.tab==='online'&&!g.data&&g.status!=='loading')await loadGallery(g.kind);
+    if(g.tab==='online'&&g.status!=='loading')await loadGallery(g.kind);
     break;
   }
   case 'gallery-person-category':{
@@ -940,7 +1123,7 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
   case 'gallery-add-shots':addPoseShots();break;
   case 'clear-reference':{const key=el.dataset.role==='person'?'model':'outfit';current()[key]=null;current().revision++;save();render();if(ui.dialog==='references'){$('.dialog-body').innerHTML=referencesPanel();}toast(tr("已取消本组采用，素材和历史图片仍保留"));break;}
   case 'upload':ui.uploadRole=el.dataset.role;$('#file-upload').value='';$('#file-upload').click();break;
-  case 'preview-asset':{const x=asset(id),label=el.dataset.label||sceneReferenceName(x.id,x.name);ui.dialog='preview-asset';openDialog(esc(label),`<img class="preview-image" src="${esc(x.image)}" alt="${esc(label)}"><div class="spacer"></div><p class="muted small">${esc(tr(x.source)||tr("本机参考"))} · ${esc(roleName(x.type)||x.role||tr("额外参考"))}</p>`,btn(tr("返回拍摄"),'close'),'medium');break;}
+  case 'preview-asset':{const x=asset(id),label=el.dataset.label||sceneReferenceName(x.id,x.name);ui.dialog='preview-asset';openDialog(esc(label),`<img class="preview-image" src="${esc(x.image)}" alt="${esc(label)}"><div class="spacer"></div><p class="muted small">${esc(tr(x.source)||tr("本机参考"))} · ${esc(el.dataset.label||x.role||roleName(x.type)||tr("额外参考"))}</p>`,btn(tr("返回拍摄"),'close'),'medium');break;}
   case 'remove-pose':shot().poseAsset=null;shot().pose='';shot().poseRecommended=false;shot().poseMode='adaptive';current().revision++;save();render();if(ui.dialog==='references')$('.dialog-body').innerHTML=referencesPanel();break;
   case 'pose-text':poseTextDialog();break;
   case 'save-pose-text':shot().pose=$('#pose-description').value;shot().poseTextCustom=true;shot().poseRecommended=false;shot().poseMode=$('#pose-text-only').checked?'text':'adaptive';shot().manual=true;save();closeDialog();render();break;
@@ -972,10 +1155,16 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
   case 'back-compare':compareDialog(null,false);break;
   case 'save-compare-recipe':saveRecipeDialog(true);break;
   case 'save-recipe':saveRecipeDialog();break;
-  case 'commit-recipe':{const title=$('#recipe-name').value.trim();if(!title)throw Error(tr("请给这套设置起个名字"));const options={title,scope:$('#recipe-scope').value,personal:$('#recipe-personal').checked,experimentId:el.dataset.compare==='true'?ui.compareId:null,conditionId:$('#recipe-condition')?.value};const r=workflows?workflows.saveRecipe(options):M.saveRecipe(state,current().id,options);save();recipeDetail(r.id);toast(tr("已保存到拍法"));break;}
+  case 'commit-recipe':{const title=$('#recipe-name').value.trim();if(!title)throw Error(tr("请给这套设置起个名字"));const options={title,scope:$('#recipe-scope').value,personal:$('#recipe-personal').checked,experimentId:el.dataset.compare==='true'?ui.compareId:null,conditionId:$('#recipe-condition')?.value};const r=workflows?workflows.saveRecipe(options):M.saveRecipe(state,current().id,options);save();recipeDetail(r.id);toast(tr("已保存到拍摄方案"));break;}
   case 'recipes':recipesDialog();break;
   case 'recipe-detail':recipeDetail(id);break;
-  case 'use-recipe':enterShoot(M.useRecipe(state,id,Number(el.dataset.version)||undefined));toast(tr("已新建拍摄，请确认人物与服装"));break;
+  case 'use-recipe':if(studioEdition){
+    const recipe=state.recipes.find(r=>r.id===id),v=recipe.versions.find(v=>v.number===(Number(el.dataset.version)||recipe.defaultVersion));
+    ui.dialog='recipe-reuse';openDialog(tr('复用拍摄方案'),'<h3>'+esc(recipe.title)+'</h3><p>'+esc(tr('{0} 个镜头 · 保留机位、取景与风格',v.shots.length))+'</p>'+
+    '<label class="inline-checkbox"><input type="checkbox" id="reuse-people" '+(v.personal?'':'disabled')+'> '+tr('沿用本方案保存的人物与服装')+'</label>'+
+    '<label class="inline-checkbox"><input type="checkbox" id="reuse-references"> '+tr('沿用身形、场景与逐镜姿态参考图')+'</label>'+
+    '<label class="inline-checkbox"><input type="checkbox" id="reuse-text"> '+tr('沿用自写全文、补充说明与逐镜备注')+'</label>',btn(tr('取消'),'close')+btn(tr('创建新拍摄'),'studio-apply-recipe','data-id="'+esc(id)+'" data-version="'+v.number+'"','btn primary'));break;
+  }enterShoot(M.useRecipe(state,id,Number(el.dataset.version)||undefined));toast(tr("已新建拍摄，请确认人物与服装"));break;
   case 'new-recipe-version':ui.dialog='recipe-new-version';ui.recipeId=id;openDialog(tr("保存当前设置为新版本"),`<label class="form-label">${tr("这次改了什么")}<textarea id="new-version-note" placeholder="${tr("例如：改用更柔和的侧光，并保留新的表情设置")}"></textarea></label><p class="muted small">${tr("保存整个当前拍摄设置；不会覆盖旧版本，也不会自动设为以后默认。")}</p>`,btn(tr("取消"),'close')+btn(tr("保存新版本"),'commit-recipe-version','','btn primary'),'narrow');break;
   case 'commit-recipe-version':{const note=$('#new-version-note').value.trim();if(!note)throw Error(tr("请简短说明这次的变化"));const v=M.saveCurrentRecipeVersion(state,current().id,ui.recipeId,note);save();recipeDetail(ui.recipeId,v.number);break;}
   case 'recipe-default':state.recipes.find(x=>x.id===id).defaultVersion=Number(el.dataset.version);save();recipeDetail(id,el.dataset.version);break;
@@ -988,7 +1177,7 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
   case 'retry':{const t=state.tasks.find(x=>x.id===id);queue([t.shotId]);tasksDialog();break;}
   case 'reconcile':ui.dialog='reconcile';ui.reconcileId=id;openDialog(tr("核对这次提交"),`<p>${tr("真实平台必须先查清是否已接收任务。这里提供两种演示结果，不会再次提交。")}</p>`,btn(tr("演示：确认未提交"),'resolve-task','data-submitted="false"')+btn(tr("演示：已提交，读取结果"),'resolve-task','data-submitted="true"','btn primary'),'narrow');break;
   case 'resolve-task':M.reconcileTask(state,ui.reconcileId,el.dataset.submitted==='true');save();tasksDialog();render();break;
-  case 'open-result':{const o=state.outputs.find(x=>x.id===id&&!x.trashed);if(!o)throw Error('作品已移到回收站');state.currentShoot=o.shootId;ui.shotId=o.shotId;ui.version=o.id;closeDialog();save();render();nativeTasks?.prepareControls(current().nativeSettings).catch(error);break;}
+  case 'open-result':{const o=state.outputs.find(x=>x.id===id&&!x.trashed);if(!o)throw Error('作品已移到回收站');setStudioView(false);state.currentShoot=o.shootId;ui.shotId=o.shotId;ui.version=o.id;closeDialog();save();render();nativeTasks?.prepareControls(current().nativeSettings).catch(error);break;}
   case 'works':worksDialog();break;
   case 'shoot-works':worksDialog(false,current().id);break;
   case 'works-return':worksDialog(false,ui.worksScope||'all',ui.worksType||'all');break;
@@ -1005,7 +1194,7 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
   }
   case 'export':exportDialog();break;
   case 'export-package':{
-    let manifest=selectedManifest();
+    let manifest=localRuntime?await freshBatch([current().id]):selectedManifest();
     if(!manifest.images.length)throw Error(tr("先采用需要打包的图片"));
     el.disabled=true;
     try{
@@ -1019,18 +1208,42 @@ async function action(el){if(creative.handleAction(el))return;const a=el.dataset
     }finally{if(el.isConnected)el.disabled=false;}
     break;
   }
-  case 'export-manifest':await downloadBlob(new Blob([JSON.stringify(selectedManifest(),null,2)],{type:'application/json'}),localRuntime?'MuseFrame-作品清单.json':'MuseFrame-样例图片清单.json');break;
+  case 'export-manifest':{
+    const manifest=localRuntime?await freshBatch([current().id]):selectedManifest();
+    for(const item of manifest.images)await fullOutput(item.id);
+    const delivery=await prepareDelivery(selectedManifest());
+    await downloadBlob(new Blob([JSON.stringify(delivery.manifest,null,2)],{type:'application/json'}),localRuntime?'MuseFrame-作品清单.json':'MuseFrame-样例图片清单.json');break;
+  }
   case 'export-state':await downloadBlob(new Blob([encodeState(state)],{type:'application/json'}),'MuseFrame-Design06-试用记录.json');break;
 }}
 
 document.addEventListener('click',event=>{const el=event.target.closest('[data-action]');if(el&&!el.disabled)Promise.resolve(action(el)).catch(error);});
 document.addEventListener('input',event=>{const el=event.target;try{if(creative.handleInput(el)||workflows?.observe(el))return;if(el.dataset.shootField){current()[el.dataset.shootField]=el.value;if(el.dataset.shootField==='ratio')M.setOption(state,current().id,null,'ratio',el.value,el.value,'preset');current().revision++;save();}if(el.dataset.shotField){shot()[el.dataset.shotField]=el.value;if(el.dataset.shotField==='title')shot().titleEdited=true;shot().manual=true;current().revision++;save();}if(el.dataset.customDraft){ui.customDrafts[el.dataset.customDraft]=el.value;save();}if(el.id==='gallery-search'){ui.gallery.query=el.value;resetGalleryResults();}if(el.id==='compare-change'){const ex=state.experiments.find(x=>x.id===ui.compareId);ex.conditions[1].change=el.value;save();}if(el.dataset.condition){state.experiments.find(x=>x.id===ui.compareId).conditions.find(c=>c.id===el.dataset.condition).change=el.value;save();}if(el.dataset.conclusion){state.experiments.find(x=>x.id===ui.compareId).conclusions[el.dataset.conclusion]=el.value;save();}}catch(e){error(e);}});
-document.addEventListener('change',event=>{const el=event.target;try{if(el.hasAttribute('data-language')){changeLanguage(el.value);return;}if(creative.handleChange(el))return;if(el.dataset.nativeSetting&&nativeTasks){nativeTasks.changeSettings(el).catch(error);return;}if(el.id==='gallery-pose-mode'){ui.gallery.poseMode=el.value;}if(el.dataset.poseGroupSelect){const id=el.dataset.poseGroupSelect;ui.gallery.selected=el.checked?[...new Set([...ui.gallery.selected,id])]:ui.gallery.selected.filter(x=>x!==id);const scroll=$('.dialog-body').scrollTop;renderGallery();$('.dialog-body').scrollTop=scroll;}if(el.dataset.poseMulti){const id=el.dataset.poseMulti;ui.gallery.poseMulti=el.checked?[...new Set([...ui.gallery.poseMulti,id])]:ui.gallery.poseMulti.filter(x=>x!==id);posePreview(ui.gallery.posePreviewAction);}if(el.dataset.selectShot){ui.selected=el.checked?[...new Set([...ui.selected,el.dataset.selectShot])]:ui.selected.filter(id=>id!==el.dataset.selectShot);save();render();}if(el.id==='gallery-category'){ui.gallery.category=el.value;resetGalleryResults();}if(el.id==='gallery-hair'){ui.gallery.hair=el.value;resetGalleryResults();}if(el.id==='gallery-system'){Object.assign(ui.gallery,{system:el.value,category:'all',limit:GALLERY_PAGE_SIZE,scroll:0});renderGallery();$('#gallery-system')?.focus({preventScroll:true});}if(el.dataset.gallerySelect){const id=el.dataset.gallerySelect;ui.gallery.selected=el.checked?[...new Set([...ui.gallery.selected,id])]:ui.gallery.selected.filter(x=>x!==id);const scroll=$('.dialog-body').scrollTop;renderGallery();$('.dialog-body').scrollTop=scroll;}if(el.hasAttribute('data-pose-mode')){shot().poseMode=el.value;save();render();}if(el.id==='file-upload')readUpload(el.files[0]).catch(error);if(el.id==='compare-light'){const ex=state.experiments.find(x=>x.id===ui.compareId);if(el.value!=='custom'){ex.conditions[1].change='光影：'+library.groups.find(g=>g.id==='light').options[Number(el.value)].prompt+'；其他设置保持';save();$('#compare-change').value=ex.conditions[1].change;}else $('#compare-change').focus();}if(el.id==='compare-repeats'){state.experiments.find(x=>x.id===ui.compareId).repeats=Number(el.value);save();compareDialog(null,false);}if(el.id==='compare-existing'){ui.compareWith=el.value;compareDialog(null,false);}if(el.id==='recipe-version')recipeDetail(ui.recipeId,el.value);if(el.id==='task-fault'){state.fault=el.value;save();}}catch(e){error(e);}});
+document.addEventListener('change',async event=>{
+  if(event.target.id!=='agent-plan-file')return;
+  const file=event.target.files[0], target=$('#agent-plan-text');
+  if(!file||!target)return;
+  try{
+    if(file.size>maxPlanBytes)throw Error('计划文件超过 64 KB。');
+    const text=await file.text();
+    if(target.isConnected){target.value=text;target.focus();}
+  }catch(err){error(err);}
+});
+document.addEventListener('change',event=>{const el=event.target;try{if(el.id==='edit-upload'){uploadForEditing(el.files[0]).catch(error);return;}if(el.dataset.bagField){shot()[el.dataset.bagField]=el.value;save();render();return;}if(el.hasAttribute('data-language')){changeLanguage(el.value);return;}if(creative.handleChange(el))return;if(el.dataset.nativeSetting&&nativeTasks){nativeTasks.changeSettings(el).catch(error);return;}if(el.id==='gallery-pose-mode'){ui.gallery.poseMode=el.value;}if(el.dataset.poseGroupSelect){const id=el.dataset.poseGroupSelect;ui.gallery.selected=el.checked?[...new Set([...ui.gallery.selected,id])]:ui.gallery.selected.filter(x=>x!==id);const scroll=$('.dialog-body').scrollTop;renderGallery();$('.dialog-body').scrollTop=scroll;}if(el.dataset.poseMulti){const id=el.dataset.poseMulti;ui.gallery.poseMulti=el.checked?[...new Set([...ui.gallery.poseMulti,id])]:ui.gallery.poseMulti.filter(x=>x!==id);posePreview(ui.gallery.posePreviewAction);}if(el.dataset.selectShot){ui.selected=el.checked?[...new Set([...ui.selected,el.dataset.selectShot])]:ui.selected.filter(id=>id!==el.dataset.selectShot);save();render();}if(el.id==='gallery-category'){ui.gallery.category=el.value;resetGalleryResults();}if(el.id==='gallery-hair'){ui.gallery.hair=el.value;resetGalleryResults();}if(el.id==='gallery-system'){Object.assign(ui.gallery,{system:el.value,category:'all',limit:GALLERY_PAGE_SIZE,scroll:0});renderGallery();$('#gallery-system')?.focus({preventScroll:true});}if(el.dataset.gallerySelect){const id=el.dataset.gallerySelect;ui.gallery.selected=el.checked?[...new Set([...ui.gallery.selected,id])]:ui.gallery.selected.filter(x=>x!==id);const scroll=$('.dialog-body').scrollTop;renderGallery();$('.dialog-body').scrollTop=scroll;}if(el.hasAttribute('data-pose-mode')){shot().poseMode=el.value;save();render();}if(el.id==='file-upload')readUpload(el.files[0]).catch(error);if(el.id==='compare-light'){const ex=state.experiments.find(x=>x.id===ui.compareId);if(el.value!=='custom'){ex.conditions[1].change='光影：'+library.groups.find(g=>g.id==='light').options[Number(el.value)].prompt+'；其他设置保持';save();$('#compare-change').value=ex.conditions[1].change;}else $('#compare-change').focus();}if(el.id==='compare-repeats'){state.experiments.find(x=>x.id===ui.compareId).repeats=Number(el.value);save();compareDialog(null,false);}if(el.id==='compare-existing'){ui.compareWith=el.value;compareDialog(null,false);}if(el.id==='recipe-version')recipeDetail(ui.recipeId,el.value);if(el.id==='task-fault'){state.fault=el.value;save();}}catch(e){error(e);}});
 $('#sheet').addEventListener('cancel',event=>{
   if(event.defaultPrevented)return;
   if(ui.dialog==='gallery'){rememberGalleryList();galleryObserver?.disconnect();}
   ui.dialog=null;
 });
-if(nativeTasks){nativeTasks.loadControls().catch(error);nativeTasks.sync().catch(error);setInterval(()=>{if(!$('#photo-tools').open)nativeTasks.sync().catch(()=>{});},2200);}else setInterval(()=>{let changed=false;for(const provider of Object.keys(state.providers)){if(state.providers[provider].status!=='ready')continue;const running=state.tasks.find(t=>t.provider===provider&&t.state==='running');if(running){M.completeTask(state,running.id);changed=true;}const queued=state.tasks.find(t=>t.provider===provider&&t.state==='queued');if(queued){M.submitTask(state,queued.id);changed=true;}}if(changed){save();if(!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){render();if(ui.dialog==='tasks')tasksDialog();else if(ui.dialog==='compare')compareDialog(null,false);}}},1400);
+if(nativeTasks)window.addEventListener('focus',()=>nativeTasks.sync().catch(()=>{}));
+if(nativeTasks){nativeTasks.loadControls().catch(error);nativeTasks.sync().catch(error);setInterval(()=>{if(!$('#photo-tools').open)nativeTasks.poll().catch(()=>{});},2200);}else setInterval(()=>{let changed=false;for(const provider of Object.keys(state.providers)){if(state.providers[provider].status!=='ready')continue;const running=state.tasks.find(t=>t.provider===provider&&t.state==='running');if(running){M.completeTask(state,running.id);changed=true;}const queued=state.tasks.find(t=>t.provider===provider&&t.state==='queued');if(queued){M.submitTask(state,queued.id);changed=true;}}if(changed){save();if(!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName)){render();if(ui.dialog==='tasks')tasksDialog();else if(ui.dialog==='compare')compareDialog(null,false);}}},1400);
 window.MuseFrame06={state:()=>state,ui:()=>ui};
 save();render();
+
+// Arrow-key navigation changes the visible panel only, never photographic settings.
+document.addEventListener('keydown',event=>{
+ const tab=event.target.closest('[data-action="creative-composition-tab"]');
+ if(!tab||!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+ event.preventDefault();const next=event.key==='Home'?'frame':event.key==='End'?'angle':tab.dataset.id==='frame'?'angle':'frame';
+ document.querySelector(`[data-action="creative-composition-tab"][data-id="${next}"]`)?.click();
+});

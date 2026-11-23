@@ -10,6 +10,9 @@ def find_codex():
     return next((str(p) for p in candidates if p.is_file() and os.access(p,os.X_OK)),None)
 
 def create_connection(name,cwd):
+    if name=='ark-direct':
+        from ark_direct import ArkDirect
+        return ArkDirect(cwd)
     if name=='lovart-direct':
         from lovart_direct import LovartDirect
         return LovartDirect(cwd)

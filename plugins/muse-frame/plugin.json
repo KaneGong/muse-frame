@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "muse-frame",
+  "version": "0.6.0",
+  "description": "Prepare a portrait shot list to review and import in the Muse Frame desktop studio."
+}

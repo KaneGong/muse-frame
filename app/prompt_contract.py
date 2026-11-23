@@ -2,13 +2,13 @@
 import copy,hashlib,json,re
 
 ROLES=('face','body','outfit','scene','pose')
-OPTIONAL_BODY_COMPILER='beta-portrait-refs-v3'
+OPTIONAL_BODY_COMPILER='beta-portrait-concise-v4'
 def validate_prompt_contract(payload,bindings):
     contract=payload.get('prompt_contract')
     if contract is None:return None
     if not isinstance(contract,dict) or type(contract.get('version')) is not int or contract['version']!=2:
         raise ValueError('不支持的提示词结构版本，请使用兼容版本打开')
-    if contract.get('compiler') not in ('shot-spec-v2.1','shot-spec-v2.2','shot-spec-v2.3','shot-spec-v2.4','shot-spec-v2.5','shot-spec-v2.6','shot-spec-v2.7','beta-five-refs-v1','beta-five-refs-v2',OPTIONAL_BODY_COMPILER) or contract.get('mode') not in ('guided','manual'):
+    if contract.get('compiler') not in ('shot-spec-v2.1','shot-spec-v2.2','shot-spec-v2.3','shot-spec-v2.4','shot-spec-v2.5','shot-spec-v2.6','shot-spec-v2.7','beta-five-refs-v1','beta-five-refs-v2','beta-portrait-refs-v3',OPTIONAL_BODY_COMPILER) or contract.get('mode') not in ('guided','manual'):
         raise ValueError('不支持的提示词编译版本或模式')
     if payload.get('mode')!='generate' or payload.get('resultRole')!='output':
         raise ValueError('提示词结构仅用于最终作品任务')

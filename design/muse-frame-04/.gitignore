@@ -4,3 +4,4 @@ data/*
 !data/library.json
 !data/scenes.json
 !data/costumes.json
+!data/prompt-framing-compat.json

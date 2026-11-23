@@ -8,6 +8,12 @@ from pose_observation import INSTRUCTION as POSE_INSTRUCTION
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
+
+class OriginalDownloadError(ValueError):
+    def __init__(self, message, http_status=None):
+        super().__init__(message)
+        self.http_status = http_status
+
 class Features:
     def init_features(self):
         with self.store.lock:
@@ -173,7 +179,7 @@ class Features:
                 current=self.store.asset(aid,pid)
                 if current.get('original_local'):return current
                 data=self.store.asset(aid);data.update(original_error=message,original_attempt=time.time(),original_client=ORIGINAL_CLIENT);self.store.put_asset(data)
-            raise ValueError(message)
+            raise OriginalDownloadError(message, e.code if isinstance(e, urllib.error.HTTPError) else None) from None
         return self.store.asset(aid,pid)
     def archive_job(self,pid,jid,archived):
         if type(archived) is not bool:raise ValueError('请选择归档或恢复')

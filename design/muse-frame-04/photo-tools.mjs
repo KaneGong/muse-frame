@@ -19,8 +19,8 @@ export function zoomAt(view,next,point){
 
 export function adjustedOutput(parent,outputs,{id,image,settings,width,height}){
   if(!parent||!image?.startsWith('data:image/png;base64,'))throw Error(tr("修图结果未能完整读取，请重试。"));
-  return {...parent,id,image,revision:Math.max(0,...outputs.filter(o=>o.shootId===parent.shootId&&o.shotId===parent.shotId).map(o=>o.revision||0))+1,
-    parentOutputId:parent.id,parentId:parent.id,adjustments:normalizeAdjustments(settings),editType:'local-adjustment',nonAI:true,
+  return {...parent,id,image,thumb:image,revision:Math.max(0,...outputs.filter(o=>o.shootId===parent.shootId&&o.shotId===parent.shotId).map(o=>o.revision||0))+1,
+    parentOutputId:parent.id,parentId:parent.id,uploaded:false,editDraft:null,adjustments:normalizeAdjustments(settings),editType:'local-adjustment',nonAI:true,
     width,height,created:new Date().toISOString(),picked:false,review:'pending',checks:{},checkReasons:{},reviewNote:'',reviewHistory:[]};
 }
 
@@ -121,11 +121,11 @@ export function createPhotoTools({dialog,onSave,download,storage=localStorage,no
     updateButtons(s);requestPreview(s);
   }
   function presetOptions(s){return `<option value="">${tr("选择一个调色起点")}</option><optgroup label="${tr("常用")}">`+BUILTIN_LOOKS.map(x=>`<option value="${x.id}">${escape(tr(x.name))}</option>`).join('')+'</optgroup>'+(s.presets.length?`<optgroup label="${tr("我的预设")}">`+s.presets.map(x=>`<option value="${escape(x.id)}">${escape(x.name)}</option>`).join('')+'</optgroup>':'');}
-  function savePreset(s){
+  async function savePreset(s){
     const name=find('#photo-preset-name').value.trim();if(!name){find('#photo-preset-note').textContent=tr("先给这套调色起个名字。");find('#photo-preset-name').focus();return;}
     const preset={id:'user-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),name:name.slice(0,40),settings:{...s.settings}};
     const next=[...s.presets,preset];
-    try{storage.setItem(RETOUCH_PRESET_KEY,JSON.stringify({version:1,items:next}));s.presets=next;find('#photo-look').innerHTML=presetOptions(s);find('#photo-look').value=preset.id;find('#photo-preset-note').textContent=tr("已保存在本机。以后选用时才会改变调色。");find('#photo-preset-name').value='';}
+    try{await storage.setItem(RETOUCH_PRESET_KEY,JSON.stringify({version:1,items:next}));s.presets=next;find('#photo-look').innerHTML=presetOptions(s);find('#photo-look').value=preset.id;find('#photo-preset-note').textContent=tr("已保存在本机。以后选用时才会改变调色。");find('#photo-preset-name').value='';}
     catch{find('#photo-preset-note').textContent=tr("本机空间不足，预设没有保存。当前调整还在，可以继续下载图片。");}
   }
   function readableError(error){return error?.name==='SecurityError'?tr("这张图片不允许本机读取像素，暂时无法修图。原作品未改动，请使用已下载或上传的图片。"):error?.message||tr("图片处理失败，原作品未改动。请重试。");}
@@ -192,6 +192,12 @@ export function createPhotoTools({dialog,onSave,download,storage=localStorage,no
       else if(action==='reset-one'){s.settings[el.dataset.id]=0;find('#photo-look').value='';refreshControls(s);}
       else if(action==='retry')load(s);
       else if(action==='retry-original')loadOriginal(s.output.id,true).catch(()=>{});
+      else if(action==='delete-preset'){
+        const id=find('#photo-look').value;
+        if(!s.presets.some(p=>p.id===id)){find('#photo-preset-note').textContent=tr('请先选中一个我的预设。');return;}
+        const next=s.presets.filter(p=>p.id!==id);
+        Promise.resolve(storage.setItem(RETOUCH_PRESET_KEY,JSON.stringify({version:1,items:next}))).then(()=>{if(session!==s)return;s.presets=next;find('#photo-look').innerHTML=presetOptions(s);find('#photo-preset-note').textContent=tr('已删除预设，当前调整参数保留。');}).catch(()=>{if(session===s)find('#photo-preset-note').textContent=tr('删除未能保存，请重试。');});
+      }
       else if(action==='save-preset')savePreset(s);
       else if(action==='save'||action==='download')finish(s,action);
     },options);
@@ -224,7 +230,7 @@ export function createPhotoTools({dialog,onSave,download,storage=localStorage,no
     dialog.className='photo-tools-dialog '+(mode==='view'?'photo-viewer':'photo-editor');
     const zoomTools=control('−','zoom-out',`data-photo-ready aria-label="${tr("缩小图片")}"`)+`<output class="photo-zoom-value">${tr("适应")}</output>`+control('+','zoom-in',`data-photo-ready aria-label="${tr("放大图片")}"`)+control(tr("适应窗口"),'fit','data-photo-ready');
     const controls=ADJUSTMENTS.map(item=>`<div class="photo-adjustment"><label for="photo-${item.id}">${escape(tr(item.label))} <output data-value="${item.id}">0${item.id==='exposure'?' EV':''}</output></label>${control('↺','reset-one',`data-id="${item.id}" aria-label="${tr("重置{0}", escape(tr(item.label)))}"`,'photo-reset-one')}<input id="photo-${item.id}" data-adjustment="${item.id}" type="range" min="${item.min}" max="${item.max}" step="${item.step}" value="0"></div>`).join('');
-    const panel=`<aside class="photo-adjust-panel" aria-label="${tr("基础修图选项")}"><div class="photo-presets"><label for="photo-look">${tr("调色起点")}</label><select id="photo-look">${presetOptions(s)}</select><details><summary>${tr("保存为我的预设")}</summary><div class="photo-preset-save"><input id="photo-preset-name" maxlength="40" placeholder="${tr("给这套调色起个名字")}" aria-label="${tr("调色预设名称")}">${control(tr("保存预设"),'save-preset')}</div><p id="photo-preset-note">${s.presetsHealthy?tr("只保存参数，不会改动作品。"):tr("本机预设未能读取，原记录已保留。仍可调整和下载图片。")}</p></details></div>${controls}</aside>`;
+    const panel=`<aside class="photo-adjust-panel" aria-label="${tr("基础修图选项")}"><div class="photo-presets"><label for="photo-look">${tr("调色起点")}</label><select id="photo-look">${presetOptions(s)}</select><section class="photo-save-preset"><h3>${tr("保存为我的预设")}</h3><div class="photo-preset-save"><input id="photo-preset-name" maxlength="40" placeholder="${tr("给这套调色起个名字")}" aria-label="${tr("调色预设名称")}">${control(tr("保存预设"),'save-preset')}</div>${control(tr('删除所选预设'),'delete-preset')}<p id="photo-preset-note">${s.presetsHealthy?tr("只保存参数，不会改动作品。"):tr("本机预设未能读取，原记录已保留。仍可调整和下载图片。")}</p></section></div>${controls}</aside>`;
     dialog.innerHTML=`<header class="photo-tool-header"><div><h2 id="photo-tool-title">${mode==='edit'?tr("基础修图"):escape(output.title||tr("查看作品"))} <span>${tr("版本 {0}", output.revision)}</span></h2>${mode==='edit'?`<p>${tr("在本机调整，不调用 AI。修改前的照片始终保留。")}</p>`:''}</div>${control('×','close',`aria-label="${tr("关闭作品工具")}"`,'photo-close')}</header><div class="photo-tool-body"><section class="photo-visual"><div class="photo-viewport" tabindex="0" aria-label="${tr("图片查看区域，可滚轮缩放、按住左键拖动")}"><div class="photo-image-wrap" hidden></div></div>${mode==='edit'?`<span class="photo-preview-label">${tr("调整后")}</span>`:''}<div class="photo-view-controls">${zoomTools}${mode==='edit'?control(tr("按住看修改前"),'before','data-photo-ready aria-pressed="false"'):control(tr("基础修图"),'edit','data-photo-ready','photo-primary')}</div></section>${mode==='edit'?panel:''}</div><div class="photo-status-row"><p class="photo-message" role="status"></p>${control(tr("重新读取"),'retry','hidden')}${mode==='view'&&loadOriginal?control(tr("重试原图"),'retry-original','hidden'):''}</div>${mode==='edit'?`<footer class="photo-editor-footer"><div>${control(tr("全部重置"),'reset','data-photo-ready')}${control(tr("取消"),'cancel')}</div><div>${control(tr("下载 PNG"),'download','data-photo-ready')}${control(tr("保存为新版本"),'save','data-photo-ready','photo-primary')}</div></footer>`:''}`;
     s.viewport=find('.photo-viewport');s.wrap=find('.photo-image-wrap');
     if(mode==='edit'){s.canvas=dialog.ownerDocument.createElement('canvas');s.canvas.setAttribute('aria-label',tr("修图后的图片预览"));s.wrap.append(s.canvas);}else{s.image.alt=output.title||tr("当前作品");s.image.draggable=false;s.wrap.append(s.image);}

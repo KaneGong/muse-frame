@@ -166,7 +166,7 @@ test('native workspace keeps explicit language and localizes the workflow withou
     await click('creative-quick-color');
     assert.equal(find('#sheet-title').textContent, 'Edit Tone');
     const toneCards = [...document.querySelectorAll('.preset-catalog-card')];
-    assert.equal(toneCards.length, 4);
+    assert.equal(toneCards.length, 12);
     for (const card of toneCards) assert.doesNotMatch(card.textContent, /\p{Script=Han}/u);
     toneCards[0].click();
     await settle();

@@ -334,6 +334,7 @@ export const english = {
   "从计划移除，可恢复；历史作品保留": "Remove from plan. You can restore the shot. Its photos stay in history.",
   "从容有主见": "Calm confidence",
   "从头到脚都看清，脚边留一点空间": "Show the entire outfit from head to shoes, with room at the feet",
+  "从头到鞋完整入画，人物约占画面高度的 85%": "Head to shoes in frame, with the subject filling about 85% of the image height",
   "从图库选{0}": "Choose {0} from gallery",
   "从原在线图库选择，也可上传自己的资料。": "Choose from the online gallery or upload your own references.",
   "从姿态图库开始": "Start with the pose gallery",

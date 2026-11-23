@@ -3,7 +3,6 @@ import * as M from './model.mjs';
 import {betaApi} from './beta-client.mjs';
 
 const angles = {front:'正面',back:'背面',detail:'细节'};
-const active = new Set(['queued','preparing','submitting','running','cancelling','unknown','recovering']);
 const taskLabel = {queued:'待提交',preparing:'准备参考',submitting:'提交中',running:'等待结果',
   done:'已出图',failed:'失败',cancelled:'已取消',unknown:'待核对',recovering:'待读取',cancelling:'取消中'};
 const reviewLabel = {pending:'待核对',approved:'合格',rework:'需返修',evidence:'待补资料'};
@@ -15,9 +14,10 @@ export function batchRows(state, batch) {
     const product = state.products.find(item=>item.id===shoot.productId);
     const shots = M.activeShots(shoot).map(shot => {
       const results = state.outputs.filter(o=>o.shootId===id&&o.shotId===shot.id&&M.matchesShotPurpose(state,o));
-      const task = state.tasks.filter(t=>t.native&&t.shootId===id&&t.shotId===shot.id).at(-1);
+      const related=state.tasks.filter(t=>t.native&&!t.archived&&t.shootId===id&&t.shotId===shot.id);
+      const task=related.findLast(M.blocksStudioShot)||related.at(-1);
       const approved = results.some(o=>o.review==='approved'&&o.picked&&o.evidenceVersion===product?.version);
-      const busy = active.has(task?.state);
+      const busy=M.blocksStudioShot(task);
       const issue = !product?.evidence?.[shot.angle] ? '缺'+(angles[shot.angle]||'对应角度')+'实拍依据'
         : !product.keep?.trim() ? '缺商品保持项'
         : product.modelMode==='retain' ? (!product.evidence.front?'缺原人物正面图':'')
@@ -31,7 +31,7 @@ export function batchRows(state, batch) {
 }
 
 export function createWorkflows(context) {
-  const {state,current,shot,ui,open,close,button,escape,save,render,enterShoot,native,downloadBatch} = context;
+  const {state,current,shot,ui,open,close,button,escape,save,render,enterShoot,native,downloadBatch,previewBatch,fullOutput} = context;
   const find = selector => document.querySelector(selector);
   const attribute = (id, extra='') => `data-id="${escape(id)}" ${extra}`;
   const productById = id => state().products.find(item=>item.id===id);
@@ -60,9 +60,12 @@ export function createWorkflows(context) {
       button(tr("返回拍摄"),'close'));
   }
 
+  const pendingImages=new Map();
   function showProduct(id) {
-    const product = productById(id);
-    open('merchant-product',product?tr("编辑商品资料"):tr("添加商品资料"),`
+    const key=id||'new', existing=productById(id);
+    const draft=state().productFormDrafts?.[key];
+    const product=draft?{...existing,...draft,evidence:{...existing?.evidence,...draft.evidence}}:existing;
+    open('merchant-product',existing?tr("编辑商品资料"):tr("添加商品资料"),`
       <div class="info-grid">
         <label class="form-label">${tr("商品名称")}<input id="product-name" maxlength="80" value="${escape(product?.name||'')}"></label>
         <label class="form-label">${tr("颜色／款色")}<input id="product-color" maxlength="50" value="${escape(product?.color||'')}"></label>
@@ -75,10 +78,39 @@ export function createWorkflows(context) {
         <label class="form-label">${tr("{0}照片",tr(label))}<input id="product-${key}" type="file" accept="image/jpeg,image/png,image/webp"></label>
         <p class="compact-note">${product?.evidence?.[key]?tr("已有资料，重新选图可更换。"):tr("尚未添加。")}</p></div>`).join('')}</div>
       <p class="compact-note">${tr("保留原人物时，请在正面上身图中保留清楚可辨的脸。各角度使用同一款色。")}</p>`,
-      button(tr("返回商品"),'workflow-merchant')+button(tr("保存商品资料"),'workflow-product-save',attribute(id||''),'btn primary'));
+      button(tr("返回商品"),'workflow-merchant')+button(tr('放弃这份草稿'),'workflow-product-discard',attribute(id||''))+button(tr("保存商品资料"),'workflow-product-save',attribute(id||''),'btn primary'));
+    const form=find('#product-name').closest('dialog');
+    form.querySelector('.dialog-body').addEventListener('input', event=>{
+      if(!event.target.id?.startsWith('product-')||event.target.type==='file')return;
+      const drafts=state().productFormDrafts||={};
+      const fields=drafts[key]||={evidence:{}};
+      Object.assign(fields,{name:find('#product-name').value,color:find('#product-color').value,
+        keep:find('#product-keep').value,input:find('#product-input').value,modelMode:find('#product-person').value});
+      save();
+    });
+    for(const angle of Object.keys(angles)){
+      const input=find('#product-'+angle);
+      input.addEventListener('change',()=>{
+        const file=input.files[0];if(!file)return;
+        const slot=key+'|'+angle;
+        const card=input.closest('.info-card');
+        const read=readImage(file).then(image=>{
+          if(pendingImages.get(slot)!==read)return;
+          const drafts=state().productFormDrafts||={};
+          const draft=drafts[key]||={};(draft.evidence||={})[angle]=image;
+          if(card.isConnected){
+            let img=card.querySelector('img');
+            if(!img){img=document.createElement('img');img.alt=tr('{0}依据',tr(angles[angle]));img.className='studio-evidence-thumb';card.prepend(img);}
+            img.src=image;card.querySelector('.compact-note').textContent=tr('已有资料，重新选图可更换。');
+          }
+          return save();
+        }).catch(error=>{input.value='';context.reportError(error);}).finally(()=>{if(pendingImages.get(slot)===read)pendingImages.delete(slot);});
+        pendingImages.set(slot,read);
+      });
+    }
   }
 
-  function readImage(file) {
+  async function readImage(file) {
     if (!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>16*1024*1024) {
       throw Error(tr("请选择 16 MB 以内的 JPEG、PNG 或 WebP 图片"));
     }
@@ -97,32 +129,40 @@ export function createWorkflows(context) {
     if (!name||!color||!keep) throw Error(tr("请填写商品名称、款色和必须保留的细节"));
     if (modelMode==='retain'&&input!=='worn') throw Error(tr("保留原人物需要真人上身资料"));
     if (state().products.some(p=>p.id!==id&&p.evidence&&p.name===name&&p.color===color)) throw Error(tr("这个款色已有记录，请编辑原记录"));
-    const evidence = {...previous?.evidence};
-    const files=Object.fromEntries(Object.keys(angles).map(angle=>[angle,find('#product-'+angle).files[0]]));
-    for (const angle of Object.keys(angles)) {
-      const file=files[angle];
-      if (file) evidence[angle]=await readImage(file);
-    }
+    const key=id||'new';
+    await Promise.all(Object.keys(angles).map(angle=>pendingImages.get(key+'|'+angle)));
+    const evidence = {...previous?.evidence,...state().productFormDrafts?.[key]?.evidence};
     const fields = {name,color,input,modelMode,keep,evidence,image:evidence.front||evidence.back||evidence.detail||'',
       ...Object.fromEntries(Object.keys(angles).map(key=>[key,Boolean(evidence[key])]))};
     if (previous) {
       const patch=Object.fromEntries(Object.entries(fields).filter(([key,value])=>JSON.stringify(value)!==JSON.stringify(previous[key])));
       if (Object.keys(patch).length) M.updateEvidence(state(),id,patch);
     } else state().products.push({...fields,id:M.uid('product'),version:1});
-    commit();showMerchant();
+    if(state().productFormDrafts)delete state().productFormDrafts[key];
+    await save();render();showMerchant();
   }
 
   function newBatch() {
     const draft=state();
     const products=draft.products.filter(p=>p.evidence);
     if (!products.length) throw Error(tr("请先添加至少一个商品款色"));
-    const recipes=draft.recipes.filter(r=>M.recipePurpose(r)==='merchant');
+    const recipes=M.ensureMerchantRecipes(draft);
     open('merchant-create',tr("新建商品批次"),`
-      <label class="form-label">${tr("批次名称")}<input id="batch-name" value="新品展示"></label>
+      <label class="form-label">${tr("批次名称")}<input id="batch-name" value="${escape(tr("新品展示"))}"></label>
       <label class="form-label">${tr("拍法与版本")}<select id="batch-recipe">${recipes.flatMap(r=>r.versions.map(v=>`<option value="${escape(r.id)}|${v.number}">${escape(r.title)} · v${v.number} · ${escape(v.status)}</option>`)).join('')}</select></label>
-      <label class="form-label">${tr("目标模特")}<select id="batch-model"><option value="">${tr("稍后逐款选择")}</option>${draft.assets.filter(a=>a.type==='person').map(a=>`<option value="${escape(a.id)}" ${a.id===current().model?'selected':''}>${escape(a.name)}</option>`).join('')}</select></label>
+      <label class="form-label">${tr("目标模特")}<select id="batch-model"><option value="">${tr("稍后逐款选择")}</option>${draft.assets.filter(a=>a.type==='person').map(a=>`<option value="${escape(a.id)}" >${escape(a.name)}</option>`).join('')}</select></label>
       <fieldset><legend>${tr("选择款色")}</legend>${products.map(p=>`<label class="inline-checkbox"><input type="checkbox" data-batch-product="${escape(p.id)}"> ${escape(productName(p))}</label>`).join('')}</fieldset>`,
       button(tr("返回商品"),'workflow-merchant')+button(tr("建立批次"),'workflow-create-batch','','btn primary'));
+  }
+
+  async function previewDelivery(batch){
+    const manifest=await previewBatch(batch.shootIds);
+    const list=items=>items.map(text=>'<li>'+escape(text)+'</li>').join('');
+    const ready=manifest.images.map(item=>item.file);
+    const missing=manifest.missing.map(item=>[item.shoot,item.title,item.issue||tr('待核对并采用')].filter(Boolean).join(' · '));
+    open('merchant-delivery',tr('批次交付预览'),'<h3>'+tr('可交付 {0} 张',ready.length)+'</h3><ul>'+list(ready)+'</ul><h3>'+
+      tr('尚欠 {0} 个镜头',missing.length)+'</h3><ul>'+list(missing)+'</ul>',
+      button(tr('返回批次'),'workflow-batch',attribute(batch.id))+button(tr('保存交付包'),'workflow-confirm-export',attribute(batch.id,ready.length?'':'disabled'),'btn primary'));
   }
 
   function showBatch(id,preserveSelection=false) {
@@ -135,7 +175,7 @@ export function createWorkflows(context) {
     shownBatch=id;
     const rows=batchRows(draft,batch);
     const all=rows.flatMap(r=>r.shots);
-    const settings=batch.nativeSettings||current().nativeSettings;
+    const settings=batch.nativeSettings;
     open('merchant-batch',batch.title,`
       <p>${tr("{0} 个款色 · {1}/{2} 个镜头合格 · {3} 个执行或待核对 · {4} 个缺资料", rows.length, all.filter(s=>s.approved).length, all.length, all.filter(s=>s.busy).length, all.filter(s=>s.issue).length)}</p>
       <p class="compact-note">${settings?tr("批次模型 ")+escape(settings.model):tr("请先设置批次绘图平台与模型。")}</p>
@@ -145,7 +185,7 @@ export function createWorkflows(context) {
         ${batchErrors.get(row.shoot.id)?`<p class="notice warning">${escape(batchErrors.get(row.shoot.id))}</p>`:''}
         ${row.shots.map(entry=>`<div class="sheet-list-row">
           <label class="inline-checkbox"><input type="checkbox" data-batch-shot="${escape(entry.shot.id)}" ${entry.selectable?(previous.get(entry.shot.id)??entry.ready?'checked':''):'disabled'}> ${escape(entry.shot.title)}</label>
-          ${status(entry.issue||(entry.approved?tr("合格"):entry.busy?taskLabel[entry.task.state]:reviewLabel[entry.result?.review]||taskLabel[entry.task?.state]||tr("可提交")))}
+          ${status(entry.issue||(entry.approved?tr("合格"):entry.busy?taskLabel[entry.task.state]:reviewLabel[entry.result?.review]||(!entry.task?.reviewReleased&&taskLabel[entry.task?.state])||(native.generationState(settings).ready?tr('可以开拍'):tr('资料齐全 · 待设平台'))))}
           ${entry.result?button(tr("核对作品"),'workflow-review',attribute(entry.result.id),'btn small'):''}
         </div>`).join('')}</section>`).join('')}</div>`,
       button(tr("返回商品"),'workflow-merchant')+button(tr("设置批次模型"),'workflow-batch-model')+
@@ -160,7 +200,7 @@ export function createWorkflows(context) {
     const groups=rows.map(row=>({...row,selected:row.shots.filter(entry=>entry.selectable&&checked.has(entry.shot.id))})).filter(row=>row.selected.length);
     const count=groups.reduce((total,row)=>total+row.selected.length,0);
     if (!count||count>25) throw Error(tr("本次请选择 1 至 25 个可提交镜头"));
-    await native.confirmWorkflow(batch.nativeSettings||current().nativeSettings,{
+    await native.confirmWorkflow(batch.nativeSettings,{
       batchId:batch.id,groups:groups.map(row=>({shootId:row.shoot.id,requestKey:M.uid('design'),
         shots:row.selected.map(({shot})=>({shotId:shot.id,prompt:M.effectivePrompt(row.shoot,shot)}))})),
     },count,`<p>${tr("将发送所列款色的对应角度依据和人物参考。")}</p><ul>${groups.map(row=>
@@ -184,26 +224,39 @@ export function createWorkflows(context) {
     const frame=shoot.shots.find(s=>s.id===output.shotId);
     if (!frame||!M.matchesShotPurpose(draft,output)) throw Error(tr("此版本对应的镜头用途已变化"));
     open('merchant-review',tr("核对商品作品"),`
-      <p>${tr("{0} · {1} · 依据 v{2} · {3}", escape(productName(product)), escape(frame.title), product.version, reviewLabel[output.review])}</p>
-      <div class="compare-grid">
+      <p>${tr("{0} · {1} · 依据 v{2} · {3}", escape(productName(product)), escape(frame.title), product.version, tr(reviewLabel[output.review]))}</p>
+      <label class="studio-review-zoom">${tr("同步放大商品依据与作品")} <input id="review-zoom" type="range" min="1" max="4" step=".25" value="1"><output>100%</output></label>
+      <div class="compare-grid studio-review-pair">
         <section class="compare-card"><header>${tr("当前商品依据")}</header>${product.evidence?.[frame.angle]?`<img src="${escape(product.evidence[frame.angle])}" alt="${tr("商品依据")}">`:`<p>${tr("资料不足")}</p>`}</section>
         <section class="compare-card"><header>${tr("待核对版本 {0}", output.revision)}</header><img src="${escape(output.image)}" alt="${tr("待核对作品")}">${button(tr("放大看细节"),'photo-viewer',attribute(id))}</section>
       </div>
       <p class="notice subtle">${tr("保持项 {0}", escape(product.keep))}</p>
       ${output.evidenceVersion!==product.version?`<label class="inline-checkbox"><input id="review-latest" type="checkbox"> ${tr("使用当前商品依据重新核对此版本")}</label>`:''}
-      <div class="info-grid">${M.CHECKS.map((key,index)=>`<section class="info-card">
-        <label class="form-label">${key}<select data-review-check="${index}">
+      <details class="studio-checks" open><summary>${tr("逐项核对")}</summary><div class="info-grid">${M.CHECKS.map((key,index)=>`<section class="info-card">
+        <label class="form-label">${escape(tr(key))}<select data-review-check="${index}">
           <option value="">${tr("待核对")}</option>${Object.entries(checkLabel).map(([value,label])=>
-            `<option value="${value}" ${output.checks?.[key]===value?'selected':''}>${label}</option>`).join('')}
+            `<option value="${value}" ${output.checks?.[key]===value?'selected':''}>${escape(tr(label))}</option>`).join('')}
         </select></label>
-        <label class="form-label">${tr("{0}理由", key)}<input data-review-reason="${index}" value="${escape(output.checkReasons?.[key]||'')}"></label>
-      </section>`).join('')}</div>
+        <label class="form-label">${tr("{0}理由", tr(key))}<input data-review-reason="${index}" value="${escape(output.checkReasons?.[key]||'')}"></label>
+      </section>`).join('')}</div></details>
       <label class="form-label">${tr("核对备注")}<textarea id="review-note">${escape(output.reviewNote||'')}</textarea></label>`,
-      button(tr("关闭"),'close')+button(tr("保存核对"),'workflow-review-save',attribute(id))+
-      button(tr("标记合格并采用"),'workflow-review-approve',attribute(id),'btn primary'));
+      (state().batches.some(b=>b.id===shownBatch&&b.shootIds.includes(shoot.id))?button(tr("返回批次"),'workflow-batch',attribute(shownBatch)):button(tr("关闭"),'close'))+button(tr("保存核对"),'workflow-review-save',attribute(id))+
+      button(tr('按核对意见返修'),'workflow-review-rework',attribute(id))+button(tr("标记合格并采用"),'workflow-review-approve',attribute(id),'btn primary'));
+    const panes=[...document.querySelectorAll('.studio-review-pair .compare-card img')].map(img=>{
+      const pane=document.createElement('div');pane.className='studio-review-image';img.replaceWith(pane);pane.append(img);return pane;
+    });
+    const zoom=find('#review-zoom');
+    zoom.oninput=()=>{for(const pane of panes)pane.firstChild.style.width=100*zoom.value+'%';zoom.nextElementSibling.value=Math.round(100*zoom.value)+'%';};
+    for(const pane of panes)pane.onscroll=()=>{for(const other of panes)if(other!==pane){
+      const share=(value,max)=>max?value/max:0;
+      const x=share(pane.scrollLeft,pane.scrollWidth-pane.clientWidth)*(other.scrollWidth-other.clientWidth);
+      const y=share(pane.scrollTop,pane.scrollHeight-pane.clientHeight)*(other.scrollHeight-other.clientHeight);
+      if(Math.abs(other.scrollLeft-x)>1)other.scrollLeft=x;if(Math.abs(other.scrollTop-y)>1)other.scrollTop=y;
+    }};
+    if(fullOutput&&panes.length===2)fullOutput(id).then(o=>{if(panes[1].isConnected)panes[1].firstChild.src=o.image;}).catch(context.reportError);
   }
 
-  function saveReview(id,approve) {
+  async function saveReview(id,approve,startEdit=false) {
     const draft=state(), output=draft.outputs.find(o=>o.id===id), candidate=M.clone(output);
     const shoot=M.findShoot(draft,output.shootId), product=productById(shoot.productId);
     if (candidate.evidenceVersion!==product.version) {
@@ -235,8 +288,22 @@ export function createWorkflows(context) {
       }
     } else candidate.reviewHistory.push({state:candidate.review,at:M.now(),evidenceVersion:product.version,
       checks:M.clone(candidate.checks),reasons:M.clone(candidate.checkReasons),note:candidate.reviewNote});
+    if(startEdit){
+      const reasons=M.CHECKS.filter(key=>candidate.checks[key]==='fail'||candidate.checks[key]==='unknown')
+        .map(key=>key+' · '+candidate.checkReasons[key]);
+      const note=[...reasons,candidate.reviewNote].filter(Boolean).join('\n');
+      if(!note)throw Error(tr('请先填写返修要求或核对理由'));
+      candidate.review='rework';candidate.picked=false;
+      candidate.reviewHistory.at(-1).state='rework';
+      const previous=candidate.editDraft||{region:null,references:[]};
+      candidate.editDraft={...previous,note:[previous.note,note].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join('\n')};
+    }
     Object.assign(output,candidate);
-    commit();showReview(id);
+    await save();render();
+    if(startEdit){
+      enterShoot(shoot);ui.shotId=output.shotId;ui.version=output.id;await save();render();
+      await native.showEdit(output);
+    }else showReview(id);
   }
 
   function createResearch(outputId) {
@@ -305,7 +372,7 @@ export function createWorkflows(context) {
           ${button(tr("执行记录"),'snapshot',`data-task="${escape(t.id)}"`,'btn small')}
           ${output?Object.keys(ex.conclusions).map(key=>`<label class="form-label">${escape(key)}
             <select data-sample-check="${escape(t.id)}" data-check-key="${escape(key)}"><option value="">${tr("待判断")}</option>
-            ${Object.entries(checkLabel).filter(([value])=>value!=='na').map(([value,label])=>`<option value="${value}" ${ex.sampleChecks?.[t.id]?.[key]===value?'selected':''}>${label}</option>`).join('')}</select></label>`).join(''):''}
+            ${Object.entries(checkLabel).filter(([value])=>value!=='na').map(([value,label])=>`<option value="${value}" ${ex.sampleChecks?.[t.id]?.[key]===value?'selected':''}>${escape(tr(label))}</option>`).join('')}</select></label>`).join(''):''}
           <label class="form-label">${tr("样本观察")}<textarea data-observation="${escape(t.id)}" placeholder="${tr("记录身份、服装、自然度或排除原因")}">${escape(ex.observations?.[t.id]||'')}</textarea></label>
         </article>`;
       }).join('')}</div>
@@ -336,6 +403,12 @@ export function createWorkflows(context) {
     switch(action){
       case 'workflow-merchant':showMerchant();break;
       case 'workflow-product':showProduct(id);break;
+      case 'workflow-product-discard':{
+        const key=id||'new';
+        for(const angle of Object.keys(angles))pendingImages.delete(key+'|'+angle);
+        if(state().productFormDrafts)delete state().productFormDrafts[key];
+        await save();showMerchant();break;
+      }
       case 'workflow-product-save':
         element.disabled=true;
         try{await saveProduct(id);}finally{if(element.isConnected)element.disabled=false;}
@@ -344,10 +417,9 @@ export function createWorkflows(context) {
       case 'workflow-create-batch':{
         const ids=[...document.querySelectorAll('[data-batch-product]:checked')].map(el=>el.dataset.batchProduct);
         const [recipeId,version]=find('#batch-recipe').value.split('|');
-        const settings=current().nativeSettings;
         const batch=M.createBatch(state(),ids,{recipeId,version:Number(version)});
         batch.title=find('#batch-name').value.trim()||batch.title;
-        batch.nativeSettings=M.clone(settings||null);
+        batch.nativeSettings=null;
         const model=find('#batch-model').value||null;
         for(const shootId of batch.shootIds){
           const shoot=M.findShoot(state(),shootId);
@@ -361,13 +433,15 @@ export function createWorkflows(context) {
         batch.nativeSettings=M.clone(settings);
         for(const shootId of batch.shootIds)M.findShoot(state(),shootId).nativeSettings=M.clone(settings);
         commit();showBatch(batch.id);
-      },state().batches.find(b=>b.id===shownBatch).nativeSettings||current().nativeSettings);break;
+      },state().batches.find(b=>b.id===shownBatch).nativeSettings);break;
       case 'workflow-batch-submit':await submitBatch();break;
-      case 'workflow-batch-export':await downloadBatch(state().batches.find(b=>b.id===shownBatch).shootIds);break;
+      case 'workflow-batch-export':await previewDelivery(state().batches.find(b=>b.id===shownBatch));break;
+      case 'workflow-confirm-export':await downloadBatch(state().batches.find(b=>b.id===id).shootIds);break;
       case 'workflow-stop-batch':await betaApi('design-stop',{batchId:shownBatch});await native.sync(true);showBatch(shownBatch);break;
       case 'workflow-review':showReview(id);break;
-      case 'workflow-review-save':saveReview(id,false);break;
-      case 'workflow-review-approve':saveReview(id,true);break;
+      case 'workflow-review-rework':await saveReview(id,false,true);break;
+      case 'workflow-review-save':await saveReview(id,false);break;
+      case 'workflow-review-approve':await saveReview(id,true);break;
       case 'workflow-research-submit':await submitResearch();break;
       case 'workflow-stop-research':await betaApi('design-stop',{experimentId:ui.compareId});await native.sync(true);showResearch();break;
       case 'workflow-validate':{

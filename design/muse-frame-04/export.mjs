@@ -3,4 +3,37 @@ const crcTable=Uint32Array.from({length:256},(_,n)=>{for(let k=0;k<8;k++)n=n&1?0
 export function crc32(bytes){let c=0xffffffff;for(const x of bytes)c=crcTable[(c^x)&255]^(c>>>8);return (c^0xffffffff)>>>0;}
 const header=(size,values)=>{const bytes=new Uint8Array(size),view=new DataView(bytes.buffer);for(const [at,value,width=4] of values)width===2?view.setUint16(at,value,true):view.setUint32(at,value,true);return bytes;};
 export function zipBytes(files){const local=[],central=[];let offset=0,centralSize=0;for(const file of files){const name=enc.encode(file.name),data=file.bytes,crc=crc32(data);const l=header(30,[[0,0x04034b50],[4,20,2],[6,0x800,2],[14,crc],[18,data.length],[22,data.length],[26,name.length,2]]);local.push(l,name,data);const c=header(46,[[0,0x02014b50],[4,20,2],[6,20,2],[8,0x800,2],[16,crc],[20,data.length],[24,data.length],[28,name.length,2],[42,offset]]);central.push(c,name);offset+=30+name.length+data.length;centralSize+=46+name.length;}return new Blob([...local,...central,header(22,[[0,0x06054b50],[8,files.length,2],[10,files.length,2],[12,centralSize],[16,offset]])],{type:'application/zip'});}
-export async function makeZip(manifest){const files=[{name:manifest.demo?'交付清单-原型演示.json':'作品清单.json',bytes:enc.encode(JSON.stringify(manifest,null,2))}];for(const [i,item] of manifest.images.entries()){const response=await fetch(item.original);if(!response.ok)throw Error('图片文件读取失败，请重试导出');const blob=await response.blob();const ext=blob.type.includes('svg')?'svg':blob.type.includes('png')?'png':blob.type.includes('jpeg')?'jpg':'webp';files.push({name:`${manifest.demo?'演示原图':'作品原图'}/${String(i+1).padStart(2,'0')}-${item.productId||'portrait'}-v${item.revision}.${ext}`,bytes:new Uint8Array(await blob.arrayBuffer())});}return zipBytes(files);}
+function fileLabel(value){
+  return String(value||'portrait').replace(/[\\/:*?"<>|\u0000-\u001f]/g,'-').trim().slice(0,64)||'portrait';
+}
+export function deliveryName(item,index,extension,demo=false){
+  const subject=[item.productName,item.color,item.shotTitle].filter(Boolean).map(fileLabel).join('-')||'portrait';
+  return (demo?'演示原图':'作品原图')+'/'+String(index+1).padStart(2,'0')+'-'+subject+'-v'+Number(item.revision||1)+'.'+extension;
+}
+export async function prepareDelivery(manifest,includeFiles=false){
+  const images=[],files=[];
+  for(const [i,item] of manifest.images.entries()){
+    const response=await fetch(item.original);
+    if(!response.ok)throw Error('图片文件读取失败，请重试导出');
+    const blob=await response.blob();
+    const bytes=new Uint8Array(await blob.arrayBuffer());
+    const signature=Array.from(bytes.subarray(0,12));
+    const typedExtension=({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','image/svg+xml':'svg'})[blob.type.split(';')[0]];
+    const extension=typedExtension || (signature[0]===0x89&&signature[1]===0x50?'png':
+      signature[0]===0xff&&signature[1]===0xd8?'jpg':
+      String.fromCharCode(...signature.slice(0,4))==='RIFF'&&String.fromCharCode(...signature.slice(8,12))==='WEBP'?'webp':null);
+    if(!extension)throw Error('图片文件格式无法识别，请重新读取原图');
+    const hash=new Uint8Array(await crypto.subtle.digest('SHA-256',bytes));
+    const sha256=Array.from(hash,x=>x.toString(16).padStart(2,'0')).join('');
+    const {original,...details}=item;
+    const file=deliveryName(item,i,extension,manifest.demo);
+    images.push({...details,file,sha256,bytes:bytes.byteLength});
+    if(includeFiles)files.push({name:file,bytes});
+  }
+  return {manifest:{...manifest,images},files};
+}
+export async function makeZip(manifest){
+  const result=await prepareDelivery(manifest,true);
+  const name=manifest.demo?'交付清单-原型演示.json':'作品清单.json';
+  return zipBytes([{name,bytes:enc.encode(JSON.stringify(result.manifest,null,2))},...result.files]);
+}

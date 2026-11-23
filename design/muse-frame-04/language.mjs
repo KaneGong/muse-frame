@@ -1,9 +1,13 @@
+import {studioEnglish} from './language-studio-en.mjs';
+import {editingEnglish} from './language-editing-en.mjs';
+import {galleryUpdateEnglish} from './language-gallery-update-en.mjs';
+import {photographicEnglish} from './language-photographic-en.mjs';
 import {english} from './language-en.mjs';
 import {sceneEnglish} from './language-scenes-en.mjs';
 import {presetEnglish} from './language-presets-en.mjs';
 
 const storageKey = 'muse-frame-language';
-const interfaceEnglish = Object.assign(Object.create(null), sceneEnglish, presetEnglish, english);
+const interfaceEnglish = Object.assign(Object.create(null), sceneEnglish, presetEnglish, english, photographicEnglish, editingEnglish, galleryUpdateEnglish, studioEnglish);
 let language = 'zh-CN';
 
 export function getLanguage() {

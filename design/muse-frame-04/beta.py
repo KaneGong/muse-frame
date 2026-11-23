@@ -4,6 +4,8 @@ from contextlib import nullcontext
 from html import escape
 import json
 import logging
+import plistlib
+from functools import lru_cache
 import os
 from pathlib import Path
 import sys
@@ -11,7 +13,7 @@ import tempfile
 import threading
 import uuid
 import webbrowser
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from launch import Handler as PrototypeHandler, ROOT
 
@@ -19,9 +21,10 @@ sys.path.insert(0, str(ROOT.parents[1] / "app"))
 from server import App, Handler as StudioHandler
 from launcher import InstanceLock, bind_server, existing_instance_info
 from runtime import APP_ID, VERSION
-from beta_store import read_workspace, save_workspace
+from beta_store import WorkspaceConflict, read_workspace, save_workspace
+from beta_shoots import delete_shoot, install_body_template
 from beta_save_file import save_file
-from beta_jobs import enqueue_group, enqueue_shots, job_feed, recover_job, review_generation, stop_group
+from beta_jobs import enqueue_group, enqueue_shots, conditional_job_feed, recover_job, review_generation, stop_group
 import release_workspace
 
 DESIGN_TEXT = {"shootId", "shotId", "title", "productId", "angle", "experimentId", "conditionId", "conditionLabel", "recipeId", "parentOutputId"}
@@ -29,6 +32,14 @@ DESIGN_NUMBERS = {"evidenceVersion", "recipeVersion", "repeat"}
 SURFACE = "muse-frame-webui"
 PACKAGED = getattr(sys, "frozen", False) or os.environ.get("MUSE_FRAME_PACKAGED") == "1"
 UI_PREFIX = f"/ui/{VERSION}/"
+
+
+@lru_cache(maxsize=1)
+def source_build():
+    if getattr(sys, "frozen", False) and sys.platform == "darwin":
+        with (Path(sys.executable).parents[1] / "Info.plist").open("rb") as plist:
+            return plistlib.load(plist).get("MuseFrameSourceCommit", "source")[:12]
+    return "source"
 
 
 def ui_html(page, assets):
@@ -72,10 +83,32 @@ def profile_directory():
     return Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / SURFACE
 
 
+def enable_macos_reopen(server, url):
+    from ctypes import CDLL, c_char_p
+
+    try:
+        library = CDLL(str(Path(sys._MEIPASS) / "libmuse_frame_reopen.dylib"))
+    except OSError:
+        logging.exception("Could not enable reopening Muse Frame from Finder")
+        return
+    library.muse_frame_enable_reopen.argtypes = (c_char_p,)
+    library.muse_frame_enable_reopen.restype = None
+    library.muse_frame_process_app_events.argtypes = ()
+    library.muse_frame_process_app_events.restype = None
+    library.muse_frame_enable_reopen(url.encode("ascii"))
+    # The HTTP loop runs on the main thread. Use its existing poll to dispatch
+    # regular macOS app events between requests.
+    server.service_actions = library.muse_frame_process_app_events
+
+
 class BetaApp(App):
     def __init__(self, root):
+        from gallery_server import configure_cache
+        configure_cache(root)
         self._registration_lock = threading.RLock()
         super().__init__(root)
+        if self.platform == "ark" and self.bridge.credential_state()["can_remember"]:
+            self.connect()
 
     def enqueue(self, request):
         job = super().enqueue(request)
@@ -123,7 +156,7 @@ class BetaHandler(PrototypeHandler, StudioHandler):
             return self.workspace_changed()
         if path == "/api/health":
             return self.send({"app_id": APP_ID, "version": VERSION, "pid": os.getpid(),
-                              "surface": SURFACE, "workspace_epoch": getattr(self.server, "workspace_epoch", "")})
+                              "surface": SURFACE, "channel": "stable", "build": source_build(), "workspace_epoch": getattr(self.server, "workspace_epoch", "")})
         if path == "/workspace-migration":
             html = ui_html("workspace-migration.html", ("/workspace-migration.css", "/workspace-migration.mjs"))
             return self.send_data(html.encode(), "text/html; charset=utf-8")
@@ -138,14 +171,18 @@ class BetaHandler(PrototypeHandler, StudioHandler):
             epoch = getattr(self.server, "workspace_epoch", "")
             if epoch:
                 capability += f' data-workspace-epoch="{epoch}"'
-            html = ui_html("index.html", ("style.css", "photo-tools.css", "app.mjs")).replace(
-                "<body>", f'<body data-runtime="local" data-ui-prefix="{UI_PREFIX}" data-ui-version="{VERSION}"{capability}>', 1
+            html = ui_html("index.html", ("style.css", "photo-tools.css", "editing.css", "studio.css", "app.mjs")).replace(
+                "<body>", f'<body data-runtime="local" data-studio="1" data-ui-prefix="{UI_PREFIX}" data-ui-version="{VERSION}" data-ui-build="{escape(source_build())}"{capability}>', 1
             )
             return self.send_data(html.encode(), "text/html; charset=utf-8")
         if path == "/api/design-workspace":
-            return self.send(read_workspace(self.server.app.store))
+            store = self.server.app.store
+            import hashlib
+            workspace_id = hashlib.sha256(os.fsencode(store.root.resolve())).hexdigest()[:24]
+            return self.send({**read_workspace(store), "patchVersion": 1, "workspaceId": workspace_id})
         if path == "/api/design-jobs":
-            return self.send(job_feed(self.server.app.store))
+            since = parse_qs(urlsplit(self.path).query).get("since", [None])[0]
+            return self.send(conditional_job_feed(self.server.app.store, since))
         if path.startswith(("/files/", "/thumbs/", "/api/")) and path not in (
             "/api/gallery", "/api/gallery-image"
         ):
@@ -162,7 +199,7 @@ class BetaHandler(PrototypeHandler, StudioHandler):
             return release_workspace.manage(self)
         if path == "/api/design-save-file":
             return save_file(self)
-        operations = {"/api/design-workspace": save_workspace, "/api/design-jobs": enqueue_shots,
+        operations = {"/api/design-delete-shoot": delete_shoot, "/api/design-workspace": save_workspace, "/api/design-jobs": enqueue_shots,
                       "/api/design-batch": enqueue_group, "/api/design-stop": stop_group,
                       "/api/design-recover": recover_job, "/api/design-review": review_generation}
         if path not in operations:
@@ -189,6 +226,8 @@ class BetaHandler(PrototypeHandler, StudioHandler):
                 if getattr(self.server, "transitioning", False) or self.stale_workspace():
                     return self.workspace_changed()
                 return self.send(operations[path](self.server.app, request))
+        except WorkspaceConflict as error:
+            return self.send({"error": str(error), "code": "workspace_conflict", "path": error.path}, 409)
         except (ValueError, TypeError, KeyError) as error:
             return self.send({"error": str(error)}, 400)
         except OSError:
@@ -257,9 +296,8 @@ def main(argv=None):
                 raise RuntimeError("工作区正在使用 / This workspace is already open.")
             app = None
             try:
-                show_setup = (PACKAGED and not (data / "workbench.sqlite3").is_file()
-                              and release_workspace.previous_locations(profile))
                 app = BetaApp(data)
+                install_body_template(app)
                 server.app = app
                 server.workspace_epoch = uuid.uuid4().hex
                 server.restart_workspace = server.transitioning = False
@@ -269,8 +307,9 @@ def main(argv=None):
                     if sys.stdout is not None:
                         print(url, flush=True)
                     if not args.no_browser:
-                        landing = url + "workspace-migration" if show_setup else url
-                        threading.Timer(.2, webbrowser.open, args=(landing,)).start()
+                        if sys.platform == "darwin" and getattr(sys, "frozen", False):
+                            enable_macos_reopen(server, url)
+                        threading.Timer(.2, webbrowser.open, args=(url,)).start()
                     first_start = False
                 logging.info("Muse Frame %s is ready at %s", VERSION, url)
                 server.serve_forever(poll_interval=.2)

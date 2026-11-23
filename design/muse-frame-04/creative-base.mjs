@@ -8,11 +8,11 @@ export const MOODS = [
   {id:'flash',name:'闪光随拍',summary:'近距离直闪的随拍感，不做过度磨皮',productSafe:false,options:{light:'接近镜头方向的直接闪光，留有环境曝光，避免脸部过曝',color:'自然色彩，闪光亮部不过白，衣服颜色按参考',contrast:'直接清楚的明暗关系，皮肤保留纹理',depth:'人物和穿搭清楚，背景适度存在'}}
 ];
 export const FRAMINGS = [
-  {id:'full',name:'完整穿搭',summary:'从头到脚都看清，脚边留一点空间',options:{shot:'全身，从头顶到鞋履完整入画',placement:'人物主体居中略偏一侧',scale:'人物占画面主要高度，头顶与脚下留适量边距',lens:'自然透视，不夸大头身比例'}},
-  {id:'person',name:'人物为主',summary:'靠近一点，看神情和上半身',options:{shot:'半身人像，手臂在关节之外自然裁切',placement:'人物清楚突出',scale:'人物占主要画面',lens:'自然人像透视，不夸大面部比例'}},
-  {id:'place',name:'人物带环境',summary:'人看得清，也交代在哪里',options:{shot:'环境人像，人物全身与可辨空间一同呈现',placement:'人物与环境线条错开，避免线条穿过头部',scale:'人物与环境都有足够画面比例',lens:'适度环境视角，避免近距离广角变形'}},
-  {id:'detail',name:'看清细节',summary:'靠近衣服的一个重点，不假造背面或纹理',options:{shot:'局部特写，聚焦已提供参考中可核对的服装细节',placement:'需要展示的细节位于清楚位置',scale:'细节占主要画面，同时保留必要上下文',lens:'自然近摄，纹理不夸大、不增造'}},
-  {id:'cover',name:'留位置放文字',summary:'人物偏一侧，另一侧留干净背景',options:{shot:'半身或全身，人物轮廓完整',placement:'人物位于右侧三分之一，左侧保留干净区域',scale:'文字预留区域不遮挡脸、衣服与手',lens:'自然透视；本次不生成文字或标志'}}
+  {id:'full',name:'完整穿搭',summary:'从头到鞋完整入画，人物约占画面高度的 85%',options:{shot:'紧凑全身，从头顶到鞋履完整入画',placement:'人物主体居中略偏一侧',scale:'人物从头顶到鞋底约占画面高度的85%，头顶与脚下只留少量边距',lens:'自然透视，不夸大头身比例'}},
+  {id:'person',name:'人物为主',summary:'靠近一点，看神情和上半身',options:{shot:'腰部以上半身，裁切线避开明显关节',placement:'人物清楚突出',scale:'面部与上衣为画面重点，头顶略留空',lens:'自然人像透视，不夸大面部比例'}},
+  {id:'place',name:'人物带环境',summary:'人看得清，也交代在哪里',options:{shot:'环境人像，人物全身与可辨空间一同呈现',placement:'人物与环境线条错开，避免线条穿过头部',scale:'全身可见部分约占画面高度的50%–65%，保留可辨认地点的空间结构',lens:'适度环境视角，避免近距离广角变形'}},
+  {id:'detail',name:'看清细节',summary:'靠近衣服的一个重点，不假造背面或纹理',options:{shot:'服装局部近摄，聚焦参考中一处清晰的结构或纹理',placement:'需要展示的细节位于清楚位置',scale:'细节占画面主要区域，保留相邻接缝或穿着关系',lens:'自然近摄，纹理不夸大、不增造'}},
+  {id:'cover',name:'留位置放文字',summary:'人物偏一侧，另一侧留干净背景',options:{placement:'人物置于画面右侧，左侧约三分之一留连续干净背景',scale:'主体清楚，留白区域保持连贯',lens:'自然透视；本次不生成文字或标志'}}
 ];
 export const EXPRESSIONS = [
   {id:'smile',name:'看镜头，轻轻笑',options:{expression:'自然浅笑，嘴角放松，不夸张露齿',gaze:'自然看向镜头'}},

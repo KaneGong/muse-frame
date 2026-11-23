@@ -15,6 +15,7 @@ PUBLIC_CATALOGS = {
     Path('design/muse-frame-04/data/costumes.json'),
     Path('design/muse-frame-04/data/library.json'),
     Path('design/muse-frame-04/data/scenes.json'),
+    Path('design/muse-frame-04/data/prompt-framing-compat.json'),
 }
 LEGACY_LINK = Path('design/muse-frame-04/legacy')
 LEGACY_TARGET = Path('design/muse-frame-next')

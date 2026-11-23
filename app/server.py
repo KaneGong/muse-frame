@@ -11,7 +11,7 @@ from media_paths import portable_workspace_path,resolved_workspace_path
 from agent_channel import AgentChannel,AgentError
 from reference_upload import prepare_upload
 from executor_manager import ExecutorManager
-from features import Features
+from features import Features, OriginalDownloadError
 from retouch import Retouch
 from model_options import normalize_options,native_params,parameter_rejection
 
@@ -62,7 +62,7 @@ class App(Features,Retouch):
         if EDITION=='standalone':
             from token_store import ensure as own_tokens
             self.credentials=own_tokens(root)
-        self.bridge=create_connection(platforms.connector(self.platform),BASE);self._bridges={self.platform:self.bridge};self.status={'state':'disconnected','message':'尚未连接 '+platforms.name(self.platform)};self.schemas={};self.catalog=[];self.stop=threading.Event();self.connecting=False;self.execution_lock=threading.RLock()
+        self.bridge=create_connection(platforms.connector(self.platform),self.store.root if self.platform=='ark' else BASE);self._bridges={self.platform:self.bridge};self.status={'state':'disconnected','message':'尚未连接 '+platforms.name(self.platform)};self.schemas={};self.catalog=[];self.stop=threading.Event();self.connecting=False;self.execution_lock=threading.RLock()
         self.init_features();self.store.recover();self.agent_channel=AgentChannel(self)
         # The standalone edition uses a direct platform connection. External Agent
         # routing remains available to other editions but is disabled here.
@@ -106,6 +106,7 @@ class App(Features,Retouch):
                         _m['vendor']=_vendors.get(_prefix) or (_prefix or '其他')
                 if token!=self.connect_token:return
                 status={'state':'connected','message':name+' 已连接','credits':None,'concurrency_limit':None,'checked_at':time.time()}
+                if platform=='ark':status['message']=catalog.get('message') or '方舟 Key 已配置；生成权限以实际出图为准'
                 self.status=status
                 self.connecting=False
                 if platform=='lovart':
@@ -123,10 +124,29 @@ class App(Features,Retouch):
             finally:
                 if token==self.connect_token:self.connecting=False
         threading.Thread(target=run,daemon=True).start()
+    def configure_ark_key(self, data):
+        bridge = self._bridge_for_platform('ark')
+        result = bridge.configure(data)
+        if self.platform == 'ark' and self.bridge is bridge:
+            # Discard a catalog request issued with the previous credential.
+            self.connect_token = getattr(self, 'connect_token', 0) + 1
+            self.connecting = False
+            self.catalog = []
+            self.schemas = {}
+            self.status = {'state': 'disconnected', 'message': '请在绘图平台输入方舟 API Key 并连接。'}
+            if result['configured']:
+                self.connect()
+        return result
+
+    def ark_credential_state(self):
+        read = getattr(getattr(self, 'bridge', None), 'credential_state', None)
+        return read() if getattr(self, 'platform', None) == 'ark' and read else None
+
     def switch_platform(self,platform_id):
         if not isinstance(platform_id,str):raise ValueError('请选择绘图平台')
         if platform_id==self.platform:return self.platform_state()
-        bridge=create_connection(platforms.connector(platform_id),BASE)
+        bridge=create_connection(platforms.connector(platform_id),self.store.root if platform_id=='ark' else BASE)
+        if platform_id=='ark' and getattr(self,'_bridges',{}).get('ark'):bridge=self._bridges['ark']
         platforms.save(self.store.root,platform_id)
         # Invalidate any in-flight attempt before the old bridge is closed; its
         # eventual timeout must not land on the new platform.
@@ -259,7 +279,7 @@ class App(Features,Retouch):
         bridges=getattr(self,'_bridges',{})
         bridge=bridges.get(platform)
         if bridge is None:
-            bridge=create_connection(platforms.connector(platform),BASE)
+            bridge=create_connection(platforms.connector(platform),self.store.root if platform=='ark' else BASE)
             bridges[platform]=bridge;self._bridges=bridges
         return bridge
     def model_schema(self,model,bridge=None,platform=None,refresh=False):
@@ -513,6 +533,8 @@ class App(Features,Retouch):
         cached=a.get('url')
         # A platform URL is only reusable on the platform that produced it.
         platform=platform or getattr(self,'platform','lovart');bridge=bridge or self._bridge_for_platform(platform)
+        if platform=='ark':
+            return bridge.reference(self._asset_local(aid,a,adjustment))
         account_key=None
         if platform=='libtv':
             import libtv_direct
@@ -568,7 +590,7 @@ class App(Features,Retouch):
             bindings=payload.get('ref_bindings',{})
             face=bindings.get('face')
             body=bindings.get('body') or (face if payload.get('bodyFromFace') else None)
-            optional_body=isinstance(prompt_contract,dict) and prompt_contract.get('compiler')==OPTIONAL_BODY_COMPILER
+            optional_body=isinstance(prompt_contract,dict) and prompt_contract.get('compiler') in (OPTIONAL_BODY_COMPILER,'beta-portrait-refs-v3')
             required={'face':'人物参考','outfit':'服装参考'}
             if not optional_body:
                 required['body']='身形参考（或勾选沿用人物图）'
@@ -669,10 +691,15 @@ class App(Features,Retouch):
             schema=self.model_schema(job['payload']['model'],bridge=bridge,platform=platform)
         p,params=native_params(schema,job['payload'])
         _pr=self.store.project(job['project_id']);_pp=(_pr['data'].get('platform_projects') or {})
-        # Jobs created before platform was persisted are legacy records; treat
-        # their missing marker as the current platform, but never borrow an
-        # explicitly different platform's project id.
-        project_id=_pp.get(platform) or next(((j.get('result') or {}).get('project_id') for j in self.store.jobs(job['project_id']) if (j.get('payload') or {}).get('platform',platform)==platform and (j.get('result') or {}).get('project_id')),None)
+        receipt={}
+        if platform in ('libtv','ark') and hasattr(bridge,'prepare_submission'):
+            # Cached reference nodes must belong to the live target canvas,
+            # even when the local project still records a previous canvas.
+            receipt=bridge.prepare_submission(job['id'],p['prompt'])
+            project_id=receipt['project_id']
+        else:
+            # Older jobs without a platform marker use the current platform.
+            project_id=_pp.get(platform) or next(((j.get('result') or {}).get('project_id') for j in self.store.jobs(job['project_id']) if (j.get('payload') or {}).get('platform',platform)==platform and (j.get('result') or {}).get('project_id')),None)
         snapshots={a['id']:a for a in p.get('reference_snapshot',[])}
         def prepare_references(project):
             urls, uploaded = [], {}
@@ -683,6 +710,8 @@ class App(Features,Retouch):
                     url=self.hosted(aid,project,snapshot if snapshot.get('photo_adjustment') else None,
                                     fresh,bridge=bridge,platform=platform)
                     resolved=fresh.get('project_id') or project
+                    if platform=='libtv' and receipt and resolved!=receipt['project_id']:
+                        raise ValueError('LibTV 参考图所在画布与本次任务不一致，本次未发起生成。')
                     if platform=='lovart' and p.get('design') and not resolved:
                         raise ValueError('Lovart 未确认参考图所属项目，本次未发起生成。')
                     if platform=='lovart' and urls and resolved!=project:
@@ -705,11 +734,8 @@ class App(Features,Retouch):
             except Exception:
                 project_id=None
         args={'model':p['model'],'prompt':p['prompt'],'params':params}
-        receipt={}
-        if platform=='libtv' and hasattr(bridge,'prepare_submission'):
-            receipt=bridge.prepare_submission(job['id'],p['prompt'])
+        if receipt:
             args['receipt']=receipt
-            project_id=receipt['project_id']
         elif project_id:
             receipt={'project_id':project_id}
         if project_id:args['project_id']=project_id
@@ -760,7 +786,11 @@ class App(Features,Retouch):
                 raw,meta=invoke()
             meta={**receipt,**meta}
             ids=meta.get('task_ids')
-            if ids:
+            if platform == 'ark' and meta.get('status') != 'completed':
+                state = 'failed' if meta.get('status') == 'failed' else 'needs_review'
+                self.store.update(job['id'], state=state, result=meta,
+                                  error=provider_error(meta, '未取得完整方舟响应'))
+            elif ids:
                 # Preserve the accepted task ids before optional project metadata
                 # maintenance, so a local write failure cannot lose recovery ids.
                 self.store.update(job['id'],task_ids=ids,state='running',result=meta,error=None)
@@ -780,9 +810,16 @@ class App(Features,Retouch):
             message=str(e)
             refused=(self.store.job(job['id'])['state']=='preparing' or parameter_rejection(message)
                      or 'NODE_NAME_CONFLICT' in message or 'NODE_VALIDATION_FAILED' in message)
+            if platform=='ark':
+                from ark_direct import ArkPreparationError
+                if isinstance(e,ArkPreparationError):
+                    self.store.update(job['id'],state='failed',error=message[:1000])
+                    return
             if platform=='libtv':
                 from libtv_direct import PreparationError
-                refused=refused or isinstance(e,PreparationError)
+                if isinstance(e,PreparationError):
+                    self.store.update(job['id'],state='failed',error=message[:1000])
+                    return
             note=('；参数或节点被平台拒绝，修改后可手动生成新任务。' if refused
                   else '；请核对 '+platforms.name(platform)+' 已有任务，操作台不会重复提交。')
             self.store.update(job['id'],state='failed' if refused else 'needs_review',error=message[:1000]+note)
@@ -801,19 +838,28 @@ class App(Features,Retouch):
                     pass
             if identity.get('node_id'):args['node_id']=identity['node_id']
         raw=bridge.call('get_task_status',args);meta=structured(raw)
+        if platform == 'ark':
+            from ark_direct import has_image_receipt
+            saved = job.get('result') or {}
+            if has_image_receipt(meta) or has_image_receipt(saved):
+                self.save_ark_originals(job, meta if has_image_receipt(meta) else saved)
+                return
         status=meta.get('status')
         if status=='completed':
             try:
                 raw=bridge.call('get_task',{**args,'include_images':True});meta={**identity,**structured(raw)}
-                result=self.capture(job,raw,meta)
+                result = self.capture(job,raw,meta)
             except ValueError as e:
-                self.store.update(job['id'],state='needs_review',result=meta,error=str(e));return
+                self.store.update(job['id'], state='needs_review', result=meta, error=str(e))
+                return
             self.store.update(job['id'],state='completed',result=result,error=None)
             if platform=='lovart':
                 try:
                     credits=structured(bridge.call('get_credits',{}))
                     if platform==getattr(self,'platform','lovart'):self.status.update(credits=credits.get('credits'),checked_at=time.time())
                 except Exception:pass
+        elif status=='needs_review':
+            self.store.update(job['id'],state='needs_review',result={**identity,**meta},error=provider_error(meta,'方舟回执待核对；不会自动重投'))
         elif status=='not_found':
             self.store.update(job['id'],state='needs_review',result={**identity,**meta},
                               error=provider_error(meta,'平台暂未找到已有任务，请核对原项目。'))
@@ -824,6 +870,30 @@ class App(Features,Retouch):
         elif status in ('pending','running','queued','processing'):
             self.store.update(job['id'],state='running',result={**identity,**meta},error=None)
         else:self.store.update(job['id'],result={**identity,**meta},error='平台返回的状态暂无法识别')
+
+    def save_ark_originals(self, job, receipt):
+        previous = job.get('result') or {}
+        result = {**previous, **receipt}
+        result.pop('download_http', None)
+        result['phase'] = 'image_received'
+        try:
+            if not result.get('asset_ids'):
+                result = self.capture(job, {}, result)
+            self.store.update(job['id'], result=result)
+            for aid in result['asset_ids']:
+                self.original(job['project_id'], aid, retry=bool(previous.get('asset_ids')))
+        except (ValueError, OSError) as error:
+            result['phase'] = 'image_download'
+            code = error.http_status if isinstance(error, OriginalDownloadError) else None
+            if code is not None:
+                result['download_http'] = code
+            message = ('方舟原图链接可能已失效或拒绝下载。请核对原图链接或本机已保存的作品。'
+                       if code in (401, 403, 404, 410) else
+                       '方舟已返回图片，但原图尚未保存。可从同一回执重新保存原图。')
+            self.store.update(job['id'], state='needs_review', result=result, error=message)
+            return
+        self.store.update(job['id'], state='completed', result=result, error=None)
+
     def recheck(self,pid,jid):
         with self.execution_lock:
             job=self.store.job(jid,pid)
@@ -1059,7 +1129,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             if path=='/api/lovart-login':return self.send(app.lovart_login_status())
             if path=='/api/state':
                 _sel=app.model_selection().get(getattr(app,'platform','lovart'))
-                return self.send({'version':2,'connection':{**app.status,**({'authorized_project_ids':app.agent_channel.project_ids(),'agent':app.agent_channel.agent_name or 'AGENT','agent_identity_source':app.agent_channel.agent_identity_source,'platform':app.agent_channel.settings.get('platform'),'executor_capabilities':app.agent_channel.executor_capabilities} if getattr(app,'agent_channel',None) and app.agent_channel.settings.get('enabled') else {})},'projects':app.store.projects(),'models':[{**m,'selected':(m.get('name') in _sel) if _sel else True} for m in app.catalog],'task_summary':app.task_summary() if hasattr(app.store,'on_job_state') else None,'executor_manager':(app.executor_manager.info() if hasattr(app,'executor_manager') else None),'vision':None,'platform':{'current':getattr(app,'platform','lovart'),'name':platforms.name(getattr(app,'platform','lovart')),'options':platforms.listing()},'file_cleanup_pending':app.store.pending_file_cleanup()})
+                return self.send({'version':2,'connection':{**app.status,**({'authorized_project_ids':app.agent_channel.project_ids(),'agent':app.agent_channel.agent_name or 'AGENT','agent_identity_source':app.agent_channel.agent_identity_source,'platform':app.agent_channel.settings.get('platform'),'executor_capabilities':app.agent_channel.executor_capabilities} if getattr(app,'agent_channel',None) and app.agent_channel.settings.get('enabled') else {})},'projects':app.store.projects(),'models':[{**m,'selected':(m.get('name') in _sel) if _sel else True} for m in app.catalog],'task_summary':app.task_summary() if hasattr(app.store,'on_job_state') else None,'executor_manager':(app.executor_manager.info() if hasattr(app,'executor_manager') else None),'vision':None,'platform':{'current':getattr(app,'platform','lovart'),'name':platforms.name(getattr(app,'platform','lovart')),'options':platforms.listing()},'file_cleanup_pending':app.store.pending_file_cleanup(),'ark_credential':app.ark_credential_state() if hasattr(app,'ark_credential_state') else None})
             if path in ['/api/project','/api/reuse-source']:
                 pid=q['id'][0];return self.send({'project':app.store.project(pid),'assets':app.store.assets(pid),'jobs':app.store.jobs(pid) if path=='/api/project' else []})
             if path=='/api/workbench/works':return self.send({'groups':app.store.workbench_works(q['project_id'][0])})
@@ -1165,6 +1235,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             elif path=='/api/job-archive':r=app.archive_job(pid,p['id'],p['archived'])
             elif path=='/api/agent-config':r=app.agent_channel.configure(p)
             elif path=='/api/connect':app.connect();r={'ok':True}
+            elif path=='/api/ark-key':r=app.configure_ark_key(p)
             elif path=='/api/vision':r=app.save_vision(p)
             elif path=='/api/model-selection':r=app.save_model_selection(p)
             elif path=='/api/vision-test':r=app.test_vision()

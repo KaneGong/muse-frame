@@ -15,7 +15,7 @@ from urllib.request import urlopen
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from beta import BetaApp, BetaHandler
 from beta_jobs import enqueue_group, enqueue_shots, job_feed, read_reference, recover_job, stop_group
-from beta_prompt import FIELDS, compile_prompt
+from beta_prompt import FIELDS, NATURAL_SHOOT_VARIANT, compile_prompt
 from beta_store import read_workspace, save_workspace
 from launch import ROOT
 from store import Store
@@ -127,6 +127,141 @@ class IntegrationTests(unittest.TestCase):
         for value in ("旧构图", "旧表情", "旧光线", "旧视线", "旧光影卡片"):
             self.assertNotIn(value, prompt)
 
+    def test_candidate_camera_choice_recompiles_and_gates_registration(self):
+        state = read_workspace(self.app.store)["state"]
+        shoot = state["shoots"][0]
+        shoot.update(promptVariant="concise-candidate", supplement="从正上方垂直俯拍。保留自然接触阴影。")
+        shot = shoot["shots"][0]
+        shot["options"] = {"angle": {"value": "相机低于人物视线，适度向上仰拍", "source": "catalog"}}
+        saved = save_workspace(self.app, {"revision": self.saved["revision"], "state": state, "ui": {}})
+        request = {**self.request, "revision": saved["revision"]}
+        unresolved = enqueue_shots(self.app, request, review=True)
+        row = unresolved["shots"][0]
+        self.assertTrue(row["cameraConflict"])
+        self.assertNotIn("俯拍", row["prompt"])
+        self.assertNotIn("仰拍", row["prompt"])
+        with self.assertRaisesRegex(ValueError, "选择本次使用的机位"):
+            enqueue_shots(self.app, {**request, "reviewToken": unresolved["reviewToken"]})
+        self.assertFalse(self.app.store.jobs())
+
+        for choice, expected, dropped in (("preset", "仰拍", "俯拍"), ("text", "俯拍", "仰拍")):
+            selected = {**request, "cameraChoices": {shot["id"]: choice}}
+            resolved = enqueue_shots(self.app, selected, review=True)
+            row = resolved["shots"][0]
+            self.assertNotIn("cameraConflict", row)
+            self.assertIn(expected, row["prompt"])
+            self.assertNotIn(dropped, row["prompt"])
+            self.assertIn("保留自然接触阴影", row["prompt"])
+            self.assertIn("只参考图3中的服装、服饰，保持原有的材质、质感、款式和颜色", row["prompt"])
+            self.assertIn(expected, row["prompt"].split("【构图与机位】")[-1])
+            self.assertNotEqual(resolved["reviewToken"], unresolved["reviewToken"])
+        enqueue_shots(self.app, {**selected, "reviewToken": resolved["reviewToken"]})
+        self.assertEqual(self.app.store.jobs()[0]["payload"]["prompt"], row["prompt"])
+
+    def test_natural_shoot_candidate_reviews_and_registers_two_independent_photos(self):
+        media = self.saved["media"][0]
+        for asset in self.state["assets"]:
+            asset["image"] = media
+        self.state["assets"] += [{"id": role, "name": role, "image": media}
+                                 for role in ("scene", "pose")]
+        shoot = self.state["shoots"][0]
+        shoot.update(referenceMode="photo",
+                     refs=[{"role": "环境", "assetId": "scene"}])
+        shoot["shots"][0].update(
+            poseAsset="pose", poseMode="strict", pose="这段旧动作不应代替图中姿态",
+            options={"shot": {"value": "半身取景", "source": "custom"},
+                     "light": {"value": "柔和窗光", "source": "custom"}},
+        )
+        saved = save_workspace(self.app, {"revision": self.saved["revision"], "state": self.state, "ui": {}})
+        request = {**self.request, "revision": saved["revision"], "bodyFromFace": False, "count": 2}
+        review = enqueue_shots(self.app, request, review=True)
+        row, = review["shots"]
+        self.assertEqual(row["promptVariant"], NATURAL_SHOOT_VARIANT)
+        self.assertEqual([r["role"] for r in row["references"]], ["face", "outfit", "scene", "pose"])
+        prompt = row["prompt"]
+        self.assertNotIn("所有服饰", prompt)
+        self.assertIn("只参考图2中的服装和配饰", prompt)
+        self.assertIn("可辨的佩戴侧", prompt)
+        self.assertIn("允许自然遮挡", prompt)
+        self.assertIn("依据图4可见的身体朝向、手脚关系、重心和接触点还原动作", prompt)
+        self.assertIn("原有支撑优先", prompt)
+        self.assertNotIn("这段旧动作", prompt)
+        self.assertLess(prompt.index("柔和窗光"), prompt.index("【构图与机位】"))
+        self.assertTrue(prompt.endswith("景别：半身取景"))
+        self.assertEqual(enqueue_shots(self.app, {**request, "reviewToken": review["reviewToken"]})["accepted"], 2)
+        jobs = self.app.store.jobs()
+        self.assertEqual(len(jobs), 2)
+        self.assertEqual([job["payload"]["prompt"] for job in jobs], [prompt, prompt])
+        self.assertTrue(all("seed" not in job["payload"] for job in jobs))
+        refs = {role: role for role in ("face", "body", "outfit", "scene", "pose")}
+        with_body, _ = compile_prompt(shoot, shoot["shots"][0], refs, None)
+        self.assertIn("只参考图3中的服装和配饰", with_body)
+        self.assertIn("依据图5可见的身体朝向", with_body)
+        self.assertIn("接触点可依据图4", with_body)
+
+    def test_text_environment_replaces_only_the_scene_reference(self):
+        media = self.saved["media"][0]
+        for asset in self.state["assets"]:
+            asset["image"] = media
+        self.state["assets"] += [{"id": role, "name": role, "image": media}
+                                 for role in ("scene", "pose", "body")]
+        shoot = self.state["shoots"][0]
+        shot = shoot["shots"][0]
+        description = "浅灰墙和水泥地面，人物左边有木椅，柔和日光从右侧窗户进入。"
+        shoot.update(referenceMode="photo", refs=[], environment=description)
+        shot.update(poseAsset="pose", poseMode="strict")
+        revision = self.saved["revision"]
+
+        def persist():
+            nonlocal revision
+            revision = save_workspace(self.app, {"revision": revision, "state": self.state, "ui": {}})["revision"]
+            return {**self.request, "revision": revision}
+
+        # Saved environment prose alone must not bypass an empty scene slot.
+        with self.assertRaisesRegex(ValueError, "填写场景描述"):
+            enqueue_shots(self.app, persist(), review=True)
+        shoot.update(environmentMode="text", environment="  ")
+        with self.assertRaisesRegex(ValueError, "填写场景描述"):
+            enqueue_shots(self.app, persist(), review=True)
+        shoot["environment"] = description
+        shot["poseAsset"] = None
+        with self.assertRaisesRegex(ValueError, "选择一张姿态图"):
+            enqueue_shots(self.app, persist(), review=True)
+        shot["poseAsset"] = "pose"
+
+        for body, roles, pose_number in ((False, ["face", "outfit", "pose"], 3),
+                                        (True, ["face", "body", "outfit", "pose"], 4)):
+            shoot["refs"] = [{"role": "身形", "assetId": "body"}] if body else []
+            review = enqueue_shots(self.app, persist(), review=True)
+            row, = review["shots"]
+            self.assertEqual([ref["role"] for ref in row["references"]], roles)
+            self.assertEqual(row["textEnvironment"], description)
+            self.assertEqual(row["prompt"].count(description), 1)
+            self.assertIn(f"只参考图{pose_number}中人物的姿态", row["prompt"])
+            self.assertIn("接触点可依据文字描述的场景", row["prompt"])
+            self.assertNotIn("中的场景", row["prompt"])
+
+        shoot.update(promptMode="custom", customPrompt="自写全文保持原样。")
+        row, = enqueue_shots(self.app, persist(), review=True)["shots"]
+        self.assertEqual(row["prompt"], shoot["customPrompt"])
+        self.assertEqual(row["textEnvironment"], description)
+        self.assertTrue(row["manual"])
+        shoot["promptMode"] = "guided"
+
+        shoot["refs"] = [{"role": "环境", "assetId": "scene"}]
+        row, = enqueue_shots(self.app, persist(), review=True)["shots"]
+        self.assertNotIn("textEnvironment", row)
+        self.assertNotIn(description, row["prompt"])
+        self.assertEqual([ref["role"] for ref in row["references"]], ["face", "outfit", "scene", "pose"])
+
+        shoot["refs"] = []
+        request = persist()
+        preview = enqueue_shots(self.app, request, review=True)
+        self.assertEqual(enqueue_shots(self.app, {**request, "reviewToken": preview["reviewToken"]})["accepted"], 1)
+        payload = self.app.store.jobs()[0]["payload"]
+        self.assertEqual(payload["prompt"], preview["shots"][0]["prompt"])
+        self.assertFalse(payload["prompt_contract"]["reference_roles"]["scene"])
+
     def test_four_photo_preview_matches_registration_without_reusing_face(self):
         media = self.saved["media"][0]
         for asset in self.state["assets"]:
@@ -145,16 +280,16 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual([(r["number"], r["role"]) for r in row["references"]],
                          list(enumerate(("face", "outfit", "scene", "pose"), 1)))
         self.assertNotIn("旧场景要求背景虚化", row["prompt"])
-        self.assertIn("请根据图3中的已有物件", row["prompt"])
-        self.assertIn("人物的主要动作以图4为准", row["prompt"])
-        self.assertIn("家具的存在不改变动作", row["prompt"])
+        self.assertIn("参考图3中的场景，不随意改变场景中的物品", row["prompt"])
+        self.assertIn("只参考图4中人物的姿态和肢体语言", row["prompt"])
+        self.assertIn("原有支撑优先", row["prompt"])
         self.assertNotIn("坐、靠、撑位置", row["prompt"])
-        self.assertIn("位置、朝向和相互布局保持不变", row["prompt"])
-        self.assertIn("以人物自身左右为准，保留可辨的包带所在肩", row["prompt"])
-        self.assertIn("要求双脚落地时，两只鞋均须与场景地面真实接触", row["prompt"])
+        self.assertIn("使人物融入在场景环境中", row["prompt"])
+        self.assertIn("配饰保留原款、材质、基准色和可辨的佩戴侧", row["prompt"])
+        self.assertIn("人物的肢体、四肢、手脚不畸形", row["prompt"])
         self.assertNotIn("微调可用物件的局部摆位", row["prompt"])
         self.assertIn("景深：背景清楚", row["prompt"])
-        self.assertIn("图4｜姿态", row["prompt"])
+        self.assertIn("只参考图4中人物的姿态", row["prompt"])
         enqueue_shots(self.app, {**request, "reviewToken": review["reviewToken"]})
         payload = self.app.store.jobs()[0]["payload"]
         self.assertEqual(payload["refs"], [r["assetId"] for r in row["references"]])
@@ -287,10 +422,10 @@ class IntegrationTests(unittest.TestCase):
                 self.assertFalse(any(text.startswith(line) for text in row["prompt"].splitlines()))
         self.assertIn("图4", row["prompt"])
         self.assertIn("图5", row["prompt"])
-        self.assertIn("不新增、移动、旋转、替换或改造", row["prompt"])
-        self.assertIn("请根据图4中的已有物件", row["prompt"])
-        self.assertIn("动作与服装配饰的穿戴方式冲突时，调整人物接触点", row["prompt"])
-        self.assertIn("保留姿态有意抬起的脚", row["prompt"])
+        self.assertIn("不随意改变场景中的物品", row["prompt"])
+        self.assertIn("参考图4中的场景", row["prompt"])
+        self.assertIn("佩戴、携带或落放方式随姿态自然调整", row["prompt"])
+        self.assertIn("以不妨碍原有动作、受力合理为准", row["prompt"])
         self.assertNotIn("换成蓝墙", row["prompt"])
         self.assertEqual(self.app.store.jobs(), [])
         with self.assertRaisesRegex(ValueError, "核对"):
@@ -301,20 +436,30 @@ class IntegrationTests(unittest.TestCase):
         self.assertEqual(job["prompt_contract"]["snapshot"]["optionRows"], row["options"])
         self.assertEqual(job["refs"], [r["assetId"] for r in row["references"]])
 
-    def test_pose_category_only_anchors_explicit_online_catalog_categories(self):
+    def test_concise_pose_does_not_import_catalog_labels_or_old_bag_rules(self):
         refs = {"face": "face", "body": "body", "outfit": "outfit", "scene": "scene", "pose": "pose"}
         for mode in ("strict", "adaptive"):
-            for online, category, expected in ((True, "站姿", "主要动作是站立"),
-                                               (True, "坐姿", "主要动作是坐姿"),
-                                               (False, "站姿", "先按此图确定主要动作"),
-                                               (True, "前倾", "先按此图确定主要动作")):
-                with self.subTest(mode=mode, online=online, category=category):
-                    prompt, _ = compile_prompt({}, {"poseMode": mode}, refs,
-                                               {"online": online, "category": category, "name": "文件名-坐着.jpg"})
-                    self.assertIn("人物的主要动作以图5为准", prompt)
-                    self.assertIn("图5｜姿态：" + expected, prompt)
-                    self.assertIn("仅当此动作需要接触物件时，请根据图4", prompt)
-                    self.assertNotIn("文件名-坐着.jpg", prompt)
+            prompt, _ = compile_prompt({}, {"poseMode": mode}, refs,
+                                       {"online": True, "category": "坐姿", "name": "文件名-坐着.jpg"})
+            self.assertIn("只参考图5中人物的姿态和肢体语言。不参考其他。", prompt)
+            self.assertIn("只参考图2中可见的身形比例", prompt)
+            self.assertNotIn("文件名-坐着.jpg", prompt)
+            self.assertNotIn("包带所在肩", prompt)
+            self.assertNotIn("调整人物接触点", prompt)
+            self.assertNotIn("主要动作是坐姿", prompt)
+
+    def test_frozen_v3_four_reference_contract_remains_accepted(self):
+        self.state["assets"] += [{"id": role, "name": role, "image": {"__mfImage": 0}} for role in ("scene", "pose")]
+        shoot = self.state["shoots"][0]
+        shoot.update(referenceMode="photo", refs=[{"role":"环境", "assetId":"scene"}])
+        shoot["shots"][0].update(poseAsset="pose", poseMode="strict")
+        saved = save_workspace(self.app, {"revision": self.saved["revision"], "state": self.state, "ui": {}, "media": ["data:image/webp;base64," + ENCODED]})
+        enqueue_shots(self.app, {**self.request, "revision": saved["revision"], "bodyFromFace": False})
+        old = self.app.store.jobs()[0]
+        old["payload"]["prompt_contract"]["compiler"] = "beta-portrait-refs-v3"
+        frozen = self.app.enqueue({"project_id":old["project_id"], "request_key":"frozen-v3-reference-check", "payload":old["payload"]})
+        self.assertEqual(frozen["payload"]["prompt_contract"]["compiler"], "beta-portrait-refs-v3")
+        self.assertNotIn("body", frozen["payload"]["ref_bindings"])
 
     def test_repeat_reference_slots_are_explicit_in_preview(self):
         review = enqueue_shots(self.app, self.request, review=True)

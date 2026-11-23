@@ -30,7 +30,25 @@ function setMood(state,sh,moodId,source='quick',preserve=false){
   return sh;
 }
 export function applyMood(state,shootId,moodId,{reset=false}={}){return setMood(state,M.findShoot(state,shootId),moodId,'quick',!reset);}
-export function applyFraming(state,shootId,shotId,framingId){const sh=M.findShoot(state,shootId),choice=find(FRAMINGS,framingId,'画面选择');writeOptions(state,sh,shotId,choice.options,'quick',false);const shot=sh.shots.find(x=>x.id===shotId);shot.framingId=choice.id;shot.description=choice.summary;return shot;}
+export function applyFraming(state,shootId,shotId,framingId){
+  const sh=M.findShoot(state,shootId),shot=sh.shots.find(x=>x.id===shotId);
+  const choice=find(FRAMINGS,framingId,'画面选择');
+  if(!M.isStudioPrompt(sh.promptVariant)){
+    writeOptions(state,sh,shotId,choice.options,'quick',false);
+  }else if(choice.category==='layout'){
+    M.setOption(state,shootId,shotId,'placement',choice.options.placement,label.placement,'preset');
+  }else{
+    for(const [key,value] of Object.entries(choice.options)){
+      const local=shot.options?.[key];
+      const current=local || sh.options?.[key];
+      if(key!=='shot' && current && ['custom','preset','catalog','cleared','inherit'].includes(current.source))continue;
+      M.setOption(state,shootId,shotId,key,value,label[key],'quick');
+    }
+  }
+  shot.framingId=choice.id;
+  shot.description=choice.summary;
+  return shot;
+}
 export function applyExpression(state,shootId,shotId,expressionId){const sh=M.findShoot(state,shootId),choice=find(EXPRESSIONS,expressionId,'人物表现');writeOptions(state,sh,shotId,choice.options,'quick',false);const shot=sh.shots.find(x=>x.id===shotId);shot.expressionId=choice.id;return shot;}
 export function applyDetail(state,shootId,shotId,field,optionId){
   const group=find(DETAIL_GROUPS,field,'预设类别'),choice=find(group.options,optionId,'预设');
@@ -92,12 +110,20 @@ export function getPlanPreview(state,shootId,planId){
 function configureFrame(state,sh,shot,template){
   const fr=find(FRAMINGS,template.framingId,'取景'),ex=find(EXPRESSIONS,template.expressionId,'人物表现');
   Object.assign(shot,{title:template.title,titleSource:'preset',description:fr.summary,pose:template.pose,poseAsset:null,poseMode:'adaptive',poseRecommended:true,angle:template.angle,expression:'',gaze:'',composition:'',light:'',framingId:fr.id,expressionId:ex.id});
-  writeOptions(state,sh,shot.id,{...fr.options,...ex.options},'plan',true);shot.manual=false;
+  const framing=M.isStudioPrompt(sh.promptVariant) && fr.category==='layout'
+    ? {placement:fr.options.placement} : fr.options;
+  writeOptions(state,sh,shot.id,{...framing,...ex.options},'plan',true);shot.manual=false;
 }
-export function applyPlan(state,shootId,planId,{newShoot=false,replaceShots=false,photoReferences=false}={}){
+export function applyPlan(state,shootId,planId,{newShoot=false,replaceShots=false,photoReferences=false,independent=false}={}){
   const original=M.findShoot(state,shootId),plan=find(PLANS,planId,'拍摄方案');if(!original)throw Error('找不到本次拍摄');
   let sh=original;
-  if(newShoot){sh=M.createShoot(state,{purpose:original.purpose,title:plan.name+' · 新拍摄',model:original.model,outfit:original.outfit,productId:original.productId,productVersion:original.productVersion,modelMode:original.modelMode});sh.refs=M.clone(original.refs);sh.supplement=original.supplement;sh.customPrompt=original.customPrompt;sh.promptMode=original.promptMode;replaceShots=true;}
+  if(newShoot&&independent){
+    // The sample has its own inputs, identified by their bundled files rather than by the last customer.
+    sh=M.createShoot(state,{purpose:'social',title:plan.name+' · 新拍摄',independent:true,
+      model:M.ensureStudioAsset(state,'person','plan-profile-friendly'),outfit:M.ensureStudioAsset(state,'outfit','plan-catalog')});
+    sh.shots=[];sh.recipeId=null;sh.recipeVersion=null;
+    replaceShots=true;
+  }else if(newShoot){sh=M.createShoot(state,{purpose:original.purpose,title:plan.name+' · 新拍摄',model:original.model,outfit:original.outfit,productId:original.productId,productVersion:original.productVersion,modelMode:original.modelMode});sh.refs=M.clone(original.refs);sh.supplement=original.supplement;sh.customPrompt=original.customPrompt;sh.promptMode=original.promptMode;replaceShots=true;}
   const hasManualEnvironment=sh.creativeManual?.environment||sh.globalManual;
   setMood(state,sh,plan.moodId,'plan',true);
   if(!hasManualEnvironment){
@@ -110,6 +136,15 @@ export function applyPlan(state,shootId,planId,{newShoot=false,replaceShots=fals
   let targets=M.activeShots(sh);
   if(replaceShots){for(const shot of targets)shot.removed=true;targets=plan.frames.map(()=>M.addShot(sh));}
   for(let i=0;i<Math.min(targets.length,plan.frames.length);i++)if(replaceShots||!targets[i].manual)configureFrame(state,sh,targets[i],plan.frames[i]);
+  if(independent&&plan.id==='portrait'){
+    const images=['plan-profile-friendly','plan-portrait-close','framing-cover'];
+    for(const [i,frame] of targets.entries()){
+      const image='assets/generated/'+images[i]+'.webp';
+      let pose=state.assets.find(a=>a.type==='pose'&&a.image===image);
+      if(!pose){pose={id:M.uid('pose'),type:'pose',name:frame.title,source:'内置姿态示例',image};state.assets.push(pose);}
+      frame.poseAsset=pose.id;
+    }
+  }
   sh.creativePlan={id:plan.id,name:plan.name,goal:plan.goal};sh.creativeGoal=plan.goal;sh.creativeCheck=plan.check;sh.uiRecommended=true;sh.free=false;sh.revision++;
   return sh;
 }

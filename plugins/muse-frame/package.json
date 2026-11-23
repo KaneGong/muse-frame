@@ -1,0 +1,10 @@
+{
+  "name": "muse-frame-shot-planner",
+  "description": "Prepare an importable Muse Frame portrait shot plan in DeepSeek Harness",
+  "version": "0.6.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "main": "./dsh.mjs",
+  "files": ["dsh.mjs", "cordis.patch.yml", "plugin.json", "skills", "LICENSE"],
+  "dsh": {"bundle": {"patch": "./cordis.patch.yml"}}
+}

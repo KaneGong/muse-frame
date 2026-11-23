@@ -189,8 +189,10 @@ def verify(installer, version, directory):
         source.api("/api/project", {"name": legacy_title, "data": {"draft": "保留这段草稿"}})
 
     with WebUI(version).launch([launcher], env, log) as app:
-        original = {"revision": saved["revision"], "state": state, "ui": ui}
-        require(app.api(WORKSPACE) == original, "The workspace draft did not persist after quit and reopen")
+        original = app.api(WORKSPACE)
+        require(original["revision"] == saved["revision"] and original["state"] == state and original["ui"] == ui,
+                "The workspace draft did not persist after quit and reopen")
+        require(original["patchVersion"] == 1 and bool(original["workspaceId"]), "Missing Studio patch support")
         projects = app.api(f"/api/project?id={pid}")
         persisted = next(item for item in projects["assets"] if item["id"] == asset["id"])
         check_image(app, persisted)

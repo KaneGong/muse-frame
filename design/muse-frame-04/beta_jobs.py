@@ -5,12 +5,15 @@ import json
 import re
 from urllib.parse import parse_qs, unquote, urlsplit
 
-from beta_prompt import COMPILER, compile_prompt, option_rows, ordered_roles
+from beta_prompt import COMPILER, compile_prompt, described_environment, option_rows, ordered_roles, prompt_variant
 from server import compact_prompt
 from prompt_contract import referenced_numbers
 from beta_store import MEDIA, read_workspace
 from gallery_server import image_bytes
 from launch import ROOT
+from ark_direct import has_image_receipt, receipt_rejection
+from beta_edit import prepare_edit, save_edit_reference, scoped_source
+import studio_prompt
 
 ANGLES = {"front": "正面", "back": "背面", "detail": "细节"}
 REFERENCE_ERRORS = {
@@ -60,7 +63,7 @@ def enqueue_shots(app, request, *, review=False):
         raise ValueError("请先连接本次使用的绘图平台")
     draft = workspace["state"]
     shoot = next((s for s in draft["shoots"] if s["id"] == request.get("shootId")), None)
-    if not shoot or shoot.get("purpose") not in ("social", "merchant"):
+    if not shoot or shoot.get("archived") or shoot.get("purpose") not in ("social", "merchant"):
         raise ValueError("找不到这次拍摄")
     experiment = None
     if request.get("experimentId"):
@@ -124,6 +127,7 @@ def enqueue_shots(app, request, *, review=False):
             if type(limit) is int and count_for_model > limit:
                 raise ValueError(f"所选模型最多接收 {limit} 张参考图，请换模型或减少参考。")
             contract = payload.get("prompt_contract") or {}
+            snapshot = contract.get("snapshot") or {}
             manual = contract.get("mode") == "manual"
             frozen = bool(experiment and baseline.get("nativeJobId"))
             if not manual:
@@ -144,14 +148,26 @@ def enqueue_shots(app, request, *, review=False):
             rows.append({"shotId": context["shotId"], "title": context["title"],
                          "condition": context.get("conditionLabel"), "repeat": context.get("repeat"),
                          "prompt": payload["prompt"], "references": slots,
+                         **({key: context[key] for key in ("productId", "evidenceVersion", "angle") if key in context}),
+                         **({"direction": snapshot["direction"]} if snapshot.get("direction") else {}),
                          "model": payload["model"], "ratio": payload["aspect_ratio"],
                          "resolution": payload["resolution"], "size": payload.get("size"),
-                         "frozen": frozen, "manual": manual,
-                         "options": None if frozen or not contract or manual else contract["snapshot"]["optionRows"]})
-        proof = json.dumps([request["platform"], pid, request_key, rows], ensure_ascii=False, sort_keys=True)
-        token = hashlib.sha256(proof.encode()).hexdigest()
+                         "frozen": frozen, "manual": manual, "editing": payload.get("mode") == "edit",
+                         "options": None if frozen or not contract or manual else snapshot["optionRows"],
+                         **({"textEnvironment": snapshot["textEnvironment"]} if snapshot.get("textEnvironment") and not frozen else {}),
+                         **({"promptVariant": snapshot["promptVariant"]} if snapshot.get("promptVariant") else {}),
+                         **({"cameraConflict": snapshot["cameraConflict"]} if snapshot.get("cameraConflict") else {})})
+        proof = json.dumps([request["platform"], pid, request_key, rows], ensure_ascii=False, sort_keys=True).encode()
+        def token_for(n):
+            return hashlib.sha256(proof + b":" + str(n).encode("ascii")).hexdigest()
+        token = token_for(count)
         if review:
-            return {"reviewToken": token, "shots": rows}
+            result = {"reviewToken": token, "shots": rows}
+            if not (experiment or request.get("editOutput") or request.get("batchId")):
+                result["countTokens"] = {str(n): token_for(n) for n in range(1, min(4, 25 // len(plan)) + 1)}
+            return result
+        if any(row.get("cameraConflict") for row in rows):
+            raise ValueError("请先在确认页选择本次使用的机位。")
         if request.get("reviewToken") is not None and request["reviewToken"] != token:
             raise ValueError("参考图、提示词或设置已变化，请重新核对本次提交。")
         with app.registration_lock:
@@ -194,7 +210,7 @@ def enqueue_shots(app, request, *, review=False):
                 raise ValueError("请先从回收站恢复这张原图")
             original_context = {"shootId": shoot["id"], "shotId": entry["shotId"], "title": entry["title"]}
             source_id = parent["id"]
-        elif entry and (entry.get("editType") == "local-adjustment" or entry.get("demo")):
+        elif entry and (entry.get("editType") == "local-adjustment" or entry.get("demo") or entry.get("uploaded")):
             context = {"shootId": shoot["id"], "shotId": entry["shotId"], "title": entry["title"]}
             source_job = store.job(entry["taskId"], pid) if entry.get("native") and not entry.get("demo") else None
             original_context = source_job["payload"].get("design", {}) if source_job else context
@@ -216,9 +232,11 @@ def enqueue_shots(app, request, *, review=False):
         if not isinstance(note, str) or not note.strip():
             raise ValueError("请写明这次要修改的地方")
         if source_id is None:
-            source = app.upload(entry["title"], "source", read_reference(store, entry["image"]), pid)
-            source_id = source["id"]
-        return submit([{**params, "mode": "edit", "resultRole": "output", "refs": [source_id],
+            source_id = save_edit_reference(app, pid, entry["title"],
+                                            read_reference(store, scoped_source(entry["image"], pid)))
+        edit_refs, note = prepare_edit(app, pid, source_id, note, request.get("edit", {}), read_reference,
+                                       studio=prompt_variant(shoot) == studio_prompt.VARIANT)
+        return submit([{**params, "mode": "edit", "resultRole": "output", "refs": edit_refs,
                         "parent_asset": source_id, "prompt": note,
                         "design": {**{key: value for key, value in original_context.items()
                                       if key not in ("experimentId", "conditionId", "conditionLabel", "repeat")},
@@ -270,12 +288,18 @@ def enqueue_shots(app, request, *, review=False):
     extras = shoot.get("refs", [])
     if any(r["role"] not in ("身形", "环境") for r in extras) or any(
         sum(r["role"] == role for r in extras) > 1 for role in ("身形", "环境")
-    ) or shoot.get("directionRefs"):
+    ):
         raise ValueError("这次包含尚未接入的补充参考，请先核对拍摄参考")
+    if shoot.get("promptMode") != "custom" and any(ids.intersection(r.get("shotIds", []))
+                                                   for r in shoot.get("directionRefs", [])):
+        raise ValueError("旧试拍方向未记录可提交的摄影设置，请在作品中重新选择方向")
     roles = {r["role"]: library[r["assetId"]] for r in extras}
     require_photos = shoot.get("referenceMode") == "photo"
-    if require_photos and "环境" not in roles:
-        raise ValueError("请先在左侧选择一张场景图")
+    text_environment = described_environment(shoot) if "环境" not in roles else ""
+    if require_photos and "环境" not in roles and not text_environment:
+        if shoot["purpose"] == "merchant":
+            raise ValueError("请先在左侧选择一张场景图")
+        raise ValueError("请先选择一张场景图或填写场景描述")
     if require_photos:
         for item in plan:
             frame = baseline["shot"] if experiment else next(s for s in shoot["shots"] if s["id"] == item["shotId"])
@@ -343,9 +367,22 @@ def enqueue_shots(app, request, *, review=False):
             prompt = shot.get("legacyPrompt", prompt)
         if manual and (not isinstance(prompt, str) or not prompt.strip()):
             raise ValueError("请先补充这张照片的提示词")
-        fields = {}
+        fields, notes = {}, {}
+        variant = None if manual else prompt_variant(shoot)
+        direction = studio_prompt.trial_settings(store, pid, shoot, shot) if variant == studio_prompt.VARIANT else None
         if not manual:
-            prompt, fields = compile_prompt(shoot, shot, refs, pose, product, ANGLES[angle] if product else "")
+            camera_choices = request.get("cameraChoices", {}) if variant else {}
+            if not isinstance(camera_choices, dict):
+                raise ValueError("机位选择无效")
+            prompt, fields = compile_prompt(
+                shoot, shot, refs, pose, product, ANGLES[angle] if product else "",
+                notes=notes, camera_choice=camera_choices.get(shot["id"]), direction=direction,
+            )
+            ratio = params["aspect_ratio"].split(":")
+            if (shot.get("framingId") == "wide-person" and (variant != studio_prompt.VARIANT or
+                    studio_prompt.coverage_for(fields["shot"]) == "environment") and len(ratio) == 2
+                    and all(part.isdigit() for part in ratio) and int(ratio[0]) <= int(ratio[1])):
+                notes["shot"] = "横幅取景建议使用横向画幅，本次输出仍按已选比例。"
         prompt = research_prompt(prompt, item)
         actual = {key: refs.get(key, "") for key in ("face", "body", "outfit", "scene", "pose")}
         mode = "manual" if manual else "guided"
@@ -354,7 +391,12 @@ def enqueue_shots(app, request, *, review=False):
             "prompt_contract": {
                 "version": 2, "compiler": COMPILER, "mode": mode, "shot_id": shot["id"],
                 "reference_roles": actual, "snapshot": {"mode": mode, "fields": fields,
-                    "optionRows": [] if manual else option_rows(shoot, shot, fields),
+                    "optionRows": [] if manual else option_rows(shoot, shot, fields, notes),
+                    **({"directionFields": notes["directionFields"], "directionCustom": notes["directionCustom"]} if "directionFields" in notes else {}),
+                    **({"textEnvironment": text_environment} if text_environment else {}),
+                    **({"promptVariant": variant} if variant else {}),
+                    **({"direction": direction} if direction else {}),
+                    **({"cameraConflict": notes["cameraConflict"]} if "cameraConflict" in notes else {}),
                     "pose": {"source": "reference" if refs.get("pose") else "text", "assetId": refs.get("pose", ""),
                              "adherence": shot.get("poseMode", "adaptive")}},
             },
@@ -427,14 +469,18 @@ def recover_job(app, request):
             receipt["review_released"] = True
             store.update(jid, result=receipt)
             return {"released": True}
-        if action not in ("lookup", "link"):
+        if action not in ("lookup", "link", "save-original"):
             raise ValueError("任务核对操作无效")
 
         bridge = app._bridge_for_platform(platform)
         project = receipt.get("project_id") or (store.project(pid)["data"].get("platform_projects") or {}).get(platform)
         if project:
             receipt["project_id"] = project
-        found = {}
+        if platform == "ark" and action == "link":
+            raise ValueError("方舟生图是同步请求，Request ID 用于排查，无法手动关联为生成任务。")
+        if platform != "ark" and action == "save-original":
+            raise ValueError("只有方舟图片回执可以执行此操作")
+        found = {"task_id": jid} if platform == "ark" else {}
         if platform == "libtv" and project and hasattr(bridge, "find_generation"):
             with store.lock:
                 event = store.db.execute(
@@ -464,11 +510,37 @@ def recover_job(app, request):
             checked = structured(bridge.call("get_task_status", arguments))
         except (RuntimeError, OSError) as error:
             raise ValueError("平台暂时无法核实此编号。任务仍保留待核对。") from error
+        if platform == "ark":
+            if has_image_receipt(checked) or has_image_receipt(receipt):
+                receipt = {**receipt, **checked} if has_image_receipt(checked) else receipt
+                store.update(jid, state="running", task_ids=[task], result=receipt, error=None)
+                return {"linked": True, "task_id": task, "action": "save-original"}
+            if action == "lookup" and checked.get("status") == "failed":
+                receipt.update(checked)
+                store.update(jid, state="failed", result=receipt,
+                             error=receipt_rejection(receipt) or checked.get("error"))
+                return {"linked": True, "task_id": task, "action": "confirmed-failure"}
+            raise ValueError("本机没有可恢复的方舟图片回执。请按请求时间与 Request ID 核对方舟记录，或保留记录并解除镜头占用。")
         if checked.get("status") not in ("pending", "running", "queued", "processing", "completed", "failed", "moderated", "cancelled"):
             raise ValueError("该任务目前无可核实的结果。可以稍后核对，或保留记录并解除镜头占用。")
         receipt.pop("review_released", None)
         store.update(jid, state="running", task_ids=[task], result=receipt, error=None)
         return {"linked": True, "task_id": task}
+
+
+def conditional_job_feed(store, since=None):
+    # This connection's total_changes covers ordinary writes (including asset
+    # trash/restore and imported history). data_version covers other connections.
+    # Read both under the feed lock so a returned token describes that snapshot.
+    import uuid
+    with store.lock:
+        if not hasattr(store, "_feed_session"):
+            store._feed_session = uuid.uuid4().hex
+        version = store.db.execute("PRAGMA data_version").fetchone()[0]
+        token = f"{store._feed_session}-{version}-{store.db.total_changes}"
+        if since == token:
+            return {"token": token, "unchanged": True}
+        return {**job_feed(store), "token": token}
 
 
 def job_feed(store):
@@ -512,13 +584,23 @@ def job_feed(store):
                            "image": asset.get("original_url") or asset.get("preview")}
                           for index, asset in enumerate(snapshots) if isinstance(asset, dict)]
             platform = payload.get("platform", "lovart")
+            error = job.get("error")
+            if platform == "ark" and job["state"] == "failed":
+                error = receipt_rejection(receipt) or error
             platform_project = receipt.get("project_id") or (project_data(pid).get("platform_projects") or {}).get(platform)
             result.append({**design, "id": "legacy-job-" + _stable_id(pid, job["id"]) if historical else job["id"],
-                           "projectId": pid, "platform": platform, "state": job["state"], "error": job.get("error"),
+                           "projectId": pid, "platform": platform, "state": job["state"], "error": error,
                            "archived": bool(job.get("archived")), "platformProjectId": platform_project,
                            "readOnly": historical, "sourceJobId": job["id"] if historical else None,
                            "reviewReleased": bool(receipt.get("review_released")),
-                           "remoteIds": job.get("task_ids") or [], "prompt": payload.get("prompt", ""),
+                           "remoteIds": [] if platform == "ark" else job.get("task_ids") or [],
+                           **({"arkImageReceipt": has_image_receipt(receipt),
+                               "arkDiagnostic": {key: receipt[key] for key in (
+                               "request_id", "client_request_id", "phase", "http", "provider_code",
+                               "provider_param", "elapsed_seconds", "request_bytes", "reference_count",
+                               "transport_error", "errno", "started_at", "download_http",
+                           ) if receipt.get(key) is not None}} if platform == "ark" else {}),
+                           "prompt": payload.get("prompt", ""),
                            "promptContract": payload.get("prompt_contract"), "model": payload.get("model", ""),
                            "mode": payload.get("mode", "generate"), "ratio": payload.get("aspect_ratio", "default"),
                            "batchShot": payload.get("batch_shot"), "batchImage": payload.get("batch_image"),

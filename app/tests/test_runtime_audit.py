@@ -1,15 +1,20 @@
 """Deterministic runtime regressions using only synthetic local data."""
 import copy
+import os
 import sys
 import tempfile
 import threading
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from server import App
 from store import Store
+import libtv_direct
 
 
 class Cycles:
@@ -31,6 +36,74 @@ class RuntimeAuditTests(unittest.TestCase):
             'model':'synthetic','prompt':'synthetic','mode':'generate',
             'aspect_ratio':'default','resolution':'default','refs':[],
             'resultRole':'scene','platform':platform})
+
+    def test_libtv_binds_every_reference_to_the_current_canvas_after_reconnect(self):
+        pid = self.project['id']
+        old_canvas, current_canvas = 'old-canvas', 'current-canvas'
+        self.store.set_project_data(pid, {'platform_projects': {'libtv': old_canvas}})
+        bridge = libtv_direct.LibTVBridge()
+        bridge.project = current_canvas
+        bridge.token = {'sub': 'test-account'}
+        bridge.connect = lambda: None
+        self.app.bridge = bridge
+        self.app.model_schema = lambda *_: {'properties': {}}
+        roles = ['face', 'body', 'outfit', 'scene', 'pose']
+        uploads, generations = [], []
+
+        def tool(name, args):
+            if 'projectId' in args:
+                self.assertEqual(args['projectId'], current_canvas)
+            if name == 'upload_ticket':
+                role = Path(args['file_name']).stem
+                uploads.append(role)
+                return {'parts': [{'url': 'https://upload.invalid/'}], 'path': role}
+            if name == 'upload_complete':
+                return {'file_ref': args['path']}
+            if name == 'upload_media':
+                return {'nodeId': 'current-' + args['fileRef']}
+            if name == 'read_node':
+                return {'node': {'data': {'url': f"https://libtv-res.liblib.art/{args['node']}.png"}}}
+            if name == 'get_model':
+                return {'schema': {'properties': {}}}
+            if name == 'create_node':
+                generations.append(args)
+                return {'nodeId': 'output', 'taskId': 'accepted-task'}
+            self.fail(name)
+
+        bridge.tool = tool
+        with patch.dict(os.environ, {'PORTRAIT_TOKEN_DIR': self.tmp.name}), patch.object(libtv_direct, '_put'):
+            for i, role in enumerate(roles):
+                canvas = current_canvas if role == 'pose' else old_canvas
+                node = ('current-' if role == 'pose' else 'old-') + role
+                url = f'https://libtv-res.liblib.art/{node}.png'
+                local = f'assets/{role}.png'
+                Image.new('RGB', (8, 8), (20 * i, 50, 80)).save(self.store.root / local)
+                self.store.put_asset({'id': role, 'role': role, 'name': role, 'source': 'uploaded',
+                    'local': local, 'url': url, 'platform_node_id': node,
+                    'platform_project_id': canvas, 'account_key': 'test-account'}, pid)
+                libtv_direct._remember_node(url, node, canvas, 'test-account')
+
+            prompt = 'Synthetic portrait with five ordered references'
+            for key in ('first-after-reconnect', 'second-after-reconnect'):
+                job = self.store.enqueue(key, pid, {
+                    'platform': 'libtv', 'model': 'fixture', 'mode': 'generate', 'prompt': prompt,
+                    'refs': roles, 'resultRole': 'output', 'aspect_ratio': 'default', 'resolution': 'default',
+                })
+                self.app.submit(job)
+                saved = self.store.job(job['id'])
+                self.assertEqual(saved['state'], 'running', saved['error'])
+                self.assertEqual(saved['task_ids'], ['accepted-task'])
+                self.assertEqual(saved['result']['project_id'], current_canvas)
+
+        self.assertEqual(uploads, roles[:-1])
+        self.assertEqual(len(generations), 2)
+        self.assertEqual(self.store.project(pid)['data']['platform_projects']['libtv'], current_canvas)
+        for request in generations:
+            nodes = ['current-' + role for role in roles]
+            self.assertEqual(request['left'], nodes)
+            self.assertEqual(request['prompt'].splitlines()[0],
+                '参考图映射：' + '；'.join(f'图{i}={{{{Node {node}}}}}' for i, node in enumerate(nodes, 1)) + '。')
+            self.assertEqual(request['prompt'].splitlines()[1], prompt)
 
     def test_platform_response_does_not_overwrite_concurrent_draft_edit(self):
         job=self.job('draft-race')

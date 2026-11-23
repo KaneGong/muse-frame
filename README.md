@@ -2,21 +2,21 @@
 
 # MUSE FRAME · 映象所
 
-MUSE FRAME is a local AI portrait workspace for Mac and Windows. Choose a person, outfit, scene and pose, then set the framing and tone for your first photo. Advanced controls let you refine lighting, body reference and shot settings. Projects, saved images and task history stay on your computer. Confirming a task sends its selected references and prompt to your connected Lovart or LibTV account.
+MUSE FRAME is a local AI portrait workspace for Mac and Windows. Choose a person, outfit, scene and pose, then set the framing and tone for your first photo. Advanced controls let you refine lighting, body reference and shot settings. Projects, saved images and task history stay on your computer. Confirming a task sends its selected references and prompt to your connected Lovart, LibTV or Ark account.
 
-**[Download 0.5.0-beta.5](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [Illustrated first shoot guide](docs/en/webui-guide.md) · [Install and migrate](docs/en/quick-start.md) · [Release notes](RELEASE_NOTES.md) · [简体中文](README.zh-CN.md)**
+**[Download 0.6.0](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.0) · [Agent plugins](docs/agent-plugins.md) · [Install and migrate](docs/en/quick-start.md) · [简体中文](README.zh-CN.md)**
 
-## Community prerelease 0.5.0-beta.5
+## Photography studio 0.6
 
-The Mac and Windows launchers open the same workspace in your default browser. Both include the components needed to start. The service runs on your computer and listens on loopback.
+Start a portrait series, a product batch, or a retouch from Home. Resume previous work and import a reviewed shot plan from your agent. The stable app continues to use the MUSE FRAME workspace and local port 9014. Existing Studio Preview workspaces remain separate. Portrait shoots use their own references, drafts and frame settings.
 
-| Option | Package and validation |
+| Download | Installation |
 | --- | --- |
-| Mac | Apple Silicon DMG. The app is ad-hoc signed and lacks Apple notarization. See the DMG's `BUILD-INFO.txt` for its minimum macOS target. |
-| Windows | x64 Setup executable for the current Windows user. The installer and launcher are unsigned. [Windows x64 automated checks](https://github.com/KaneGong/muse-frame/actions/runs/43157259382/job/130979965361) passed. |
-| Source | Run the same local WebUI from a source checkout using Python. [Source quick start](docs/en/quick-start.md#source-browser-ui) |
+| Apple Silicon Mac DMG | Drag Muse Frame into Applications. The Mac app is ad-hoc signed and unnotarized. See the bundled BUILD-INFO for the minimum OS. |
+| Windows x64 Setup.exe | Double-click the installer and launch from Start. The installer is unsigned. |
+| Agent plugin | GitHub release includes a skills-only plugin ZIP and a DSH bundle. See the [agent guide](docs/agent-plugins.md). |
 
-The earlier [0.4.0-beta.2 Mac release](https://github.com/KaneGong/muse-frame/releases/tag/v0.4.0-beta.2) remains available. Its embedded app window and [illustrated guide](docs/en/user-guide.md) belong to that version.
+Both desktop packages include their runtime. OS security policies can restrict new downloads. Review image and dependency notices before redistributing. [Release notes](RELEASE_NOTES.md).
 
 ## From references to finished work
 
@@ -41,4 +41,4 @@ Online galleries load from their source hosts. Provider availability, model para
 
 For reproducible issues, include the MUSE FRAME version, operating system, architecture and steps. Remove private images, prompts and credentials from reports. [Issues](https://github.com/KaneGong/muse-frame/issues/new/choose) · [Build](docs/en/build.md) · [Changelog](CHANGELOG.md) · [Security](SECURITY.md).
 
-Software is [AGPL-3.0-only](LICENSE). The corresponding source archive, file manifest and SHA-256 checksums accompany the 0.5.0-beta.5 binaries as separate files. Showcase artwork and example assets have separate terms. [Asset notices](ASSET_LICENSES.md) · [Dependency notices](THIRD_PARTY_NOTICES.md) · [Brand guidelines](TRADEMARKS.md).
+Software is [AGPL-3.0-only](LICENSE). The corresponding source archive, file manifest and SHA-256 checksums accompany the 0.6.0 binaries as separate files. Showcase artwork and example assets have separate terms. [Asset notices](ASSET_LICENSES.md) · [Dependency notices](THIRD_PARTY_NOTICES.md) · [Brand guidelines](TRADEMARKS.md).
