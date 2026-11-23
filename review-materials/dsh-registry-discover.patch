@@ -1,0 +1,211 @@
+From 6d0b7a1752a521844daf3813a4833bd1fea2a230 Mon Sep 17 00:00:00 2001
+From: Codex <codex@users.noreply.github.com>
+Date: Mon, 23 Nov 2026 12:43:50 +0800
+Subject: [PATCH] Export reviewed curated archives from their verified package
+ directory
+
+---
+ docs/registry-governance.md        |  2 ++
+ scripts/export-plugin-index.mjs    | 43 +++++++++++++++++++++++++-----
+ scripts/sync-plugins.mjs           |  8 ++++--
+ sources/curated.json               |  2 +-
+ tests/plugin-market-index.test.mjs | 35 ++++++++++++++++++++++++
+ 5 files changed, 80 insertions(+), 10 deletions(-)
+
+diff --git a/docs/registry-governance.md b/docs/registry-governance.md
+index 2417961..81bae0f 100644
+--- a/docs/registry-governance.md
++++ b/docs/registry-governance.md
+@@ -53,3 +53,5 @@ npm run sync:plugins
+ npm run validate:registry
+ npm test
+ ```
++
++对于已审的 GitHub 源码归档，精选记录可以用同仓且同一完整 SHA 的 `tree/<sha>/<包目录>` 链接指定 Harness Discover 的公开子包。网页继续使用审核归档安装；索引导出读取该 SHA 的子包 manifest 和所有声明的 patch，并沿用 Web profile、包名、公开包和来源冲突检查。
+diff --git a/scripts/export-plugin-index.mjs b/scripts/export-plugin-index.mjs
+index 5d7f492..a0c87ed 100644
+--- a/scripts/export-plugin-index.mjs
++++ b/scripts/export-plugin-index.mjs
+@@ -5,6 +5,7 @@ import semver from 'semver'
+ import { parseMarketIndex } from '@deepseek-ai/dsh-plugin-market-index'
+ import { parseInstallCommand, githubSpecIsPinned } from '../assets/install-command.js'
+ import { validateBundleManifest } from '../assets/bundle-manifest.js'
++import { validateBundlePatch } from '../assets/bundle-patch.js'
+ import { bundleDirectoryFromUrl, parseGithubRepositoryUrl } from './registry-core.mjs'
+ 
+ const INDEX_URL = 'https://plugin.dshdesk.com/data/plugin-index.json'
+@@ -59,17 +60,29 @@ function candidateOf(plugin) {
+   if (plugin.verification?.manifest !== 'shape_validated' || plugin.verification?.patch !== 'exists') return { reason: 'not_verified' }
+   const install = parseInstallCommand(plugin.install)
+   if (plugin.profile !== 'web' || install?.profile !== 'web') return { reason: 'not_web' }
+-  if (!install.spec.startsWith('github:')) return { reason: 'not_github' }
+-  if (!githubSpecIsPinned(install.spec, plugin.verifiedCommit)) return { reason: 'not_pinned' }
+   const repo = parseGithubRepositoryUrl(plugin.url)
+-  const fullName = install.spec.slice('github:'.length).split('#')[0]
+-  if (!repo || `${repo.owner}/${repo.repository}`.toLowerCase() !== fullName.toLowerCase()) return { reason: 'repository_mismatch' }
++  const fullName = repo && `${repo.owner}/${repo.repository}`
++  const url = `https://github.com/${fullName}`
++  let commit = plugin.verifiedCommit
++  let checkArchivePatches = false
++  if (install.spec.startsWith('github:')) {
++    if (!githubSpecIsPinned(install.spec, commit)) return { reason: 'not_pinned' }
++    const installedRepo = install.spec.slice('github:'.length).split('#')[0]
++    if (!repo || installedRepo.toLowerCase() !== fullName.toLowerCase()) return { reason: 'repository_mismatch' }
++  } else {
++    // A curator can point the record at a public installable subpackage of
++    // the same reviewed archive. A branch name or moving tag is insufficient.
++    const pin = String(plugin.url || '').match(/\/tree\/([0-9a-f]{40})\//)?.[1]
++    if (!repo || plugin.source !== 'curated' || !pin || install.spec !== `${url}/archive/${pin}.tar.gz`) return { reason: 'not_github' }
++    commit = pin
++    checkArchivePatches = true
++  }
+   const directory = bundleDirectoryFromUrl(plugin.url)
+   // A qualified id only identifies a basename; it cannot recover a lost monorepo path.
+   if (String(plugin.id).includes('#') && !directory) return { reason: 'directory_unknown' }
+   if (directory && directory.split('/').some(part => part === '.' || part === '..' || !/^[A-Za-z0-9._@+-]+$/.test(part))) return { reason: 'directory_invalid' }
+   if (typeof plugin.packageName !== 'string' || !plugin.packageName.trim()) return { reason: 'package_name_missing' }
+-  return { plugin, fullName, directory, commit: plugin.verifiedCommit, url: `https://github.com/${repo.owner}/${repo.repository}` }
++  return { plugin, fullName, directory, commit, url, checkArchivePatches }
+ }
+ 
+ function sourceKey(source) {
+@@ -151,6 +164,21 @@ async function requestMetadata(query, fetchImpl, token, sleep) {
+   }
+ }
+ 
++async function verifyArchivePatches(item, paths, fetchImpl, token, sleep) {
++  const [owner, name] = item.fullName.split('/')
++  const fields = paths.map((patch, index) => {
++    const file = `${item.commit}:${item.directory}/${patch.slice(2)}`
++    return `p${index}: object(expression: ${JSON.stringify(file)}) { ... on Blob { text } }`
++  })
++  const query = `query { repository(owner: ${JSON.stringify(owner)}, name: ${JSON.stringify(name)}) { ${fields.join(' ')} } }`
++  const result = await requestMetadata(query, fetchImpl, token, sleep)
++  const repository = result.data?.repository
++  if (result.errors?.length || !isObject(repository) || paths.some((_, i) => !Object.hasOwn(repository, `p${i}`))) {
++    throw new Error('GitHub archive patch metadata is incomplete; previous index retained')
++  }
++  return paths.every((_, i) => validateBundlePatch(repository[`p${i}`]?.text).valid)
++}
++
+ async function fetchBatch(batch, fetchImpl, token, sleep) {
+   const fields = batch.map((item, index) => {
+     const [owner, name] = item.fullName.split('/')
+@@ -168,7 +196,7 @@ async function fetchBatch(batch, fetchImpl, token, sleep) {
+     else throw new Error('GitHub index metadata request returned GraphQL errors; previous index retained')
+   }
+   if (!isObject(payload.data)) throw new Error('GitHub index metadata response is incomplete')
+-  return batch.map((item, index) => {
++  return Promise.all(batch.map(async (item, index) => {
+     const alias = `r${index}`
+     const data = payload.data[alias]
+     if (absent.has(alias)) return { reason: 'repository_missing' }
+@@ -185,6 +213,7 @@ async function fetchBatch(batch, fetchImpl, token, sleep) {
+     const check = validateBundleManifest(manifest)
+     if (!check.valid || check.profile !== 'web') return { reason: 'bundle_invalid' }
+     if (manifest.name !== item.plugin.packageName) return { reason: 'package_name_mismatch' }
++    if (item.checkArchivePatches && !await verifyArchivePatches(item, check.patch, fetchImpl, token, sleep)) return { reason: 'bundle_invalid' }
+     const range = dshRange(manifest)
+     if (range instanceof Error) return { reason: 'engines_invalid' }
+     const source = { type: 'git', url: item.url, commit: item.commit, ...(item.directory ? { path: item.directory } : {}) }
+@@ -196,7 +225,7 @@ async function fetchBatch(batch, fetchImpl, token, sleep) {
+     try {
+       return { entry: parseMarketIndex({ format: 1, title: 'check', plugins: [entry] }, INDEX_URL).plugins[0] }
+     } catch { return { reason: 'index_metadata_invalid' } }
+-  })
++  }))
+ }
+ 
+ /** Export only the snapshot's verified Web Git targets; no package code is installed or executed. */
+diff --git a/scripts/sync-plugins.mjs b/scripts/sync-plugins.mjs
+index 28055a9..94e0a36 100644
+--- a/scripts/sync-plugins.mjs
++++ b/scripts/sync-plugins.mjs
+@@ -469,6 +469,7 @@ async function main() {
+   const manifestCache = new Map()
+   for (const plugin of previous?.plugins || []) {
+     const cached = {
++      directory: bundleDirectoryFromUrl(plugin.url),
+       pushedAt: plugin.pushedAt,
+       shapeValid: plugin.verification?.manifest === 'shape_validated',
+       patchStatus: plugin.verification?.patch,
+@@ -513,7 +514,8 @@ async function main() {
+     // Root manifests also discover dsh.bundles, which the verification cache does not store.
+     // Re-read them so an unchecked child bundle can recover without a repository push.
+     if (!target.directory) return true
+-    const cached = manifestCache.get(target.id?.toLowerCase()) || manifestCache.get(targetKey(target.full_name, target.directory))
++    const cached = manifestCache.get(targetKey(target.full_name, target.directory))
++    if (cached?.directory !== target.directory) return true
+     const pushedAt = pushedAtFor(target.full_name)
+     return cached?.pushedAt !== pushedAt || !cached?.shapeValid || cached.patchStatus !== 'exists'
+   })
+@@ -555,7 +557,9 @@ async function main() {
+ 
+   function targetVerification(fullName, directory = '', id = '') {
+     const key = targetKey(fullName, directory)
+-    const cached = manifestCache.get(String(id).toLowerCase()) || manifestCache.get(key)
++    const keyed = manifestCache.get(key)
++    const identified = manifestCache.get(String(id).toLowerCase())
++    const cached = keyed?.directory === directory ? keyed : (identified?.directory === directory ? identified : undefined)
+     const pushedAt = pushedAtFor(fullName)
+     const fetched = fetchedKeys.has(key)
+     const check = fetched ? validateBundleManifest(manifests.get(key)) : null
+diff --git a/sources/curated.json b/sources/curated.json
+index c2ad6be..e75ec7d 100644
+--- a/sources/curated.json
++++ b/sources/curated.json
+@@ -16695,7 +16695,7 @@
+     {
+       "id": "KaneGong/muse-frame",
+       "name": "muse-frame",
+-      "url": "https://github.com/KaneGong/muse-frame",
++      "url": "https://github.com/KaneGong/muse-frame/tree/7a19047e8c968ada024ff8c8ddc1bbf85ad1ea88/plugins/muse-frame",
+       "description": {
+         "zh": "为摄影师规划 1–12 张人像系列：注册可由模型调用的 shot-planner 技能，输出有序镜头清单和 muse-frame.plan/v1 JSON，用户审阅后导入 Muse Frame 桌面工作室。插件只读取自带的技能文件，不联网、不需要凭据、不提交生图任务。AGPL-3.0，固定审核提交 7a19047。",
+         "en": "Plans a 1–12 shot portrait series for photographers: registers the model-invocable shot-planner skill, which returns an ordered shot list and a muse-frame.plan/v1 JSON plan for the user to review and import into the Muse Frame desktop studio. The plugin only reads its bundled skill file: no network calls, credentials or image jobs. AGPL-3.0, pinned to reviewed commit 7a19047."
+diff --git a/tests/plugin-market-index.test.mjs b/tests/plugin-market-index.test.mjs
+index 8ec7f85..93e2f60 100644
+--- a/tests/plugin-market-index.test.mjs
++++ b/tests/plugin-market-index.test.mjs
+@@ -252,3 +252,38 @@ test('failed refresh leaves the old artifact byte-for-byte intact; successful re
+     assert.equal(parseMarketIndex(saved, 'https://example.org/index.json').plugins[0].versions[0].source.commit, SHA)
+   } finally { await rm(root, { recursive: true, force: true }) }
+ })
++
++test('a curated archive can export its public subpackage at the reviewed SHA', async () => {
++  const url = 'https://github.com/owner/bundle'
++  const archive = plugin({
++    source: 'curated',
++    url: `${url}/tree/${SHA}/plugins/planner`,
++    verifiedCommit: 'a'.repeat(40),
++    install: `dsh plugin --profile web add ${url}/archive/${SHA}.tar.gz`,
++  })
++  const queries = []
++  const fetchAtPin = (text = '[]') => async (url, options) => {
++    const { query } = JSON.parse(options.body)
++    queries.push(query)
++    if (query.includes('p0: object')) return { ok: true, json: async () => ({ data: { repository: { p0: text === null ? null : { text } } } }) }
++    return github(metadata())(url, options)
++  }
++  const generated = await generate([archive], undefined, { fetchImpl: fetchAtPin() })
++  const record = generated.index.plugins[0]
++  assert.equal(marketInstallTarget(record.name, record.versions[0]).spec, `git+https://github.com/owner/bundle.git#${SHA}&path:/plugins/planner`)
++  assert(queries.some(query => query.includes(`${SHA}:plugins/planner/package.json`)))
++  assert(queries.some(query => query.includes(`${SHA}:plugins/planner/cordis.patch.yml`)))
++  for (const patch of ['{}', null]) {
++    const rejected = await generate([archive], undefined, { fetchImpl: fetchAtPin(patch) })
++    assert.equal(rejected.stats.skipped.bundle_invalid, 1)
++  }
++  assert.equal((await generate([archive], manifest({ private: true }))).stats.skipped.package_private, 1)
++  for (const changed of [
++    { source: 'discovered' }, { url: `${url}/tree/main/plugins/planner` },
++    { install: archive.install.replace('/owner/', '/another-owner/') },
++    { install: archive.install.replace(SHA, 'f'.repeat(40)) },
++  ]) {
++    const rejected = await generate([{ ...archive, ...changed }])
++    assert.equal(rejected.stats.skipped.not_github, 1)
++  }
++})
+-- 
+2.54.0 (Apple Git-157)
+
