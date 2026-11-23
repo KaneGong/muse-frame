@@ -24,6 +24,8 @@ The maintainer reports the costume and pose creator has authorized multi-selecti
 
 ## Public documentation media
 
+- `docs/media/studio-06/home.jpg` shows the Studio home with the built-in demonstration shoot and bundled photography examples. See the [WebUI asset record](design/muse-frame-04/ASSETS.md) for the sample images.
+
 - docs/media/examples/: four previously generated AI works selected from a collection explicitly supplied by the maintainer for public GitHub display. Documentation copies are resized, metadata-free WebP previews; the supplied originals are not modified.
 - docs/media/portfolio-banner.webp: AI-assisted promotional layout generated from those four works and the approved project mark. It is a designed cover, not an application screenshot or an unmodified photograph.
 - docs/media/screenshots/: actual 0.4.0-beta.2 Mac App captures, using an isolated demonstration project populated with the authorized works. No account authorization or private user project is included. The disconnected state is intentional; no new generation run is claimed. App interface artwork follows the project notices; embedded works retain their separate status.

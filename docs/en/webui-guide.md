@@ -1,5 +1,7 @@
 # Muse Frame WebUI guide
 
+For the current studio, see [Getting started with 0.6.1](quick-start.md). The illustrated walkthrough below is archived.
+
 For 0.5.0-beta.5. Walk through one outfit photo for social media, from selecting four references to downloading the original.
 
 [Download for Mac or Windows](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [Install, migrate and roll back](quick-start.md) · [简体中文](../zh-CN/webui-guide.md)

@@ -35,6 +35,6 @@ With Go available, run:
 .venv/bin/python scripts/build_webui_candidate.py windows --output outputs/webui --work work/webui-build
 ```
 
-The builder supports cross-compilation. It verifies the pinned CPython and Pillow distributions and builds an unsigned installer and launcher. Validate the installer on Windows x64. See [compatibility](compatibility.md) for prerelease validation status.
+The builder supports cross-compilation. It verifies the pinned CPython and Pillow distributions and builds an unsigned installer and launcher. Validate the installer on Windows x64. See [compatibility](compatibility.md) for release validation status.
 
 The corresponding source archive and checksums accompany the binaries as separate release files. Keep user data and build output outside the source archive.

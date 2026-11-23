@@ -35,6 +35,6 @@ node --test design/muse-frame-04/tests/*.test.mjs
 .venv/bin/python scripts/build_webui_candidate.py windows --output outputs/webui --work work/webui-build
 ```
 
-构建支持跨平台编译，会校验锁定的 CPython 和 Pillow 发行包，并生成未签名的安装程序和启动器。安装程序需要在 Windows x64 验证，预发布版验证状态见[兼容性](compatibility.md)。
+构建支持跨平台编译，会校验锁定的 CPython 和 Pillow 发行包，并生成未签名的安装程序和启动器。安装程序需要在 Windows x64 验证，发行包验证状态见[兼容性](compatibility.md)。
 
 对应源码归档和校验文件与安装包分别提供。用户资料和构建产物应排除在源码归档之外。

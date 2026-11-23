@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.1 · 2026-11-23
+
+- Start a product batch after adding its first style and color. Delivery review separates ready files and outstanding shots and identifies partial deliveries.
+- Choose local adjustments or AI editing after importing a photo. Local edits create a version you can compare with the original.
+- Import a shot plan from JSON or one Markdown JSON block. The English home screen now handles singular image and shot counts.
+- The desktop release includes the DSH 0.6.0 planner. The two components have separate version numbers. [Agent installation](docs/agent-plugins.md) · [Mac and Windows downloads](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.1)
+
 ## 0.6.0 · 2026-11-23
 
 Stable photography home, Studio workflows, independent agent shot-plan import, and updated Mac and Windows launchers.

@@ -2,11 +2,18 @@
 
 ## Install the local WebUI
 
-1. On an **Apple Silicon Mac**, open the DMG, drag `Muse Frame.app` into Applications and double-click it. The app is ad-hoc signed and lacks Apple notarization. The DMG's `BUILD-INFO.txt` lists the minimum macOS target. [Apple's guidance for opening an app](https://support.apple.com/en-us/102445).
-2. On **Windows x64**, open the Setup executable and confirm installation for your Windows user. It launches Muse Frame after setup and adds a Start menu entry. The installer and launcher are unsigned. [Windows x64 automated checks](https://github.com/KaneGong/muse-frame/actions/runs/43157854909/job/130981864740) passed.
-3. Muse Frame opens in your default browser. Closing the tab leaves the local service running. Double-click the launcher to reopen it. To stop the service, finish active jobs and use **Your shoots → Workspace migration and backup → Quit Muse Frame**.
+1. On an **Apple Silicon Mac**, open the DMG, drag `Muse Frame.app` into Applications and double-click it. The app is ad-hoc signed and lacks Apple notarization. Requires macOS 12 or later. [Apple's guidance for opening an app](https://support.apple.com/en-us/102445).
+2. On **Windows x64**, open the Setup executable and confirm installation for your Windows user. It launches Muse Frame after setup and adds a Start menu entry. The installer and launcher are unsigned. [Windows x64 automated checks](https://github.com/KaneGong/muse-frame/actions/runs/45103467249) passed.
+3. Muse Frame opens in your default browser. Closing the tab leaves the local service running. Double-click the launcher to reopen it. To stop the service, finish active jobs and use **Home → Workspace migration and backup → Quit Muse Frame**.
 
-Choose the interface language in the upper right. To generate, connect your own Lovart or LibTV account, create a shoot and choose your references. Start with one shot. In the generation review, check the model, parameters, reference images and order, and prompt. Submitting sends that material to your provider and uses your provider credits. [Walk through your first shoot](webui-guide.md).
+Choose the interface language in the upper right. To generate, connect your own Lovart, LibTV or Ark account, create a shoot and choose your references. Start with one shot. In the generation review, check the model, parameters, reference images and order, and prompt. Submitting sends that material to your provider and uses your provider credits.
+
+## Start from Home
+
+- **Shoot a portrait series.** Choose a shooting plan, review the person and outfit references, then select a shot and check it before generation.
+- **Create product photos.** Add the first product variant and its reference photos, create a batch, then review the accepted files and outstanding shots before saving a delivery.
+- **Retouch a photo.** Select an image, then choose local adjustments or AI editing. Saving a local edit adds a version. Use Compare existing versions to inspect it next to the original.
+- **Import agent shot plan.** Paste the complete JSON or open the plan file. Preview and create a separate shoot, then add reference photos. [Planner installation and example](../agent-plugins.md)
 
 ## Source browser UI
 
@@ -30,9 +37,9 @@ Open the loopback URL printed in the terminal, usually `http://127.0.0.1:9014/`.
 
 ## Update, migrate and roll back
 
-**Updating a 0.5.0 WebUI build.** Finish active jobs, save your work and quit the running service before opening the new app. When a different version still holds the workspace open, the new launcher shows both version numbers and links to the running copy. Open that copy's workspace page, quit there once the jobs finish, then launch the version you want.
+**Updating a WebUI build.** Finish active jobs, save your work and quit the running service before opening the new app. When a different version still holds the workspace open, the new launcher shows both version numbers and links to the running copy. Open that copy's workspace page, quit there once the jobs finish, then launch the version you want.
 
-**Bringing over an older workspace.** Quit the old application and leave its files in place. In **Your shoots → Workspace migration and backup**, choose a detected old workspace or the folder containing its database and images. Choose **Inspect workspace** and review the counts for shoots, assets, results and job history. Resolve missing local files before you choose **Migrate workspace**. Migration creates a separate workspace from supported data, including the saved prompts and locally available images. Historical jobs brought in by migration are not resubmitted automatically.
+**Bringing over an older workspace.** Quit the old application and leave its files in place. In **Home → Workspace migration and backup**, choose a detected old workspace or the folder containing its database and images. Choose **Inspect workspace** and review the counts for shoots, assets, results and job history. Resolve missing local files before you choose **Migrate workspace**. Migration creates a separate workspace from supported data, including the saved prompts and locally available images. Historical jobs brought in by migration are not resubmitted automatically.
 
 **Back up or switch workspaces.** Use **Back up to a folder** to save a separate copy of the active workspace. After a migration, **Switch back to the previous workspace** reopens the preceding copy and keeps the workspace you just left. The old app can still open its original data. Keep both versions' data and avoid opening a new workspace in the old app.
 

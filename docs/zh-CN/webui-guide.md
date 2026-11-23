@@ -1,5 +1,7 @@
 # 映象所 WebUI 使用教程
 
+使用现行工作台请看 [0.6.1 快速开始](quick-start.md)。下文是旧版截图教程。
+
 适用于 0.5.0-beta.5。用一次社媒穿搭拍摄练习，从四张参考图开始，生成一张，最后选片、下载原图。
 
 [下载 Mac 或 Windows 版](https://github.com/KaneGong/muse-frame/releases/tag/v0.5.0-beta.5) · [安装、迁移和回退](quick-start.md) · [English](../en/webui-guide.md)
