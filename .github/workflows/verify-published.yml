@@ -1,0 +1,24 @@
+name: Verify published 0.6.1 downloads
+on: [push]
+permissions:
+  contents: read
+jobs:
+  published-windows:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.14'
+      - name: Download the release installer and verify its expected fingerprint
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $file = 'Muse-Frame-0.6.1-Windows-x64-Setup.exe'
+          gh release download v0.6.1 --pattern "$file" --dir "$env:RUNNER_TEMP"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $setup = Join-Path "$env:RUNNER_TEMP" $file
+          if ((Get-FileHash $setup).Hash -ne '46c1878b81a5415daa698bae767edcbaa9cf08e1d2472c40061c802f9dda3616') { throw 'Unexpected release file' }
+          python scripts/verify_windows_webui.py "$setup"
