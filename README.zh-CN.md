@@ -14,7 +14,7 @@
 | --- | --- |
 | Apple 芯片 Mac DMG | 打开 DMG，把 Muse Frame 拖进「应用程序」。采用临时签名，尚未公证。支持 macOS 12 及以上。 |
 | Windows x64 Setup.exe | 双击安装，之后从开始菜单启动。安装器未签名。 |
-| Agent 插件 | 通过发行页的 TGZ 或项目索引安装 DSH 拍摄计划插件。[安装与导入示例](docs/agent-plugins.md) |
+| Agent 插件 | DSH 社区目录已将 Muse Frame 收入精选。可安装审核固定的归档或独立 TGZ。[安装与导入示例](docs/agent-plugins.md) |
 
 两端都已内置运行环境。系统的下载安全策略可能限制打开。素材和依赖分别保留原有许可。[发布说明](RELEASE_NOTES.md)。
 

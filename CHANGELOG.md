@@ -6,6 +6,7 @@
 - Choose local adjustments or AI editing after importing a photo. Local edits create a version you can compare with the original.
 - Import a shot plan from JSON or one Markdown JSON block. The English home screen now handles singular image and shot counts.
 - The desktop release includes the DSH 0.6.0 planner. The two components have separate version numbers. [Agent installation](docs/agent-plugins.md) · [Mac and Windows downloads](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.1)
+- The DSH community registry accepted the pinned GitHub package as a curated entry. The DSH desktop skill generated a three-shot plan that imported into Studio 0.6.1. [Registry review](https://github.com/majiayu000/dsh-plugin-registry/issues/138#issuecomment-7090968404)
 
 ## 0.6.0 · 2026-11-23
 

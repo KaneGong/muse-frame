@@ -6,6 +6,7 @@
 - 上传照片后可选本机基础修图或 AI 局部修图，本机调整另存为新版本，可与原图并排比较。
 - Agent 计划支持纯 JSON 或完整的 Markdown JSON 代码块，英文首页能正确显示镜头和作品的单复数。
 - 桌面 0.6.1 随附 DSH 拍摄计划插件 0.6.0。两个组件分别编号。[插件安装](docs/agent-plugins.md) · [Mac 与 Windows 下载](https://github.com/KaneGong/muse-frame/releases/tag/v0.6.1)
+- DSH 社区目录已将固定版本收入精选。实测 DSH 桌面端调用技能生成三镜头计划，并导入 Studio 0.6.1。[审核回执](https://github.com/majiayu000/dsh-plugin-registry/issues/138#issuecomment-7090968404)
 
 ## 0.6.0 · 2026-11-23
 

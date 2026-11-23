@@ -14,7 +14,7 @@ Start a portrait series, a product batch, or a retouch from Home. Resume previou
 | --- | --- |
 | Apple Silicon Mac DMG | Drag Muse Frame into Applications. The Mac app is ad-hoc signed and unnotarized. Requires macOS 12 or later. |
 | Windows x64 Setup.exe | Double-click the installer and launch from Start. The installer is unsigned. |
-| Agent plugin | Install the DSH planner from the release TGZ or the project index. See the [agent guide](docs/agent-plugins.md). |
+| Agent plugin | The DSH community registry accepted the Muse Frame planner. Install the reviewed archive or the standalone release TGZ. See the [agent guide](docs/agent-plugins.md). |
 
 Both desktop packages include their runtime. OS security policies can restrict new downloads. Review image and dependency notices before redistributing. [Release notes](RELEASE_NOTES.md).
 

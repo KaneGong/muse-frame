@@ -13,13 +13,21 @@ codex plugin add muse-frame@muse-frame-studio
 
 ## DeepSeek Harness
 
-仓库根包 `muse-frame` 和独立发行包 `muse-frame-shot-planner` 提供同一个技能，任选一种安装。桌面 0.6.1 随附的独立 DSH 插件版本为 0.6.0。从[发行页下载插件压缩包](https://github.com/KaneGong/muse-frame/releases/download/v0.6.1/muse-frame-shot-planner-0.6.0.tgz)，在文件所在目录运行下列命令。以 web 为例，使用其他 profile 时替换其名称。重新打开该 profile，在具备技能加载能力的 Agent 中请求 Muse Frame 镜头计划。
+DSH 社区目录已将 Muse Frame 收入精选，审核固定在 `7a19047`。[维护者确认](https://github.com/majiayu000/dsh-plugin-registry/issues/138#issuecomment-7090968404) · [社区插件市场](https://plugin.dshdesk.com/)
 
-```sh
-dsh plugin --profile web add ./muse-frame-shot-planner-0.6.0.tgz
+在 DeepSeek Harness 桌面端，打开「插件」，从「添加插件」下拉菜单选择「安装第三方插件」。把下面的地址粘贴到「包名或地址」，点击「安装」，完成后选「立即启用」。
+
+```text
+https://github.com/KaneGong/muse-frame/archive/7a19047e8c968ada024ff8c8ddc1bbf85ad1ea88.tar.gz
 ```
 
-若想在客户端内搜索，可在「插件」启用「自定义插件索引」，打开「发现」→「添加索引源」，添加 [Muse Frame 索引](https://raw.githubusercontent.com/KaneGong/muse-frame/main/plugins/dsh-index.json)，再搜索 Muse Frame 并核对安装来源。该索引由项目维护。社区注册表的收录进度见[审核工单 #138](https://github.com/majiayu000/dsh-plugin-registry/issues/138)。
+使用 DSH Web 的用户可在命令行安装同一份归档，然后重新打开该 profile：
+
+```sh
+dsh plugin --profile web add https://github.com/KaneGong/muse-frame/archive/7a19047e8c968ada024ff8c8ddc1bbf85ad1ea88.tar.gz
+```
+
+在新对话里请 DSH 用 Muse Frame 做拍摄计划。桌面发行页另附独立插件 `muse-frame-shot-planner-0.6.0.tgz`，与社区根包 `muse-frame` 0.6.1 提供同一技能，任选一种安装即可。也可在「插件 → 发现」添加 [Muse Frame 项目索引](https://raw.githubusercontent.com/KaneGong/muse-frame/main/plugins/dsh-index.json)，搜索 Muse Frame。[独立插件下载](https://github.com/KaneGong/muse-frame/releases/download/v0.6.1/muse-frame-shot-planner-0.6.0.tgz)
 
 ## 示例
 
@@ -27,4 +35,6 @@ dsh plugin --profile web add ./muse-frame-shot-planner-0.6.0.tgz
 
 ## English
 
-Use the Muse Frame plugin to draft a portrait series. Download the JSON or copy the JSON block. In Muse Frame 0.6+, choose **Import agent shot plan → Review plan → Create separate shoot**. Add your reference images locally and review provider costs before submitting. The Codex repo marketplace and DSH profile commands above install the skills-only planner. ChatGPT public directory distribution requires OpenAI review. Choose one installation source. The GitHub root package (`muse-frame`) and the standalone archive (`muse-frame-shot-planner` 0.6.0) load the same skill. In DSH, enable Custom plugin indexes, open Discover, add the [project index](https://raw.githubusercontent.com/KaneGong/muse-frame/main/plugins/dsh-index.json), then search for Muse Frame. [Community registry submission](https://github.com/majiayu000/dsh-plugin-registry/issues/138).
+Use the Muse Frame plugin to draft a portrait series. Download the JSON or copy the JSON block. In Muse Frame 0.6+, choose **Import agent shot plan → Review plan → Create separate shoot**. Add your reference images locally and review provider costs before submitting. The [DSH community registry](https://plugin.dshdesk.com/) accepted the planner as a curated entry at commit `7a19047`. In DSH Desktop, choose **Plugins → Add plugin → Install third-party plugin**, paste the archive URL above, install it, then choose **Enable now**. In DSH Web, use the command above. The standalone release archive and the curated root package load the same skill. [Reviewer confirmation](https://github.com/majiayu000/dsh-plugin-registry/issues/138#issuecomment-7090968404).
+
+Codex users can install the repo marketplace with the commands above. ChatGPT public directory submission is on hold.

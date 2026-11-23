@@ -10,3 +10,9 @@
 ## English
 
 This update improves product setup, retouching choices and delivery review. Start from a product variant, choose local or AI editing for an uploaded photo, and see exactly which files are ready for partial delivery. Pasted shot plans can include Markdown code fences. The Apple Silicon DMG is ad-hoc signed and not notarized. The Windows x64 installer is unsigned.
+
+## DSH 社区目录 · Community registry
+
+11 月 23 日，DSH 社区目录将 Muse Frame 收入精选，安装版本固定为 `7a19047`。实测 DSH 桌面端生成了一份三镜头计划，并成功导入 Muse Frame 0.6.1。[安装说明](https://github.com/KaneGong/muse-frame/blob/main/docs/agent-plugins.md) · [审核回执](https://github.com/majiayu000/dsh-plugin-registry/issues/138#issuecomment-7090968404)
+
+The DSH community registry accepted Muse Frame as a curated plugin at the reviewed commit. DSH Desktop generated a three-shot plan that imported into Muse Frame 0.6.1. [Installation guide](https://github.com/KaneGong/muse-frame/blob/main/docs/agent-plugins.md).
