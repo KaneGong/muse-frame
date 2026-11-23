@@ -1,0 +1,39 @@
+name: Verify published 0.6.0 downloads
+on: [push]
+permissions:
+  contents: read
+jobs:
+  published-windows:
+    runs-on: windows-2025
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.14'
+      - name: Download the release installer and verify its expected fingerprint
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $file = 'Muse-Frame-0.6.0-Windows-x64-Setup.exe'
+          gh release download v0.6.0 --pattern "$file" --dir "$env:RUNNER_TEMP"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $setup = Join-Path "$env:RUNNER_TEMP" $file
+          if ((Get-FileHash $setup).Hash -ne '003d79c8f4327208902e3c0c4fff39533b0247db2ac222a6f96495d3952c0b2c') { throw 'Unexpected release file' }
+          python scripts/verify_windows_webui.py "$setup"
+  published-plugin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '22'
+      - name: Install the tagged planner from GitHub into a clean CLI
+        run: |
+          npm install --prefix "$RUNNER_TEMP/muse-check" @openai/codex@0.163.0
+          cli="$RUNNER_TEMP/muse-check/node_modules/.bin/codex"
+          "$cli" plugin marketplace add KaneGong/muse-frame --ref v0.6.0
+          "$cli" plugin add muse-frame@muse-frame-studio --json
+          "$cli" plugin list --marketplace muse-frame-studio --json > "$RUNNER_TEMP/installed.json"
+          jq -e '.installed | any(.name == "muse-frame" and .installed == true)' "$RUNNER_TEMP/installed.json"
